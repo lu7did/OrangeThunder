@@ -1,88 +1,34 @@
-Raspberry Pi bareback LF/MF/HF/VHF WSPR transmitter
+Raspberry Pi OrangeThunder Project
+Collection of integration tools to implement a Raspberry Pi based Ham Transceiver
+Modes:
+     WSPR
+     FT8
+     PSK31
+     CW
+     RTTY
+     SSB (generic)
 
-Makes a very simple WSPR beacon from your RasberryPi by connecting GPIO
-port to Antenna (and LPF), operates on LF, MF, HF and VHF bands from
-0 to 250 MHz.
+Integration with fdigi, wsjtx
 
-Compatible with the original Raspberry Pi, the Raspberry Pi 2/3, and
-the Pi Zero.
 
-!!!!!!
-2017-04-21
-Do note that some users have been reporting lockups with recent OS versions.
-I have not been able to reproduce the problems on my RPI1 and RPI3 running
-the latest Jessie-Lite.
-https://github.com/JamesP6000/WsprryPi/issues/6#issuecomment-296233932
-!!!!!!
+                     *********************************************************
+                     *  Unfinished - incompletely published code - WIP       *
+                     *  No support, issues or requests can be honored until  *
+                     *  the project stabilizes. Check for updates here       *
+                     *********************************************************
+
+Most scripts arguments can be obtained using either -h o --h as argument, or just execute without them
+
 
 ******
 Installation / update:
 ******
   Download and compile code:
     sudo apt-get install git
-    git clone https://github.com/JamesP6000/WsprryPi.git
-    cd WsprryPi
+    git clone https://github.com/lu7did/OrangeThunder
+    cd OrangeThunder
     make
 
-  Install to /usr/local/bin:
-    sudo make install
-
-  Uninstall:
-    sudo make uninstall
-
-******
-Usage: (WSPR --help output):
-******
-
-  If running from the console, recent versions of Jessie cause WsprryPi to
-  crash when the console screen blanks. The symptom is that WsppryPi works
-  for several transmissions and then crashes. The fix is to add "consoleblank=0"
-  to /boot/cmdline.txt.
-  https://github.com/JamesP6000/WsprryPi/issues/10
-
-  Usage:
-    wspr [options] callsign locator tx_pwr_dBm f1 <f2> <f3> ...
-      OR
-    wspr [options] --test-tone f
-
-  Options:
-    -h --help
-      Print out this help screen.
-    -p --ppm ppm
-      Known PPM correction to 19.2MHz RPi nominal crystal frequency.
-    -s --self-calibration
-      Check NTP before every transmission to obtain the PPM error of the
-      crystal (default setting!).
-    -f --free-running
-      Do not use NTP to correct frequency error of RPi crystal.
-    -r --repeat
-      Repeatedly, and in order, transmit on all the specified command line
-      freqs.
-    -x --terminate <n>
-      Terminate after n transmissions have been completed.
-    -o --offset
-      Add a random frequency offset to each transmission:
-        +/- 80 Hz for WSPR
-        +/- 8 Hz for WSPR-15
-    -t --test-tone freq
-      Simply output a test tone at the specified frequency. Only used
-      for debugging and to verify calibration.
-    -n --no-delay
-      Transmit immediately, do not wait for a WSPR TX window. Used
-      for testing only.
-
-  Frequencies can be specified either as an absolute TX carrier frequency, or
-  using one of the following strings. If a string is used, the transmission
-  will happen in the middle of the WSPR region of the selected band.
-    LF LF-15 MF MF-15 160m 160m-15 80m 60m 40m 30m 20m 17m 15m 12m 10m 6m 4m 2m
-  <B>-15 indicates the WSPR-15 region of band <B>.
-
-  Transmission gaps can be created by specifying a TX frequency of 0
-
-  Note that 'callsign', 'locator', and 'tx_power_dBm' are simply used to fill
-  in the appropriate fields of the WSPR message. Normally, tx_power_dBm should
-  be 10, representing the signal power coming out of the Pi. Set this value
-  appropriately if you are using an external amplifier.
 
 ******
 Radio licensing / RF:
@@ -185,31 +131,6 @@ PWM Peripheral:
   interfere with WSPR transmissions. Sound can be permanently disabled
   by editing /etc/modules and commenting out the snd-bcm2835 device.
 
-******
-Example usage:
-******
-  Brief help screen
-    ./wspr --help
-
-  Transmit a constant test tone at 780 kHz.
-    sudo ./wspr --test-tone 780e3
-
-  Using callsign N9NNN, locator EM10, and TX power 33 dBm, transmit a single
-  WSPR transmission on the 20m band using NTP based frequency offset
-  calibration.
-    sudo ./wspr N9NNN EM10 33 20m
-
-  The same as above, but without NTP calibration:
-    sudo ./wspr --free-running N9NNN EM10 33 20m
-
-  Transmit a WSPR transmission slightly off-center on 30m every 10 minutes for
-  a total of 7 transmissions, and using a fixed PPM correction value.
-    sudo ./wspr --repeat --terminate 7 --ppm 43.17 N9NNN EM10 33 10140210 0 0 0 0
-
-  Transmit repeatedly on 40m, use NTP based frequency offset calibration,
-  and add a random frequency offset to each transmission to minimize collisions
-  with other transmitters.
-    sudo ./wspr --repeat --offset --self-calibration N9NNN EM10 33 40m
 
 ******
 Reference documentation:
