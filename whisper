@@ -1,5 +1,25 @@
 #!/bin/sh
 
+#// whisper WSPR beacon for the Raspberry Pi. See accompanying README
+#// file for a description on how to use this code.
+#// based on the package WsprryPi (https://github.com/JamesP6000/WsprryPi)
+
+#// License:
+#//   This program is free software: you can redistribute it and/or modify
+#//   it under the terms of the GNU General Public License as published by
+#//   the Free Software Foundation, either version 2 of the License, or
+#//   (at your option) any later version.
+#//
+#//   This program is distributed in the hope that it will be useful,
+#//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#//   GNU General Public License for more details.
+#//
+#//   You should have received a copy of the GNU General Public License
+#//   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#// lu7did: initial load
+
 ### BEGIN INIT INFO
 # Provides:        whisper
 # Required-Start:  $network $remote_fs $syslog
@@ -9,10 +29,16 @@
 # Short-Description: Start wspr daemon (WsprryPi)
 ### END INIT INFO
 
+#*----------------------------------------------------------------------------
+#* Initialization
+#* DO NOT RUN EITHER AS A rc.local script nor as a systemd controlled service
+#*----------------------------------------------------------------------------
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
-
 . /lib/lsb/init-functions
 
+#*----------------------------------------------------------------------------
+#* Beacon specific data configuration 
+#*----------------------------------------------------------------------------
 DPATH="/home/pi/WsprryPi/"
 DAEMON="wspr"
 OPTS=" -r -o -s "
@@ -27,18 +53,23 @@ LOCK="whisper.lck"
 HEIGHT=40
 CHANNEL=0
 
+#*---- Find number of instances running
+
 cd $DPATH
-
-
 N=`ps -ef | pgrep "wspr" | wc -l`
- #echo "Whisper: "`date`" Running instances found " $V 2>$DPATH$ERR | tee -a $DPATH$LOG 
 
+#*---- React to argument (see whisper for command options)
 case $1 in
+
+#*---- Start the beacon. Control if instances are running and avoid reentrancy
+
 	start)
                if [ -f $DPATH$LOCK ]; then
                   echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
                fi
+
+#*---- Collect telemetry
 
                TEMP=`sudo python picheck.py -t`
                VOLT=`sudo python picheck.py -v`
@@ -48,18 +79,20 @@ case $1 in
                TLMG=`$CMD`
                echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
 
-               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_temp` 2>$DPATH$ERR | tee -a $DPATH$LOG
-               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_volts core` 2>$DPATH$ERR | tee -a $DPATH$LOG
-               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  get_throttled` 2>$DPATH$ERR | tee -a $DPATH$LOG
+#*---- If already running log telemetry and leave
 
                if [ $N \> 0 ]; then
                   echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
                else
+#*---- Start daemon in the background
+
                   echo "Whisper: "`date`" Starting daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   sudo $DPATH$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG & 
                fi  
 		;;
+#*---- Stop the beacon if an instance is found running
+
 	stop)
                if [ $N \> 0 ]; then
           
@@ -74,11 +107,14 @@ case $1 in
 		  exit 0
 		fi
   		;;
+#*---- Restart or  force-reload by stop and start
 	restart|force-reload)
                 echo "Whisper: "`date`" Forcing reload" 2> /dev/null | tee -a $DPATH$LOG
                 sudo $0 stop  2> $DPATH$ERR | tee -a $DPATH$LOG
                 sudo $0 start 2> $DPATH$ERR | tee -a $DPATH$LOG
   		;;
+#*---- Another alias to restart
+
 	try-restart)
                 echo "Whisper: "`date`" Trying to restart" 2>$DPATH$ERR | tee -a $DPATH$LOG
 		if sudo $0 status >/dev/null; then
@@ -87,11 +123,15 @@ case $1 in
 		   exit 0
 		fi
 		;;
+#*---- Yet another alias to restart
+
 	reload)
                 echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
 		sudo $0 restart
                 exit 3
 		;;
+#*---- Stop the beacon and create a special lock file which will prevent further launches until reset
+
         lock)
                 echo "Whisper: "`date`" Script locked" 2> $DPATH$ERR | tee -a $DPATH$LOG
                 sudo touch $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
@@ -100,22 +140,25 @@ case $1 in
                 exit 4
                 ;;
 
+#*---- Erase the lock file and launch
+
         reset)
                 echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
                 sudo rm -r $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
                 sudo $0 start
                 exit 3
                 ;;
+#*---- Just computes and log the status
+
 	status)
-               TEMP=`sudo python picheck.py -t`
-               VOLT=`sudo python picheck.py -v`
-               OPST=`sudo python picheck.py -s`
+                TEMP=`sudo python picheck.py -t`
+                VOLT=`sudo python picheck.py -v`
+                OPST=`sudo python picheck.py -s`
 
-               echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
-               CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
-               TLMG=`$CMD`
-               echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
-
+                echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
+                CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
+                TLMG=`$CMD`
+                echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
 
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
            	S=`ps -ef | pgrep wspr | wc -l`
