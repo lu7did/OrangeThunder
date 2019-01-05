@@ -17,12 +17,15 @@ DPATH="/home/pi/WsprryPi/"
 DAEMON="wspr"
 OPTS=" -r -o -s "
 CALLSIGN="LU7DID "
- GRID="GF05 "
+GRID="GF05"
+GRIX="TE"
 POWER="20 "
 BAND="20m 0 0 0 0  "
 LOG="whisper.log"
 ERR="whisper.err"
 LOCK="whisper.lck"
+HEIGHT=40
+CHANNEL=0
 
 cd $DPATH
 
@@ -37,9 +40,17 @@ case $1 in
                   exit 0
                fi
 
-               echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_temp` 2>$DPATH$ERR | tee -a $DPATH$LOG
-               echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_volts core` 2>$DPATH$ERR | tee -a $DPATH$LOG
-               echo "Whisper: "`date`" Telemetry: "`vcgencmd  get_throttled` 2>$DPATH$ERR | tee -a $DPATH$LOG
+               TEMP=`sudo python picheck.py -t`
+               VOLT=`sudo python picheck.py -v`
+               OPST=`sudo python picheck.py -s`
+               echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
+               CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
+               TLMG=`$CMD`
+               echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
+
+               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_temp` 2>$DPATH$ERR | tee -a $DPATH$LOG
+               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_volts core` 2>$DPATH$ERR | tee -a $DPATH$LOG
+               #echo "Whisper: "`date`" Telemetry: "`vcgencmd  get_throttled` 2>$DPATH$ERR | tee -a $DPATH$LOG
 
                if [ $N \> 0 ]; then
                   echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
@@ -96,6 +107,16 @@ case $1 in
                 exit 3
                 ;;
 	status)
+               TEMP=`sudo python picheck.py -t`
+               VOLT=`sudo python picheck.py -v`
+               OPST=`sudo python picheck.py -s`
+
+               echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
+               CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
+               TLMG=`$CMD`
+               echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
+
+
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
            	S=`ps -ef | pgrep wspr | wc -l`
 		if [ $S \> 0 ]; then
