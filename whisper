@@ -1,0 +1,117 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:        whisper
+# Required-Start:  $network $remote_fs $syslog
+# Required-Stop:   $network $remote_fs $syslog
+# Default-Start:   2 3 4 5
+# Default-Stop: 
+# Short-Description: Start wspr daemon (WsprryPi)
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+. /lib/lsb/init-functions
+
+DPATH="/home/pi/WsprryPi/"
+DAEMON="wspr"
+OPTS=" -r -o -s "
+CALLSIGN="LU7DID "
+ GRID="GF05 "
+POWER="20 "
+BAND="20m 0 0 0 0  "
+LOG="whisper.log"
+ERR="whisper.err"
+LOCK="whisper.lck"
+
+cd $DPATH
+
+
+N=`ps -ef | pgrep "wspr" | wc -l`
+ #echo "Whisper: "`date`" Running instances found " $V 2>$DPATH$ERR | tee -a $DPATH$LOG 
+
+case $1 in
+	start)
+               if [ -f $DPATH$LOCK ]; then
+                  echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
+                  exit 0
+               fi
+
+               echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_temp` 2>$DPATH$ERR | tee -a $DPATH$LOG
+               echo "Whisper: "`date`" Telemetry: "`vcgencmd  measure_volts core` 2>$DPATH$ERR | tee -a $DPATH$LOG
+               echo "Whisper: "`date`" Telemetry: "`vcgencmd  get_throttled` 2>$DPATH$ERR | tee -a $DPATH$LOG
+
+               if [ $N \> 0 ]; then
+                  echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  exit 0
+               else
+                  echo "Whisper: "`date`" Starting daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  sudo $DPATH$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG & 
+               fi  
+		;;
+	stop)
+               if [ $N \> 0 ]; then
+          
+                  echo "Whisper:" `date`" Stopping daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  S=`ps -ef | pgrep wspr`
+                  for i in $S; do
+                     echo "Whisper: "`date`" Killing PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
+                     sudo kill $i 2> /dev/null | tee -a $DPATH$LOG
+                  done
+                else
+                  echo "Whisper:"`date`" No daemon found, exit" 2> /dev/null | tee -a $DPATH$LOG
+		  exit 0
+		fi
+  		;;
+	restart|force-reload)
+                echo "Whisper: "`date`" Forcing reload" 2> /dev/null | tee -a $DPATH$LOG
+                sudo $0 stop  2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo $0 start 2> $DPATH$ERR | tee -a $DPATH$LOG
+  		;;
+	try-restart)
+                echo "Whisper: "`date`" Trying to restart" 2>$DPATH$ERR | tee -a $DPATH$LOG
+		if sudo $0 status >/dev/null; then
+		   sudo $0 restart
+		else
+		   exit 0
+		fi
+		;;
+	reload)
+                echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
+		sudo $0 restart
+                exit 3
+		;;
+        lock)
+                echo "Whisper: "`date`" Script locked" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo touch $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo $0 stop
+
+                exit 4
+                ;;
+
+        reset)
+                echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo rm -r $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo $0 start
+                exit 3
+                ;;
+	status)
+                echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
+           	S=`ps -ef | pgrep wspr | wc -l`
+		if [ $S \> 0 ]; then
+              	   echo "Whisper: "`date`" WSPR Process count("$S")" 2> $DPATH$ERR | tee -a $DPATH$LOG
+   		   V=`ps -ef | pgrep wspr`
+                   for i in $V; do
+  			echo "Whisper: "`date`" Process PID("$i")" 2> $DPATH$ERR | tee -a $DPATH$LOG
+ 		   done
+		else
+ 		   echo "Whisper: "`date`" No wspr processes found" 2> $DPATH$ERR | tee -a $DPATH$LOG
+  		fi
+
+
+		;;
+	*)
+		echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|force-reload|status}"
+		exit 2
+		;;
+esac
