@@ -36,6 +36,7 @@ import binascii
 import inspect
 import fcntl
 import signal
+import psutil
 #*----------------------------------------------------------------------------
 #* Transceiver mode variables
 #*----------------------------------------------------------------------------
@@ -50,12 +51,28 @@ ft817_modes={ 0x00 : 'LSB',
 #*----------------------------------------------------------------------------
 #* Exception and Termination handler
 #*----------------------------------------------------------------------------
+def killProcess(p):
+   log("killProcess: PID(%s) under termination" % str(p.pid))
+   parent = psutil.Process(p.pid)
+   for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+     try:
+       child.kill()
+     except:
+       log("killProcess: Unable to kill child kid of %s" % str(parent))
+   try:
+     parent.kill()
+   except:
+     log("killProcess: Unable to kill parent PID(%s)" % str(p.pid))
+#*----------------------------------------------------------------------------
+#* Exception and Termination handler
+#*----------------------------------------------------------------------------
+
 def signal_handler(sig, frame):
-   log("Process abnormally terminated, clean up completed!")
-   pRX1.terminate()
-   pRX1.kill()
-   pRX2.terminate()
-   pRX2.kill()
+   log("Transceiver is being terminated, clean up completed!")
+   killProcess(pRX1.pid)
+   killProcess(pRX2.pid)
+   killProcess(pTX.pid)
+   killProcess(z.pid)
    sys.exit(0)
 #*-------------------------------------------------------------------------
 #* Exception management
@@ -103,6 +120,8 @@ LOCK=False
 CLAR=False
 LO=14100000
 SAMPLE=1200000
+TIME_LIMIT=1
+
 #*----------------------------------------------------------------------------
 #* Function definitions
 #*----------------------------------------------------------------------------
@@ -222,8 +241,11 @@ def getFT817mode(m):
     return ft817_modes[m]
 
 def ot_setfreq():
-    if args.v == True:
-       log('OT[ot_set] VFO(A)=%d VFO(B)=%d' % (fVFOA,fVFOB))
+    global stime,fChanged
+    #if args.v == True:
+    log('OT[ot_set] VFO(A)=%d VFO(B)=%d' % (fVFOA,fVFOB))
+    stime=time.time()
+    fChanged=True
     return 0
 
 def ot_changeVFO():
@@ -511,7 +533,10 @@ def bootSDR():
         log("SDR Capabilities: Mode <%s> RX(%s) TX(%s)" % (SDRmodeStr.ljust(3," "),str(isSDRCapable(key,0)).ljust(5," "),str(isSDRCapable(key,1)).ljust(5," ")))
 
 
-
+#*-----------------------------------------------------------------------------
+#* non_block_read
+#* trick function to read a descriptor with look ahead
+#*-----------------------------------------------------------------------------
 def non_block_read(output):
     fd = output.fileno()
     fl = fcntl.fcntl(fd, fcntl.F_GETFL)
@@ -545,81 +570,99 @@ def execute(command):
     else:
         raise ProcessException(command, exitCode, output)
 
+def startSDR(s):
+    s=s.replace("%LO%",str(LO))
+    s=s.replace("%FREQ%",str(fVFOA))
+    s=s.replace("%SAMPLE%",str(SAMPLE))
+    log("startSDR:%s" % s)
+    p = subprocess.Popen(s, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return p
+
+def killReceiver(p1,p2):
+    killProcess(p1)
+    killProcess(p2)
+    return 0
+def startReceiver(m):
+    global PTT
+    
+    PTT=False
+    sr1=sdr_modes[m][0]
+    if sr1=="":
+       log("Front-End SDR processor not found, QUITTING!")
+       exit()
+    pr1=startSDR(sr1)
+    sr2=sdr_modes[m][1]
+    if sr2=="":
+       log("Decoding SDR processor not found, QUITTING!")
+       exit()
+    pr2=startSDR(sr2)
+    return pr1,pr2
 #*----------------------------------------------------------------------------
 #* MAIN PROGRAM
 #*----------------------------------------------------------------------------
-log("Booting transceiver")
+try:
+ log("Booting transceiver")
+ fChanged=False
+ stime=time.time()
+
 #*----------------------------------------------------------------------------
 #* Process arguments
 #*----------------------------------------------------------------------------
-p = argparse.ArgumentParser()
-p.add_argument('-i', help="Input serial port",default='/tmp/ttyv0')
-p.add_argument('-o', help="Input serial port",default='/tmp/ttyv1')
-p.add_argument('-r', help="Serial port rate",default=4800)
-p.add_argument('-v', help="Verbose",action="store_true",default=False)
-p.add_argument('-m', help="Mode",default=1)
-p.add_argument('-l', help="Lock",action="store_true",default=False)
-p.add_argument('-f', help="Frequency",default=14000000)
-p.add_argument('-c', help="Clarifier",action="store_true",default=False)
-p.add_argument('-s', help="Split",action="store_true",default=False)
+ p = argparse.ArgumentParser()
+ p.add_argument('-i', help="Input serial port",default='/tmp/ttyv0')
+ p.add_argument('-o', help="Input serial port",default='/tmp/ttyv1')
+ p.add_argument('-r', help="Serial port rate",default=4800)
+ p.add_argument('-v', help="Verbose",action="store_true",default=False)
+ p.add_argument('-m', help="Mode",default=1)
+ p.add_argument('-l', help="Lock",action="store_true",default=False)
+ p.add_argument('-f', help="Frequency",default=14000000)
+ p.add_argument('-c', help="Clarifier",action="store_true",default=False)
+ p.add_argument('-s', help="Split",action="store_true",default=False)
 
-args = p.parse_args()
-fVFOA=args.f
-fVFOB=args.f
-MODE=args.m
-LOCK=args.l
-SPLIT=args.s
-CLAR=args.c
+ args = p.parse_args()
+ fVFOA=args.f
+ fVFOB=args.f
+ MODE=args.m
+ LOCK=args.l
+ SPLIT=args.s
+ CLAR=args.c
 #*----------------------------------------------------------------------------
 #* Start virtual port pair to honor CAT requests
 #*----------------------------------------------------------------------------
-z=subprocess.Popen('socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1',shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-log('virtual port pair %s-%s enabled' % (args.i,args.o))
-time.sleep(1)
-
+ z=subprocess.Popen('socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1',shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ log('virtual port pair %s-%s enabled' % (args.i,args.o))
+ time.sleep(1)
+ etime=time.time()-stime
+ log("Frequency time hook initiated delta (%d) secs" % etime)
 #*----------------------------------------------------------------------------
 #* Boot SDR processor and perform initialization
 #*----------------------------------------------------------------------------
-rc=bootSDR()
+ rc=bootSDR()
+
+ s=serial.Serial(args.o,args.r)
+ log('Listener (%s), Client (%s), rate(%d)' % (args.o,args.i,args.r))
+
+ CAT=args.r
+ vfoAB=0
 
 #*----------------------------------------------------------------------------
-#* Open listener side of virtual port pair
+#* Start SDR processor, always starts with the receiver of the mode
 #*----------------------------------------------------------------------------
-s=serial.Serial(args.o,args.r)
-log('Listener (%s), Client (%s), rate(%d)' % (args.o,args.i,args.r))
-
-CAT=args.r
-vfoAB=0
-
-#execute(sdr_modes[0x01][0])
-cmdRX1=sdr_modes[0x01][0]
-cmdRX1=cmdRX1.replace("%LO%",str(LO))
-cmdRX1=cmdRX1.replace("%FREQ%",str(fVFOA))
-cmdRX1=cmdRX1.replace("%SAMPLE%",str(SAMPLE))
-log(cmdRX1)
-pRX1 = subprocess.Popen(cmdRX1, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-time.sleep(1)
-
-cmdRX2=sdr_modes[0x01][1]
-cmdRX2=cmdRX2.replace("%LO%",str(LO))
-cmdRX2=cmdRX2.replace("%FREQ%",str(fVFOA))
-cmdRX2=cmdRX2.replace("%SAMPLE%",str(SAMPLE))
-log(cmdRX2)
-pRX2 = subprocess.Popen(cmdRX2, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+ pRX1,pRX2=startReceiver(MODE)
 
 #*----------------------------------------------------------------------------
 #* Main receiving loop
 #*----------------------------------------------------------------------------
-o=''
-n=0
-vfoAB=0
-rxBuffer=bytearray([0,0,0,0,0])
+ o=''
+ n=0
+ vfoAB=0
+ rxBuffer=bytearray([0,0,0,0,0])
 
-log('Main: Transceiver status %s' % getStatus())
+ log('Main: Transceiver status %s' % getStatus())
 #*----------------------------------------------------------------------------
 #* Infinite loop
 #*----------------------------------------------------------------------------
-while True :
+ while True :
 
 #*------ Process CAT commands when available
   if s.inWaiting()>0:
@@ -634,15 +677,40 @@ while True :
          if n==5:
             (rxBuffer,n)=processFT817(rxBuffer,n,s)
 
-#*------- Process output from subordinate processes
-  rst=non_block_read(pRX1.stdout)
-  if rst!="":
-     log(rst.replace("\n",""))
+#*------- Process output from receiver subordinate processes
+  #if PTT==False:
+  if 'pRX1' in globals():
+     rst=non_block_read(pRX1.stdout)
+     if rst!="":
+        log(rst.replace("\n",""))
 
-#*------- Process output from subordinate processes
-  #rst=non_block_read(pRX2.stdout)
-  #if rst!="":
-  #   log(rst.replace("\n",""))
+  #if 'pRX2' in globals():
+  #   rst=non_block_read(pRX2.stdout)
+  #   if rst!="":
+  #      log(rst.replace("\n",""))
+
+  if fChanged == True:
+     etime=time.time()
+     if (etime-stime) > TIME_LIMIT:
+        fChanged=False
+        killReceiver(pRX1,pRX2)
+        pRX1,pRX2=startReceiver(MODE)
+        log("main:Frequency changed to VFO(%s) f(%d/%d)" % (getVFO(vfoAB),fVFOA,fVFOB))
+         
+  #else:
+
+  if 'pTX' in globals():
+     rst=non_block_read(pTX.stdout)
+     if rst!="":
+        log(rst.replace("\n",""))
 
 
-exit()        
+ exit()        
+except(SyntaxError):
+ log("Transceiver abnormal syntax error detected, clean up completed!")
+ killProcess(pRX1)
+ killProcess(pRX2)
+ killProcess(pTX)
+ killProcess(z)
+ sys.exit(0)
+
