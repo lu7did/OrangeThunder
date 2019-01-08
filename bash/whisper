@@ -1,6 +1,7 @@
 #!/bin/sh
 
-#// whisper WSPR beacon for the Raspberry Pi. See accompanying README
+#// whisper
+#// WSPR beacon for the Raspberry Pi. See accompanying README
 #// file for a description on how to use this code.
 #// based on the package WsprryPi (https://github.com/JamesP6000/WsprryPi)
 
@@ -21,25 +22,47 @@
 #// lu7did: initial load
 
 ### BEGIN INIT INFO
-# Provides:        whisper
+# Pprint_something () {
 # Required-Start:  $network $remote_fs $syslog
 # Required-Stop:   $network $remote_fs $syslog
 # Default-Start:   2 3 4 5
 # Default-Stop: 
 # Short-Description: Start wspr daemon (WsprryPi)
 ### END INIT INFO
-
+#*----------------------------------------------------------------------------
+#* getTelemetry
+#* Get information from the RaspBerry board
+#*----------------------------------------------------------------------------
 #*----------------------------------------------------------------------------
 #* Initialization
 #* DO NOT RUN EITHER AS A rc.local script nor as a systemd controlled service
 #*----------------------------------------------------------------------------
+
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 . /lib/lsb/init-functions
+DPATH="/home/pi/WsprryPi/"
+LOG="whisper.log"
+ERR="whisper.err"
+LOCK="whisper.lck"
+#*-----------------------------------------------------------------------------
+#* getTelemetry()
+#* Create telemetry and WSPR frame
+#*-----------------------------------------------------------------------------
+getTelemetry () {
+   TEMP=`sudo python picheck.py -t`
+   VOLT=`sudo python picheck.py -v`
+   OPST=`sudo python picheck.py -s`
+   echo "Whisper: "`date`" (new) Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
+   
+   CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p" 2>$DPATH$ERR | tee -a $DPATH$LOG 
+   TLMG=`$CMD`
+   echo "Whisper: "`date`" (new) WSPR TLMF: "$TLMG  
+   return 0
+}
 
 #*----------------------------------------------------------------------------
 #* Beacon specific data configuration 
 #*----------------------------------------------------------------------------
-DPATH="/home/pi/WsprryPi/"
 DAEMON="wspr"
 OPTS=" -r -o -s "
 CALLSIGN="LU7DID "
@@ -47,9 +70,6 @@ GRID="GF05"
 GRIX="TE"
 POWER="20 "
 BAND="20m 0 0 0 0  "
-LOG="whisper.log"
-ERR="whisper.err"
-LOCK="whisper.lck"
 HEIGHT=40
 CHANNEL=0
 
@@ -71,14 +91,7 @@ case $1 in
 
 #*---- Collect telemetry
 
-               TEMP=`sudo python picheck.py -t`
-               VOLT=`sudo python picheck.py -v`
-               OPST=`sudo python picheck.py -s`
-               echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
-               CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
-               TLMG=`$CMD`
-               echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
-
+               getTelemetry
 #*---- If already running log telemetry and leave
 
                if [ $N \> 0 ]; then
@@ -151,15 +164,7 @@ case $1 in
 #*---- Just computes and log the status
 
 	status)
-                TEMP=`sudo python picheck.py -t`
-                VOLT=`sudo python picheck.py -v`
-                OPST=`sudo python picheck.py -s`
-
-                echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
-                CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
-                TLMG=`$CMD`
-                echo "Whisper: "`date`" WSPR TLMF: "$TLMG  2>$DPATH$ERR | tee -a $DPATH$LOG
-
+                getTelemetry
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
            	S=`ps -ef | pgrep wspr | wc -l`
 		if [ $S \> 0 ]; then
