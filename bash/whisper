@@ -21,18 +21,6 @@
 
 #// lu7did: initial load
 
-### BEGIN INIT INFO
-# Pprint_something () {
-# Required-Start:  $network $remote_fs $syslog
-# Required-Stop:   $network $remote_fs $syslog
-# Default-Start:   2 3 4 5
-# Default-Stop: 
-# Short-Description: Start wspr daemon (WsprryPi)
-### END INIT INFO
-#*----------------------------------------------------------------------------
-#* getTelemetry
-#* Get information from the RaspBerry board
-#*----------------------------------------------------------------------------
 #*----------------------------------------------------------------------------
 #* Initialization
 #* DO NOT RUN EITHER AS A rc.local script nor as a systemd controlled service
@@ -44,6 +32,7 @@ DPATH="/home/pi/WsprryPi/"
 LOG="whisper.log"
 ERR="whisper.err"
 LOCK="whisper.lck"
+VERSION="1.1"
 #*-----------------------------------------------------------------------------
 #* getTelemetry()
 #* Create telemetry and WSPR frame
@@ -52,11 +41,10 @@ getTelemetry () {
    TEMP=`sudo python picheck.py -t`
    VOLT=`sudo python picheck.py -v`
    OPST=`sudo python picheck.py -s`
-   echo "Whisper: "`date`" (new) Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 2>$DPATH$ERR | tee -a $DPATH$LOG
-   
-   CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p" 2>$DPATH$ERR | tee -a $DPATH$LOG 
+   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 
+   CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
    TLMG=`$CMD`
-   echo "Whisper: "`date`" (new) WSPR TLMF: "$TLMG  
+   echo "Whisper: "`date`" WSPR TLMF: "$TLMG  
    return 0
 }
 
@@ -69,8 +57,8 @@ CALLSIGN="LU7DID "
 GRID="GF05"
 GRIX="TE"
 POWER="20 "
-#BAND="20m 0 0 0 0  "
-BAND="20m 0  "
+BAND="20m 0 0 0 0  "
+#BAND="20m 0  "
 HEIGHT=40
 CHANNEL=0
 
@@ -79,11 +67,11 @@ CHANNEL=0
 cd $DPATH
 N=`ps -ef | pgrep "wspr" | wc -l`
 
+echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION 2>$DPATH$ERR | tee -a $DPATH$LOG
 #*---- React to argument (see whisper for command options)
 case $1 in
 
 #*---- Start the beacon. Control if instances are running and avoid reentrancy
-
 	start)
                if [ -f $DPATH$LOCK ]; then
                   echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
@@ -92,7 +80,7 @@ case $1 in
 
 #*---- Collect telemetry
 
-               getTelemetry
+               getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG
 #*---- If already running log telemetry and leave
 
                if [ $N \> 0 ]; then
@@ -165,7 +153,7 @@ case $1 in
 #*---- Just computes and log the status
 
 	status)
-                getTelemetry
+                getTelemetry 2>$DPATH$ERR | tee -a $DPATH$LOG
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
            	S=`ps -ef | pgrep wspr | wc -l`
 		if [ $S \> 0 ]; then
