@@ -33,6 +33,7 @@ LOG="whisper.log"
 ERR="whisper.err"
 LOCK="whisper.lck"
 VERSION="1.1"
+TLM="whisper.tlm"
 #*-----------------------------------------------------------------------------
 #* getTelemetry()
 #* Create telemetry and WSPR frame
@@ -41,7 +42,8 @@ getTelemetry () {
    TEMP=`sudo python picheck.py -t`
    VOLT=`sudo python picheck.py -v`
    OPST=`sudo python picheck.py -s`
-   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")" 
+   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")"
+   echo "Whisper: "`date`" Telemetry: "$TEMP" ºC "$VOLT" V ("$OPST")" >> $DPATH$TLM 
    CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
    TLMG=`$CMD`
    echo "Whisper: "`date`" WSPR TLMF: "$TLMG  
@@ -58,7 +60,6 @@ GRID="GF05"
 GRIX="TE"
 POWER="20 "
 BAND="20m 0 0 0 0  "
-#BAND="20m 0  "
 HEIGHT=40
 CHANNEL=0
 
