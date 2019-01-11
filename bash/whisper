@@ -42,8 +42,8 @@ getTelemetry () {
    TEMP=`sudo python picheck.py -t`
    VOLT=`sudo python picheck.py -v`
    OPST=`sudo python picheck.py -s`
-   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V ("$OPST")"
-   echo "Whisper: "`date`" Telemetry: "$TEMP" ºC "$VOLT" V ("$OPST")" >> $DPATH$TLM 
+   FREQ=`sudo python picheck.py -f`
+   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V "$FREQ" MHz ("$OPST")" | tee -a $DPATH$TLM
    CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
    TLMG=`$CMD`
    echo "Whisper: "`date`" WSPR TLMF: "$TLMG  
@@ -153,6 +153,10 @@ case $1 in
                 ;;
 #*---- Just computes and log the status
 
+	checkpoint)
+                echo "Whisper: "`date`" WSPR Log checkpoint("$2 $3 $4 $5")" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                exit 0
+                ;;
 	status)
                 getTelemetry 2>$DPATH$ERR | tee -a $DPATH$LOG
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
@@ -170,7 +174,7 @@ case $1 in
 
 		;;
 	*)
-		echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|force-reload|status}"
+		echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|checkpoint|force-reload|status}"
 		exit 2
 		;;
 esac

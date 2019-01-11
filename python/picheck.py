@@ -2,6 +2,10 @@
 # -*- coding: latin-1 -*-
 from __future__ import with_statement
 #*--------------------------------------------------------------------------------
+#* picheck.py
+#* script to obtain physical variables of the host environment
+#*--------------------------------------------------------------------------------
+#*--------------------------------------------------------------------------------
 #* Import libraries
 #*--------------------------------------------------------------------------------
 import zipfile
@@ -67,6 +71,16 @@ def read_voltage():
    volt= execute(cmd)
    volt= volt.split('V')[0]
    return substring_after(volt,"=")
+#*----------------------------------------------------------------------------------
+#* read the arm core voltage and report it
+#*----------------------------------------------------------------------------------
+def read_frequency():
+   cmd = "vcgencmd measure_clock arm"
+   f= execute(cmd)
+   #f= f.split('=')[0]
+   return substring_after(f,"=")
+
+
 #-----------------------------------------------------------------------------------
 #* read the status word and parse results
 #*----------------------------------------------------------------------------------
@@ -95,6 +109,7 @@ def read_status(p):
 p = argparse.ArgumentParser()
 p.add_argument('-t', help="Get temperature (C)",action="store_true")
 p.add_argument('-v', help="Get voltage",action="store_true")
+p.add_argument('-f', help="Get frequency",action="store_true")
 p.add_argument('-s', help="Get operational condition (get_throttled)",action="store_true")
 p.add_argument('-x', help="Verbose output",action="store_true")
 p.add_argument('-z', help="Special test status value 0xnn")
@@ -117,6 +132,11 @@ if args.v == True:
    else:
       print("Voltage: %s V" % read_voltage())
 
+if args.f == True:
+   if args.x == False:
+      print(read_frequency())
+   else:
+      print("Frequency (arm): %s MHz" % read_frequency())
 if args.s == True:
    if args.z != None:
       st=read_status(args.z)
