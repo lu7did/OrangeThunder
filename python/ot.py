@@ -49,38 +49,6 @@ ft817_modes={ 0x00 : 'LSB',
               0x0A : 'DIG',
               0x0C : 'PKT'}
 #*----------------------------------------------------------------------------
-#* Exception and Termination handler
-#*----------------------------------------------------------------------------
-def killProcess(p):
-   log("killProcess: PID(%s) under termination" % str(p.pid))
-   parent = psutil.Process(p.pid)
-   for child in parent.children(recursive=True):  # or parent.children() for recursive=False
-     try:
-       child.kill()
-     except:
-       log("killProcess: Unable to kill child kid of %s" % str(parent))
-   try:
-     parent.kill()
-   except:
-     log("killProcess: Unable to kill parent PID(%s)" % str(p.pid))
-#*----------------------------------------------------------------------------
-#* Exception and Termination handler
-#*----------------------------------------------------------------------------
-
-def signal_handler(sig, frame):
-   log("Transceiver is being terminated, clean up completed!")
-   killProcess(pRX1.pid)
-   killProcess(pRX2.pid)
-   killProcess(pTX.pid)
-   killProcess(z.pid)
-   sys.exit(0)
-#*-------------------------------------------------------------------------
-#* Exception management
-#*-------------------------------------------------------------------------
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
-
-#*----------------------------------------------------------------------------
 #*  SDR Transceiver commands
 #*----------------------------------------------------------------------------
 #* Prototype commands
@@ -90,17 +58,124 @@ signal.signal(signal.SIGTERM, signal_handler)
 #*----------------------------------------------------------------------------
 #* Embedded commands for USB
 #*----------------------------------------------------------------------------
-RCVR="rtl_sdr -s 1200000 -f %LO%  -D 2 - | csdr convert_u8_f | ncat -4l 4952 -k --send-only --allow 127.0.0.1"
-SSBR="ncat -v 127.0.0.1 4952 | csdr shift_addition_cc `python -c \"print float(%LO%-%FREQ%)/%SAMPLE%\"` | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | mplayer -nocache -rawaudio samplesize=2:channels=1:rate=48000 -demuxer rawaudio -"
-SSBT="arecord -c1 -r48000 -D default -fS16_LE - | csdr convert_i16_f | csdr fir_interpolate_cc 2 | csdr dsb_fc | csdr bandpass_fir_fft_cc 0.002 0.06 0.01 | csdr fastagc_ff  | sudo ./sendiq -i /dev/stdin -s 96000 -f %FREQ% -t float"
+cmdRtlSDR="rtl_sdr -s 1200000 -f %LO%  -D 2 - | csdr convert_u8_f | ncat -4l 4952 -k --send-only --allow 127.0.0.1"
+cmdDecoderUSB="ncat -v 127.0.0.1 4952 |csdr shift_addition_cc `python -c \"print float(%LO%-%FREQ%)/%SAMPLE%\"` | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | mplayer -nocache -rawaudio samplesize=2:channels=1:rate=48000 -demuxer rawaudio -"
+cmdEncoderUSB="arecord -c1 -r48000 -D default -fS16_LE - | csdr convert_i16_f | csdr fir_interpolate_cc 2 | csdr dsb_fc | csdr bandpass_fir_fft_cc 0.002 0.06 0.01 | csdr fastagc_ff  | sudo ./sendiq -i /dev/stdin -s 96000 -f %FREQ% -t float"
+
+pRX1=0
+pRX2=0
+pTX=0
+
+#*----------------------------------------------------------------------------
+#* Exception and Termination handler
+#*----------------------------------------------------------------------------
+def killProc(p):
+
+   try:
+     parent = psutil.Process(p.pid)
+     log(2,"killProc: process %s)" % parent)
+     for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+       log(2,"killProc:     -- child(%s)" % child)
+       child.kill()
+     parent.kill()
+   except UnboundLocalError as error:
+     log(0,"killProc: Unable to kill parent PID")
+   except NameError as error:
+     log(2,"killProc: Allocation error")
+   except Exception as exception:
+     pass
+#*-----------------------------------------------------------------------------------------------
+#* waitProc
+#* waiting for a process to start looking for a given string
+#*-----------------------------------------------------------------------------------------------
+def waitProc(p,stOK,timeout):
+    log(2,"waitProc: waiting for string(%s) for timeout(%d)" % (stOK,timeout))
+    ts=time.time()
+    while (time.time()-ts) <= timeout:
+        s=non_block_read(p.stdout)
+        if s!="":
+           if s.find(stOK) != -1:
+              log(2,"waitProc: process (%s) found OK string (%s)" % (str(psutil.Process(p.pid)),stOK))
+              return 0
+           else:
+              log(1,s.replace("\n",""))
+    return -1
+#*------------------------------------------------------------------------------------------------
+def startProc(cmd,stOK):
+    log(2,"startProc: cmd(%s) OK(%s)" % (cmd,stOK))
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if waitProc(p,stOK,5) == 0:
+       log(1,"startProc: Process successfully launched")
+       return p
+    log(0,"startProc: failed to launch process *ABORT*")
+    raise Exception('startProc: general exceptions not caught by specific handling')
+    return None
+       
+#*----------------------------------------------------------------------------
+#* Exception and Termination handler
+#*----------------------------------------------------------------------------
+def signal_handler(sig, frame):
+   log(0,"signal_handler: Transceiver is being terminated, clean up completed!")
+   try:
+     killProc(pRX1)
+     log(1,"signal_handler: Receiver front-end termination completed")
+   except:
+     log(0,"signal_handler: unable to kill receiver front-end")
+   try:
+     killProc(pRX2)
+     log(1,"signal_handler: Receiver decoder termination completed")
+   except:
+     log(0,"signal_handler: unable to kill receiver decoder")
+   try:
+     killProc(pTX)
+     log(1,"signal_handler: Transmitter encoder termination completed")
+   except:
+     log(0,"signal_handler: unable to kill transmitter encoder")
+   try:
+     killProc(z)
+     log(1,"signal_handler: Virtual serial port termination completed")
+   except:
+     log(0,"signal_handler: unable to kill virtual serial port (CAT)")
+   sys.exit(0)
+#*-------------------------------------------------------------------------
+#* Creates a visual clue of the transceiver status (just crude at this point)
+#*-------------------------------------------------------------------------
+def getStatus():
+    if PTT==True:
+       sPTT="TX"
+    else:
+       sPTT="RX"
+
+    sSPLIT=""
+    sCLAR=""
+    sLOCK=""
+    if SPLIT==True:
+       sSPLIT="<S>"
+    if CLAR==True:
+       sCLAR="<+>"
+    if LOCK==True:
+       sLOCK="<*>"
+    return ("(%d/%d) <%s> %s %s %s %s %s" % (fVFOA,fVFOB,getVFO(vfoAB),str(getFT817mode(MODE)).ljust(3," "),str(sPTT).ljust(3," "),str(sSPLIT).ljust(3," "),str(sCLAR).ljust(3," "),str(sLOCK).ljust(3," "))).replace("\n","")
+
+
+#*------------------------------------------------------------------------
+def putStatus():
+ log(0,'[Status]->%s' % str(getStatus()).replace("\n",""))
+ return
+
+#*-------------------------------------------------------------------------
+#* Exception management
+#*-------------------------------------------------------------------------
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 #*----------------------------------------------------------------------------
 #* SDR Configuration Topology Dictionary
 #* Pointers to implemented SDR processors (only USB so far)
 #*----------------------------------------------------------------------------
 sdr_modes={ 0x00 : ["","",""] ,
-            0x01 : [RCVR,SSBR,SSBT],
-            0x02 : [RCVR,SSBR,""],
+            0x01 : [cmdRtlSDR,cmdDecoderUSB,cmdEncoderUSB],
+            0x02 : ["","",""],
             0x03 : ["","",""],
             0x04 : ["","",""],
             0x08 : ["","",""],
@@ -109,8 +184,8 @@ sdr_modes={ 0x00 : ["","",""] ,
 #*----------------------------------------------------------------------------
 #* Transceiver state variables
 #*----------------------------------------------------------------------------
-fVFOA=14074200
-fVFOB= 7000000
+fVFOA=14074000
+fVFOB= 14074000
 vfoAB=0
 SPLIT=False
 PTT=False
@@ -120,15 +195,17 @@ LOCK=False
 CLAR=False
 LO=14100000
 SAMPLE=1200000
-TIME_LIMIT=1
-
+TIME_LIMIT=2
+WAIT_IDLE=5
+DEBUGLEVEL=0
 #*----------------------------------------------------------------------------
 #* Function definitions
 #*----------------------------------------------------------------------------
-def log(logText):
+def log(d,logText):
     #fnt=inspect.stack()[0][3]
     #usr=inspect.stack()[1][3]
-    print("%s:%s %s" % (sys.argv[0],time.ctime(),logText))
+    if d<=DEBUGLEVEL:
+       print("%s:%s %s" % (sys.argv[0],time.ctime(),logText))
 
 #*----------------------------------------------------------------------------
 #* getVFO
@@ -136,30 +213,18 @@ def log(logText):
 #*----------------------------------------------------------------------------
 def getVFO(v):
     return chr(ord("A")+v)
-
-def spawn(cmd):
-    if (args.v==True):
-       log("spawn: %s" % cmd)
-    z=subprocess.Popen(cmd)
-    return z
-
 #*-----------------------------------------------------------------------------$
 #* Execute a command and return the result
 #*-----------------------------------------------------------------------------$
 def execute(cmd):
-    """
-        Purpose  : To execute a command and return exit status
-        Argument : cmd - command to execute
-        Return   : exit_code
-    """
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (result, error) = p.communicate()
 
     rc = p.wait()
 
     if rc != 0:
-        log("Error: failed to execute command: %s" % cmd)
-        log(error)
+        log(0,"Error: failed to execute command: %s" % cmd)
+        log(0,error)
     return result
 #*-----------------------------------------------------------------------
 #* printBuffer
@@ -215,7 +280,7 @@ def dec2BCD(f):
   f3=decToBcd(f3)
 
   if (args.v==True):
-     log('dec2BCD: f(%d)->f(%d) %x %x %x %x' % (f,fz,f0,f1,f2,f3))
+     log(2,'dec2BCD: f(%d)->f(%d) %x %x %x %x' % (f,fz,f0,f1,f2,f3))
   return bytearray([f0,f1,f2,f3,0x00])
 #*-----------------------------------------------------------------------
 #* BCD2Dec
@@ -228,54 +293,50 @@ def BCD2Dec(rxBuffer):
     f=f+bcdToDec(rxBuffer[2])*100
     f=f+bcdToDec(rxBuffer[3])*1
     f=f*10
-    if (args.v==True):
-       log('BCD2Dec: Cmd[%s] f=%d' % (printBuffer(rxBuffer),f))
+    log(2,'BCD2Dec: Cmd[%s] f=%d' % (printBuffer(rxBuffer),f))
     return f
 #*-----------------------------------------------------------------------
 #* Operating actuators
 #* Implements operations directed by the CAT into actual transceiver
 #*-----------------------------------------------------------------------
 def getFT817mode(m):
-    if args.v == True:
-       log("getFT817mode: Argument received %d" % m)
+    log(2,"getFT817mode: Argument received %d" % m)
     return ft817_modes[m]
 
 def ot_setfreq():
     global stime,fChanged
-    #if args.v == True:
-    log('OT[ot_set] VFO(A)=%d VFO(B)=%d' % (fVFOA,fVFOB))
+    log(2,'OT[ot_set] VFO(A)=%d VFO(B)=%d' % (fVFOA,fVFOB))
+    putStatus()
     stime=time.time()
     fChanged=True
     return 0
 
 def ot_changeVFO():
-    if args.v == True:
-       log('OT[ot_vfo] VFO (%d/%s)' % (vfoAB,getVFO(vfoAB)))
+    log(2,'OT[ot_vfo] VFO (%d/%s)' % (vfoAB,getVFO(vfoAB)))
+    putStatus()
     return 0
 
 def ot_ptt():
-    if args.v == True:
-       log('OT[ot_ptt] PTT change (%s)' % (PTT))
+    log(2,'OT[ot_ptt] PTT change (%s)' % (PTT))
+    putStatus()
     return 0
 
 
 def ot_clarify():
-    if args.v == True:
-       log('OT[ot_clr] Clafify change (%s)' % (CLAR))
+    log(2,'OT[ot_clr] Clafify change (%s)' % (CLAR))
+    putStatus()
     return 0
 
 def ot_mode():
-    if args.v == True:
-       log('OT[ot_mod] Mode change (%d/%s)' % (MODE,getFT817mode(MODE)))
+    log(2,'OT[ot_mod] Mode change (%d/%s)' % (MODE,getFT817mode(MODE)))
+    putStatus()
     return 0
 
 def ot_lock():
-    if args.v == True:
-       log('OT[ot_lck] Lock change (%s)' % (LOCK))
+    log(2,'OT[ot_lck] Lock change (%s)' % (LOCK))
+    putStatus()
     return 0
 
-def getStatus():
-    return ("f(%d/%d) VFO(%s) MODE(%s) PTT(%s) SPLIT(%s) CLAR(%s) LOCK(%s) RX(%s) TX(%s)" % (fVFOA,fVFOB,getVFO(vfoAB),str(getFT817mode(MODE)).ljust(3," "),str(PTT).ljust(5," "),str(SPLIT).ljust(5," "),str(CLAR).ljust(5," "),str(LOCK).ljust(5," "),str(isSDRCapable(MODE,0)).ljust(5," "),str(isSDRCapable(MODE,1)).ljust(5," ")))
 #*-----------------------------------------------------------------------
 #* processFT817
 #* main CAT command processor
@@ -300,7 +361,7 @@ def processFT817(rxBuffer,n,s):
        rc=ot_setfreq()                #*-- Change the execution topology
        r=bytearray([0])
        s.write(r)
-       log('CAT[0x01] [%s] VFO[%d/%d] set to VFO[%d/%d]' % (printBuffer(rxBuffer),prevfVFOA,prevfVFOB,fVFOA,fVFOB))
+       log(1,'CAT[0x01] [%s] VFO[%d/%d] set to VFO[%d/%d]' % (printBuffer(rxBuffer),prevfVFOA,prevfVFOB,fVFOA,fVFOB))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x03:            #*-- Query Frequency
@@ -312,8 +373,7 @@ def processFT817(rxBuffer,n,s):
           r=dec2BCD(int(fVFOB))
           r[4]=MODE
           s.write(r)
-       if args.v == True:       
-          log('CAT[0x03] [%s] VFO[%d/%d] resp[%s]' % (printBuffer(rxBuffer),fVFOA,fVFOB,printBuffer(r)))
+       log(2,'CAT[0x03] [%s] VFO[%d/%d] resp[%s]' % (printBuffer(rxBuffer),fVFOA,fVFOB,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0xf7:           #*--- Read TX Status (logging filtered because of high volume
@@ -324,23 +384,20 @@ def processFT817(rxBuffer,n,s):
           STATUS = STATUS | 0b00100000
        r=bytearray([STATUS])
        s.write(r)
-       if args.v == True:
-          log('CAT[0xf7][%s] PTT(%s) SPL(%s) resp[%s]' % (printBuffer(rxBuffer),not is_set(STATUS,7),is_set(STATUS,5),printBuffer(r)))
+       log(2,'CAT[0xf7][%s] PTT(%s) SPL(%s) resp[%s]' % (printBuffer(rxBuffer),not is_set(STATUS,7),is_set(STATUS,5),printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0xe7:            #*--- RX Status (logging filtered because of high volume
        r=bytearray([0x00])
        s.write(r)
-       if args.v == True:
-          log('CAT[0xE7][%s] resp[%s]' % (printBuffer(rxBuffer),printBuffer(r)))
+       log(2,'CAT[0xE7][%s] resp[%s]' % (printBuffer(rxBuffer),printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
 
     if rxBuffer[4] == 0xBB:            #*--- Read EEPROM
        r=bytearray([0,0])
        s.write(r)
-       if args.v == True:
-          log('CAT[0xBB] *TEMP* [%s] resp[%s]' % (printBuffer(rxBuffer),printBuffer(r)))
+       log(2,'CAT[0xBB] *TEMP* [%s] resp[%s]' % (printBuffer(rxBuffer),printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x81:            #*--- Switch VFO A/B
@@ -352,7 +409,7 @@ def processFT817(rxBuffer,n,s):
        rc=ot_changeVFO()               #*--- change topology
        r=bytearray([0x00])
        s.write(r)
-       log('CAT[0x81] [%s] VFO(%s->%s) resp[%s]' % (printBuffer(rxBuffer),getVFO(prevAB),getVFO(vfoAB),printBuffer(r)))
+       log(1,'CAT[0x81] [%s] VFO(%s->%s) resp[%s]' % (printBuffer(rxBuffer),getVFO(prevAB),getVFO(vfoAB),printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x00:            #*--- Lock status
@@ -365,7 +422,7 @@ def processFT817(rxBuffer,n,s):
           LOCK=True
        rc=ot_lock() 
        s.write(r)
-       log('CAT[0x00] [%s] LOCK(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevLOCK,LOCK,printBuffer(r)))
+       log(1,'CAT[0x00] [%s] LOCK(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevLOCK,LOCK,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
 
@@ -379,7 +436,7 @@ def processFT817(rxBuffer,n,s):
           SPLIT=True
        rc=ot_split()
        s.write(r)
-       log('CAT[0x02] [%s] SPLIT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevSPLIT,SPLIT,printBuffer(r)))
+       log(1,'CAT[0x02] [%s] SPLIT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevSPLIT,SPLIT,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x07:            #*--- Set operating mode
@@ -388,14 +445,14 @@ def processFT817(rxBuffer,n,s):
        nextMODE=rxBuffer[0]
        s=getFT817mode(nextMODE)
        if s==None:
-          log('CAT[0x07] Invalid CAT Mode(%d), ignore' % (nextMODE))
+          log(0,'CAT[0x07] Invalid CAT Mode(%d), ignore' % (nextMODE))
           r=bytearray([0x00])
        else:   
           MODE=nextMODE
           r=bytearray([0x00])
        rc=ot_mode()
        s.write(r)
-       log('CAT[0x07] [%s] MODE(%d<%s>->%d<%s>)  resp[%s]' % (printBuffer(rxBuffer),prevMODE,prevs,MODE,s,printBuffer(r)))
+       log(1,'CAT[0x07] [%s] MODE(%d<%s>->%d<%s>)  resp[%s]' % (printBuffer(rxBuffer),prevMODE,prevs,MODE,s,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x08:            #*--- PTT ON and Status
@@ -407,11 +464,11 @@ def processFT817(rxBuffer,n,s):
           r=bytearray([0x00])
        rc=ot_ptt()
        s.write(r)
-       log('CAT[0x08] [%s] PTT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevPTT,PTT,printBuffer(r)))
+       log(1,'CAT[0x08] [%s] PTT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevPTT,PTT,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if ((rxBuffer[4] == 0x09) or (rxBuffer[4] == 0x0A) or (rxBuffer[4] == 0x0B) or (rxBuffer[4]==0x0C) or (rxBuffer[4]==0x0F)):            #*--- Lock status
-       log('CAT[NI] [%s] ignored' % (printBuffer(rxBuffer)))
+       log(0,'CAT[NI] [%s] ignored' % (printBuffer(rxBuffer)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x10:            #*--- Read TX Keyed state (undoc)
@@ -420,7 +477,7 @@ def processFT817(rxBuffer,n,s):
        else:
           r=bytearray([0x00])
        s.write(r)
-       log('CAT[0x10] [%s] PTT(%s)  resp[%s]' % (printBuffer(rxBuffer),PTT,printBuffer(r)))
+       log(1,'CAT[0x10] [%s] PTT(%s)  resp[%s]' % (printBuffer(rxBuffer),PTT,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x82:            #*--- Split Off
@@ -432,7 +489,7 @@ def processFT817(rxBuffer,n,s):
        SPLIT=False
        rc=ot_split()
        s.write(r)
-       log('CAT[0x82] [%s] SPLIT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevSPLIT,SPLIT,printBuffer(r)))
+       log(1,'CAT[0x82] [%s] SPLIT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevSPLIT,SPLIT,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x85:            #*--- Clarifier Off
@@ -444,7 +501,7 @@ def processFT817(rxBuffer,n,s):
        CLAR=False
        rc=ot_clarify()
        s.write(r)
-       log('CAT[0x85] [%s] CLARIFIER(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevCLAR,CLAR,printBuffer(r)))
+       log(1,'CAT[0x85] [%s] CLARIFIER(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevCLAR,CLAR,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x05:            #*--- Clarifier On
@@ -456,7 +513,7 @@ def processFT817(rxBuffer,n,s):
        CLAR=True
        rc=ot_clarify()
        s.write(r)
-       log('CAT[0x05] [%s] CLARIFIER(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevCLAR,CLAR,printBuffer(r)))
+       log(1,'CAT[0x05] [%s] CLARIFIER(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevCLAR,CLAR,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if rxBuffer[4] == 0x80:            #*--- Lock off
@@ -468,7 +525,7 @@ def processFT817(rxBuffer,n,s):
        LOCK=False
        rc=ot_lock()
        s.write(r)
-       log('CAT[0x80] [%s] LOCK(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevLOCK,LOCK,printBuffer(r)))
+       log(1,'CAT[0x80] [%s] LOCK(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevLOCK,LOCK,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
 
@@ -477,21 +534,19 @@ def processFT817(rxBuffer,n,s):
        PTT=False
        if prevPTT==True:
           r=bytearray([0x00])
-          #r=bytearray([0x0f])
        else:
           r=bytearray([0xf0])
-          #r=bytearray([0x00])
        rc=ot_ptt()
        s.write(r)
-       log('CAT[0x88] [%s] PTT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevPTT,PTT,printBuffer(r)))
+       log(1,'CAT[0x88] [%s] PTT(%s->%s)  resp[%s]' % (printBuffer(rxBuffer),prevPTT,PTT,printBuffer(r)))
        return  bytearray([0,0,0,0,0]),0
 
     if ((rxBuffer[4] == 0x8f) or (rxBuffer[4] == 0xa7) or (rxBuffer[4] == 0xba) or (rxBuffer[4]==0xbc) or (rxBuffer[4]==0xbd)):            #*--- Lock status
-       log('CAT[N*] [%s] ignored' % (printBuffer(rxBuffer)))
+       log(0,'CAT[N*] [%s] ignored' % (printBuffer(rxBuffer)))
        return  bytearray([0,0,0,0,0]),0
 
     if ((rxBuffer[4] == 0xbe) or (rxBuffer[4] == 0xf9) or (rxBuffer[4] == 0xf5)):            #*--- Lock status
-       log('CAT[N-] [%s] ignored' % (printBuffer(rxBuffer)))
+       log(0,'CAT[N-] [%s] ignored' % (printBuffer(rxBuffer)))
        return  bytearray([0,0,0,0,0]),0
 #*----------------------------------------------------------------------------
 #* SDR Capabilities
@@ -509,28 +564,8 @@ def isSDRCapable(m,t):
 #*----------------------------------------------------------------------------
 def bootSDR():
     for key in sdr_modes:
-        SDRmode=key
         SDRmodeStr=getFT817mode(SDRmode).ljust(4," ")
-        SDRRFE=sdr_modes[key][0]
-        SDRRMD=sdr_modes[key][1]
-        SDRTME=sdr_modes[key][2]
-        RFE=False
-        RMD=False
-        TME=False
-        if (SDRRFE != ""):
-           RFE=True
-        if (SDRRMD != ""):
-           RMD=True
-        if (SDRTME != ""):
-           TME=True
-        st=""
-        if (RFE==True) and (RMD==True) :
-           st="RX "
-        if (TME==True):
-           st=st+"TX"
-        if st=="":
-           st="Not implemented"
-        log("SDR Capabilities: Mode <%s> RX(%s) TX(%s)" % (SDRmodeStr.ljust(3," "),str(isSDRCapable(key,0)).ljust(5," "),str(isSDRCapable(key,1)).ljust(5," ")))
+        log(0,"SDR Capabilities: Mode <%s> RX(%s) TX(%s)" % (SDRmodeStr.ljust(3," "),str(isSDRCapable(key,0)).ljust(5," "),str(isSDRCapable(key,1)).ljust(5," ")))
 
 
 #*-----------------------------------------------------------------------------
@@ -546,62 +581,70 @@ def non_block_read(output):
     except:
         return ""
 
-#*-----------------------------------------------------------------------------
-#* execute command
-#*
-#*-----------------------------------------------------------------------------
-def execute(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    # Poll process for new output until finished
+def killProcList(s):
+    cmd="ps -aux | pgrep %s" % s
+    p = subprocess.Popen(cmd, universal_newlines=True,shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     while True:
-        nextline = process.stdout.readline()
-        if nextline == '' and process.poll() is not None:
-            break
-        sys.stdout.write(nextline)
-        sys.stdout.flush()
-
-    log("execute: Ending process")
-    output = process.communicate()[0]
-    exitCode = process.returncode
-
-    if (exitCode == 0):
-        return output
-    else:
-        raise ProcessException(command, exitCode, output)
-
-def startSDR(s):
-    s=s.replace("%LO%",str(LO))
-    s=s.replace("%FREQ%",str(fVFOA))
-    s=s.replace("%SAMPLE%",str(SAMPLE))
-    log("startSDR:%s" % s)
-    p = subprocess.Popen(s, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+       s=p.stdout.readline()
+       if s=='' and p.poll() is not None:
+          break
+       PID=s.replace("\n","")
+       log(0,"killProcList:  -- PID(%s)" % PID)
+       execute("sudo kill -9 %s" % PID)
+    o=p.communicate()[0]
+    e=p.returncode
+    return
+#*--------------------------------------------------------------------------------
+#* startSDR
+#* Start SDR processor with macro expansion
+#*--------------------------------------------------------------------------------
+def startSDR(cmd,stOK):
+    cmd=cmd.replace("%LO%",str(LO))
+    cmd=cmd.replace("%FREQ%",str(fVFOA))
+    cmd=cmd.replace("%SAMPLE%",str(SAMPLE))
+    log(1,"startSDR:%s" % cmd)
+    p=startProc(cmd,stOK)
+    if p==None:
+       log(0,"startSDR: Process launch failed")
     return p
 
-def killReceiver(p1,p2):
-    killProcess(p1)
-    killProcess(p2)
+def stopSDR(p1,p2):
+    killProc(p1)
+    killProc(p2)
     return 0
+
+#*----------------------------------------------------------------------------------
+#* startReceiver
+#*
+#*----------------------------------------------------------------------------------
 def startReceiver(m):
     global PTT
     
     PTT=False
+    log(1,"startReceiver: Starting front-end processor")
     sr1=sdr_modes[m][0]
     if sr1=="":
-       log("Front-End SDR processor not found, QUITTING!")
+       log(0,"Front-End SDR processor not found, QUITTING!")
        exit()
-    pr1=startSDR(sr1)
+    pr1=startSDR(sr1,"Reading samples in async mode..")
+    log(1,"startReceiver: Starting listener process")
     sr2=sdr_modes[m][1]
     if sr2=="":
-       log("Decoding SDR processor not found, QUITTING!")
+       log(0,"Decoding SDR processor not found, QUITTING!")
        exit()
-    pr2=startSDR(sr2)
+    pr2=startSDR(sr2,"(unknown)")
     return pr1,pr2
+
+def killReceiver(p1,p2):
+    killProc(p1)
+    killProc(p2)
+    return
+
 #*----------------------------------------------------------------------------
 #* MAIN PROGRAM
 #*----------------------------------------------------------------------------
 try:
- log("Booting transceiver")
+ log(0,"Booting transceiver")
  fChanged=False
  stime=time.time()
 
@@ -612,35 +655,46 @@ try:
  p.add_argument('-i', help="Input serial port",default='/tmp/ttyv0')
  p.add_argument('-o', help="Input serial port",default='/tmp/ttyv1')
  p.add_argument('-r', help="Serial port rate",default=4800)
- p.add_argument('-v', help="Verbose",action="store_true",default=False)
+ p.add_argument('-v', help="Verbose",default=0)
  p.add_argument('-m', help="Mode",default=1)
  p.add_argument('-l', help="Lock",action="store_true",default=False)
- p.add_argument('-f', help="Frequency",default=14000000)
+ p.add_argument('-f', help="Frequency",default=14074000)
  p.add_argument('-c', help="Clarifier",action="store_true",default=False)
  p.add_argument('-s', help="Split",action="store_true",default=False)
+ p.add_argument('-k', help="Kill previous processes",action="store_true",default=False)
 
  args = p.parse_args()
- fVFOA=args.f
- fVFOB=args.f
+ fVFOA=int(args.f)
+ fVFOB=int(args.f)
  MODE=args.m
  LOCK=args.l
  SPLIT=args.s
  CLAR=args.c
+ DEBUGLEVEL=args.v
+ SDRmode=0x01
+
+ if args.k == True:
+    log(0,"main: removing previous processes")
+    killProcList('rtl_sdr')
+    killProcList('ncat')
+    killProcList('socat')
+    killProcList('csdr')
+
 #*----------------------------------------------------------------------------
 #* Start virtual port pair to honor CAT requests
 #*----------------------------------------------------------------------------
- z=subprocess.Popen('socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1',shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
- log('virtual port pair %s-%s enabled' % (args.i,args.o))
+ z=startProc('socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1',"starting data transfer loop")
+ log(0,"main: started virtual serial port %s" %  psutil.Process(z.pid))
+
  time.sleep(1)
  etime=time.time()-stime
- log("Frequency time hook initiated delta (%d) secs" % etime)
 #*----------------------------------------------------------------------------
 #* Boot SDR processor and perform initialization
-#*----------------------------------------------------------------------------
+#*---------------------------------------------------------------------------- 
  rc=bootSDR()
 
  s=serial.Serial(args.o,args.r)
- log('Listener (%s), Client (%s), rate(%d)' % (args.o,args.i,args.r))
+ log(0,'Client[%s]==>(%s) (%d)' % (args.o,args.i,args.r))
 
  CAT=args.r
  vfoAB=0
@@ -657,15 +711,14 @@ try:
  n=0
  vfoAB=0
  rxBuffer=bytearray([0,0,0,0,0])
-
- log('Main: Transceiver status %s' % getStatus())
+ putStatus()
 #*----------------------------------------------------------------------------
 #* Infinite loop
 #*----------------------------------------------------------------------------
  while True :
 
 #*------ Process CAT commands when available
-  if s.inWaiting()>0:
+  if ( (s.inWaiting()>0) ):
      c = s.read()
 
      for d in c:
@@ -678,16 +731,16 @@ try:
             (rxBuffer,n)=processFT817(rxBuffer,n,s)
 
 #*------- Process output from receiver subordinate processes
-  #if PTT==False:
-  if 'pRX1' in globals():
+
+  if 'pRX1' in globals() :
      rst=non_block_read(pRX1.stdout)
      if rst!="":
-        log(rst.replace("\n",""))
+        log(0,rst.replace("\n",""))
 
-  #if 'pRX2' in globals():
-  #   rst=non_block_read(pRX2.stdout)
-  #   if rst!="":
-  #      log(rst.replace("\n",""))
+  if 'pRX2' in globals() :
+     rst=non_block_read(pRX2.stdout)
+     if rst!="" and rst.find("(unknown)")== -1:
+        log(0,rst.replace("\n",""))
 
   if fChanged == True:
      etime=time.time()
@@ -695,22 +748,21 @@ try:
         fChanged=False
         killReceiver(pRX1,pRX2)
         pRX1,pRX2=startReceiver(MODE)
-        log("main:Frequency changed to VFO(%s) f(%d/%d)" % (getVFO(vfoAB),fVFOA,fVFOB))
+        if args.v == True:
+           log(0,"main:Frequency changed to VFO(%s) f(%d/%d)" % (getVFO(vfoAB),fVFOA,fVFOB))
          
-  #else:
-
-  if 'pTX' in globals():
+  if 'pTX' in globals() and args.v==True:
      rst=non_block_read(pTX.stdout)
-     if rst!="":
-        log(rst.replace("\n",""))
+     if args.v == True and rst!="":
+        log(0,rst.replace("\n",""))
 
 
  exit()        
 except(SyntaxError):
- log("Transceiver abnormal syntax error detected, clean up completed!")
- killProcess(pRX1)
- killProcess(pRX2)
- killProcess(pTX)
- killProcess(z)
+ log(0,"Transceiver abnormal syntax error detected, clean up completed!")
+ killProc(pRX1)
+ killProc(pRX2)
+ killProc(pTX)
+ killProc(z)
  sys.exit(0)
 
