@@ -73,7 +73,7 @@ pwr='20'
 freq=0
 tx=True
 VERSION='1.1'
-PROGRAM=sys.argv[0].split(".")[0]
+PROGRAM="wsprRxTx"
 cycle=5
 lckFile=("%s.lck") % PROGRAM
 logFile=("%s.log") % PROGRAM
@@ -87,60 +87,6 @@ DEBUGLEVEL=0
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(27, GPIO.OUT)
-#*-----------------------------------------------------------------------
-#* manage locks
-#*-----------------------------------------------------------------------
-def createLock():
-    log(0,"Archivo lock es %s" % lckFile)
-    with open(lckFile, 'a') as f:
-       f.write("%d\n" % myPID)
-
-def resetLock():
-    if isLock()==True:
-       os.remove(lckFile)
-    else:
-       log(0,"The file %s does not exist" % lckFile)
-
-
-def isLock():
-    if os.path.exists(lckFile):
-       return True
-    else:
-       return False 
-
-def createPID():
-    log(0,"Archivo PID es %s" % pidFile)
-    with open(pidFile, 'a') as f:
-       f.write("%d\n" % myPID)
-
-def resetPID():
-    if isPID()!= True:
-       os.remove(pidFile)
-    else:
-       log(0,"The file %s does not exist" % pidFile)
-
-
-def isPID():
-    if os.path.exists(pidFile):
-       return True
-    else:
-       return False
-#*--------------------------------------------------------------------------
-#* isRunning()
-#*
-#*--------------------------------------------------------------------------
-def isRunning():
-    if isPID() == True:
-       f = open(pidFile, "r")
-       for line in f:
-           line=line.replace("\n","")
-           log(1,"Returned line from pidFile %s" % line)
-           return(line)
-    else:
-       log(1,"The %s file does not exist" % pidFile)
-       return ""
-
-
 #*------------------------------------------------------------------------
 #* setPTT
 #* Activate the PTT thru GPIO27
@@ -148,11 +94,10 @@ def isRunning():
 def setPTT(PTT):
     if PTT==False:
        GPIO.output(27, GPIO.LOW)
-       log(0,"setPTT: GPIO.27=LOW PTT=%s Receiving" % PTT)
+       log(0,"setPTT: GPIO27->PTT(%s) -- Receiving mode" % PTT)
     else:
        GPIO.output(27, GPIO.HIGH)
-       log(0,"setPTT: GPIO.27=HIGH PTT=%s Transmiting" % PTT)
-      
+       log(0,"setPTT: GPIO27->PTT(%s) -- Transmit mode" % PTT)
 #*-------------------------------------------------------------------------
 #* getFreq(band)
 #* Transform band into frequency
@@ -177,14 +122,17 @@ def log(d,st):
 #*----------------------------------------------------------------------------
 def signal_handler(sig, frame):
    log(0,"signal_handler: WSPR Monitor and Beacon is being terminated, clean up completed!")
-   log(1,'Turning GPIO(27) low as PTT')
+   log(0,'Turning GPIO(27) low as PTT')
    setPTT(False)
 
    try:
-     log(1,"Process terminated, clean up completed!")
-     resetLock()
+     log(0,"Process terminated, clean up completed!")
+     if os.file.exists(lckFile) == True:
+        os.remove(lckFile)
+     if os.file.exists(pidFile) == True:
+        os.remove(pidFile)
    except:
-     log(1,"signal_handler: Process finalized")
+     log(0,"signal_handler: Process finalized")
    sys.exit(0)
 #*-------------------------------------------------------------------------
 #* Exception management
@@ -212,17 +160,17 @@ def doExec(cmd):
 #* Execute a command as a shell and print to std out and std error
 #*--------------------------------------------------------------------------
 def doShell(cmd):
-
     log(1,"doShell: [cmd] %s" % cmd)
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (result, error) = p.communicate()
-
     rc = p.wait()
+    log(1,"doShell: [stdout]= %s" % result)
+    log(1,"doShell: [stderr]= %s" % error)
 
     if rc != 0:
         log(0,"Error: failed to execute command: %s" % cmd)
         log(0,error)
-    return result
+    return result.decode("utf-8")
 
 #*--------------------------------------------------------------------------
 #* doService()
@@ -230,52 +178,55 @@ def doShell(cmd):
 #*--------------------------------------------------------------------------
 def doService(freq):
 
-    log(1,'Time Executing time synchronization')
-    cmd='sudo chronyc -a makestep'
-    #cmd='sudo /home/pi/ntpd.sync'
-    result=doShell(cmd)
-    log(0,"doService: TimeSync(%s)" % result.replace("\n",""))
+    if args.ntpd == True:
+       log(1,'doService: Starting time synchronization')
+       #cmd='sudo chronyc -a makestep'
+       cmd='sudo /home/pi/ntpd.sync'
+       result=doShell(cmd)
+       log(0,"doService: TimeSync(%s)" % str(result).replace("\n",""))
  
     while True:
        #*--------------------------*
        #* PTT low (receive)        *
        #*--------------------------*
        setPTT(False)
-
        #*--------------------------*
        #* Read and log telemetry   *
        #*--------------------------*
        cmd="python /home/pi/WsprryPi/picheck.py -a"
        result=doShell(cmd)
-       log(0,"[TL] %s" % result.replace("\n",""))
+       log(0,"[TL] %s" % str(result).replace("\n",""))
        with open(tlmFile, 'a') as tlm:
           log(1,"writing telemetry to file %s" % tlmFile)
           tlm.write("%s" % result)
-
        #*--------------------------*
        #* Receive WSPR             *
        #*--------------------------*
-       if cycle>1:
-          n=getRandom(1,cycle)
-       else:
-          n=cycle
-       log(0,"Starting receiver for %d cycles" % cycle)
-       cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n)
-       result=doShell(cmd)       
-       log(0,"[RX]\n%s" % result)
+       if args.txonly == False:
+          if cycle>1:
+             n=getRandom(1,cycle)
+          else:
+             n=cycle
+          log(0,"Starting receiver for %d cycles" % n)
+          cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n)
+          result=doShell(cmd)       
+          log(0,"[RX]\n%s" % result)
 
+       if args.rxonly == False:
        #*--------------------------*
        #* PTT high (transmit)      *
        #*--------------------------*
-       setPTT(True)
-
+          setPTT(True)
        #*--------------------------*
        #* Transmit cycle           *
        #*--------------------------*
-       log(0,"Starting beacon %s grid=%s pwr=%s band=%s" (id,grid,pwr,band))
-       cmd='sudo /home/pi/WsprryPi/wspr -r -o -s -x 1 %s %s %s %s' % (id,grid,pwr,band)
-       result=doShell(cmd)       
-       log(0,"[TX]\n%s" % result)
+       #*--- NO USAR log(0,"Starting beacon %s grid=%s pwr=%s band=%s" (id,grid,pwr,band))
+          cmd='sudo /home/pi/WsprryPi/wspr -r -o -s -x 1 %s %s %s %s' % (id,grid,pwr,band)
+       #*--- NO USAR log(0,"[c]:%s" % cmd)
+          result=doShell(cmd)       
+          log(0,"[TX]\n%s" % result)
+
+       setPTT(False)
 
 #*--------------------------------------------------------------------------
 #* getRandom
@@ -297,15 +248,37 @@ def startService():
     if freq==0 :
        log(0,'Non supported band(%s), exit' % band)
        exit()
-    log(1,"Starting daemon PID(%d) and creating %s lock" % (myPID,lckFile))
-    createLock()
-    log(1,"%s lock file created" % lckFile)
+    log(1,"Starting daemon PID(%d) and creating PID %s" % (myPID,pidFile))
+    #createPID()
+    #log(1,"%s PID file created" % pidFile)
     try:
       doService(freq)
-    except:
-      log(0,"Exception detected, program being terminated")
+    except Exception as e:
+      log(0,"Exception detected, program being terminated Exception(%s)" % str(e.message))
+      log(0,"Exception detected, %s" % repr(e))
     else:
       log(0,"Program is ending normally")
+
+
+#*--------------------------------------------------------------------------
+#* isRunning
+#* Explore if another instance of the daemon is running
+#*--------------------------------------------------------------------------
+def isRunning():
+    cmd="sudo ps -aux | pgrep \"%s\" " % PROGRAM
+    log(1,"doExec: [cmd] %s" % cmd)
+    p = subprocess.Popen(cmd, shell=True, 
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+    rc=p.wait()
+    for line in p.stdout:
+        s=line.decode("utf-8").replace("\n","")
+        log(2,"PID(%s)" % s)
+        if int(s)!=int(myPID):
+           log(2,"Detected PID(%s) as a running instance" % s)
+           return s
+    return ""
+
 #*============================================================================
 #* Main Program
 #*
@@ -331,6 +304,12 @@ ap.add_argument("--cycle",help="Cycles RX/TX",required=False)
 ap.add_argument("--log",help="Log activity to file",default=True,required=False,action="store_true")
 ap.add_argument("--lock",help="Lock further execution till reset",required=False,action="store_true")
 ap.add_argument("--reset",help="Reset locked execution", required=False,action="store_true")
+ap.add_argument("--debug",help="Debug level", required=False,default=0)
+ap.add_argument("--force",help="Force start", required=False,default=False,action="store_true")
+ap.add_argument("--ntpd",help="Force ntpd sync", required=False,default=False,action="store_true")
+ap.add_argument("--rxonly",help="Force only receiving", required=False,default=False,action="store_true")
+ap.add_argument("--txonly",help="Force ntpd transmitting", required=False,default=False,action="store_true")
+
 args=ap.parse_args()
 
 #*---------------------------*
@@ -341,9 +320,48 @@ if args.log == True :
    logFile="%s.log" % PROGRAM
    with open(logFile, 'w+') as f:
       f.write("")
-   log(2,'Set logfile(%s)' % logFile)
+   log(2,'(log) Set logfile(%s)' % logFile)
 
 log(0,"Program %s Version %s PID(%d)" % (PROGRAM,VERSION,os.getpid()))
+#*---------------------------*
+#* Process receive only      *
+#*---------------------------*
+
+if args.rxonly == True:
+   log(0,"(rxonly) Receiving only mode activated")
+#*---------------------------*
+#* Process transmit only     *
+#*---------------------------*
+
+if args.txonly == True:
+   log(0,"(txonly) Transmit only mode activated")
+
+#*---------------------------*
+#* Process debug level       *
+#*---------------------------*
+
+if int(args.debug) != 0:
+   DEBUGLEVEL=int(args.debug)
+   log(0,"(debug) Debug level set to %d" % DEBUGLEVEL)
+
+#*---------------------------*
+#* Process force command     *
+#*---------------------------*
+
+if args.force == True:
+
+   pid=isRunning()
+   if(pid == ''):
+      log(0,'(force) Daemon is not running')
+   else:
+      log(0,'(force) Daemon found PID(%s), killing it' % pid)
+      n=int(pid)
+      cmd="sudo kill %s" % n
+      result=doShell(cmd)
+      log(0,'(force) Killing process completed')
+   if os.path.isfile(pidFile) == True:
+      os.remove(pidFile)   
+      log(0,'(force) pidFile %s removed' % pidFile)
 
 #*---------------------------*
 #* Process id command        *
@@ -351,7 +369,7 @@ log(0,"Program %s Version %s PID(%d)" % (PROGRAM,VERSION,os.getpid()))
 
 if args.id != None :
    id=args.id.upper()
-   log(0,'Set Callsign id(%s)' % id)
+   log(0,'(id) Set Callsign id(%s)' % id)
 
 #*---------------------------*
 #* Process cycle command     *
@@ -359,7 +377,7 @@ if args.id != None :
 
 if args.cycle != None:
    cycle=int(args.cycle)
-   log(0,'Set RX/TX cycle (%d)' % cycle)
+   log(0,'(cycle) Set RX/TX cycle (%d)' % cycle)
 
 #*---------------------------*
 #* Process grid  command     *
@@ -367,7 +385,7 @@ if args.cycle != None:
 
 if args.grid != None :
    grid=args.grid.upper()
-   log(0,'Set maiden QTH Locator grid(%s)' % grid)
+   log(0,'(grid) Set maiden QTH Locator grid(%s)' % grid)
 
 #*---------------------------*
 #* Process band command      *
@@ -375,96 +393,59 @@ if args.grid != None :
 
 if args.band != None :
    band=args.band.upper()
-   log(0,'Set Band(%s)' % band)
+   log(0,'(band) Set Band(%s)' % band)
 
 #*---------------------------*
 #* Process Tx command        *
 #*---------------------------*
 if args.tx != False :
    tx=args.tx
-   log(0,'Set Tx(%s)' % str(tx))
+   log(0,'(tx) Set Tx(%s)' % str(tx))
 
 #*---------------------------*
 #* Process Power command     *
 #*---------------------------*
 if args.pwr != None :
    pwr=args.pwr
-   log(0,'Set Power(%s)' % pwr)
+   log(0,'(pwr) Set Power(%s)' % pwr)
 
 #*---------------------------*
 #* Process start command     *
 #*---------------------------*
 if args.start:
-       if isLock() == True:
-          log(0,"Daemon is locked, run with --reset opetion to clear")
-          exit()
-       PID=isRunning()
-       if PID == '':
-          setPTT(False)
-          startService()
-       else:
-          log(0,"Daemon already running PID(%s), exit" % PID)
-       exit()
+   PID=isRunning()
+   if PID == '':
+      setPTT(False)
+      startService()
+   else:
+      log(0,"(start) Daemon already running PID(%s), exit" % PID)
+   exit()    
 #*---------------------------*
 #* Process stop command      *
 #*---------------------------*
 if args.stop:
-       pid=isRunning()
-       if(pid == ''):
-         log(0,'Daemon is not running, exit')
-       else:
-         log(0,'Daemon found PID(%s), killing it' % pid)
-         n=int(pid)
-         cmd="sudo kill %s" % n
-         result=doShell(cmd)
-       setPTT(False)
-       exit()
-
+   pid=isRunning()
+   if(pid == ''):
+     log(0,'Daemon is not running, exit')
+   else:
+     log(0,'Daemon found PID(%s)' % pid)
+   exit()
 #*----------------------------------------------------------------------------
 #* Review lock status
 #*----------------------------------------------------------------------------
 if args.lock == True:
-       if isLock() == True:
-          log(0,"Daemon is already locked, exit")
-          exit()
-       pid=isRunning()
-       if(pid == ''):
-         log(0,'Daemon is not running, locking and exit')
-       else:
-         log(0,'Daemon found PID(%s), killing, locking and exit' % pid)
-         n=int(pid)
-         cmd="sudo kill %s" % n
-         result=doShell(cmd)
-       setPTT(False)
-       createLock()
-       exit()
-
-if args.reset == True:
-   if isLock()==False:
-      log(0,"Daemon is not currently locked, exit")
-      exit()
-   pid=isRunning()
-   if(pid == ''):
-     log(0,'Daemon is not running')
-   else:
-     log(0,'Daemon is running PID(%s), killing it' % pid)
-     n=int(pid)
-     cmd="sudo kill %s" % n
-     result=doShell(cmd)
-
-   setPTT(False)
-   resetLock()
-   log(0,"Daemon lock is removed, execute with --start")
    exit()
 
+if args.reset == True:
+   exit()
 
 #*------------------------------------*
 #* Process list command (default)     *
 #*------------------------------------*
 pid=isRunning()
 if (pid == ''):
-    log(0,'Status: Daemon is not running, lock(%s), exit' % str(isLock()))
+   log(0,'Status: Daemon is not running, exit')
 else:
-    log(0,'Status: Daemon is running PID(%s), lock(%s)' % (pid,str(isLock())))
+   log(0,'Status: Daemon is running PID(%s)' % (pid))
 exit()
 #*--------------------------------[End of program] -----------------------------------------------
