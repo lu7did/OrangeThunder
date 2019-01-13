@@ -113,7 +113,6 @@ p.add_argument('-f', help="Get frequency",action="store_true")
 p.add_argument('-s', help="Get operational condition (get_throttled)",action="store_true")
 p.add_argument('-x', help="Verbose output",action="store_true")
 p.add_argument('-z', help="Special test status value 0xnn")
-p.add_argument('-a', help="All telemetry in one call",action="store_true")
 
 
 args = p.parse_args()
@@ -121,29 +120,23 @@ args = p.parse_args()
 #*---------------------------------------------------------------------------------
 #* Process arguments
 #*---------------------------------------------------------------------------------
-if args.a == True:
-   st="Temp=%s °C Volt=%s V Clock(arm)=%s MHz Status(%s)" % (read_temperature(),read_voltage(),read_frequency().replace("\n",""),read_status(""))
-   print(st)
-   exit()
-
 if args.t == True:
    if args.x == False:
       print(read_temperature())
    else:
       print("Temperature: %s C°" % read_temperature())
-   exit()
+
 if args.v == True:
    if args.x == False:
       print(read_voltage())
    else:
       print("Voltage: %s V" % read_voltage())
-   exit()
+
 if args.f == True:
    if args.x == False:
       print(read_frequency())
    else:
       print("Frequency (arm): %s MHz" % read_frequency())
-   exit()
 if args.s == True:
    if args.z != None:
       st=read_status(args.z)
@@ -153,7 +146,6 @@ if args.s == True:
       print(st)
    else:
       print("Status: %s" % st)
-   exit()
   
 
 #*------------------------------- End of Program --------------------------------------------
