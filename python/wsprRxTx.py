@@ -137,7 +137,7 @@ def isRunning():
            log(1,"Returned line from pidFile %s" % line)
            return(line)
     else:
-       log(0,"The % file does not exist" % pidFile)
+       log(1,"The %s file does not exist" % pidFile)
        return ""
 
 
@@ -230,11 +230,11 @@ def doShell(cmd):
 #*--------------------------------------------------------------------------
 def doService(freq):
 
-    log(0,'Time Executing time synchronization')
+    log(1,'Time Executing time synchronization')
     cmd='sudo chronyc -a makestep'
     #cmd='sudo /home/pi/ntpd.sync'
     result=doShell(cmd)
-    log(0,"doService: TimeSync(%s)" % result)
+    log(0,"doService: TimeSync(%s)" % result.replace("\n",""))
  
     while True:
        #*--------------------------*
@@ -259,6 +259,7 @@ def doService(freq):
           n=getRandom(1,cycle)
        else:
           n=cycle
+       log(0,"Starting receiver for %d cycles" % cycle)
        cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n)
        result=doShell(cmd)       
        log(0,"[RX]\n%s" % result)
@@ -271,6 +272,7 @@ def doService(freq):
        #*--------------------------*
        #* Transmit cycle           *
        #*--------------------------*
+       log(0,"Starting beacon %s grid=%s pwr=%s band=%s" (id,grid,pwr,band))
        cmd='sudo /home/pi/WsprryPi/wspr -r -o -s -x 1 %s %s %s %s' % (id,grid,pwr,band)
        result=doShell(cmd)       
        log(0,"[TX]\n%s" % result)
@@ -438,15 +440,22 @@ if args.lock == True:
        exit()
 
 if args.reset == True:
-       pid=isRunning()
-       if(pid == ''):
-         log(0,'Lock not found, exit')
-       else:
-         log(0,'Lock found PID(%s), killing it' % pid)
-         n=int(pid)
-       setPTT(False)
-       resetLock()
-       exit()
+   if isLock()==False:
+      log(0,"Daemon is not currently locked, exit")
+      exit()
+   pid=isRunning()
+   if(pid == ''):
+     log(0,'Daemon is not running')
+   else:
+     log(0,'Daemon is running PID(%s), killing it' % pid)
+     n=int(pid)
+     cmd="sudo kill %s" % n
+     result=doShell(cmd)
+
+   setPTT(False)
+   resetLock()
+   log(0,"Daemon lock is removed, execute with --start")
+   exit()
 
 
 #*------------------------------------*
@@ -454,8 +463,8 @@ if args.reset == True:
 #*------------------------------------*
 pid=isRunning()
 if (pid == ''):
-    print(0,'Status: Daemon is not running, exit')
+    log(0,'Status: Daemon is not running, lock(%s), exit' % str(isLock()))
 else:
-    print(0,'Status: Daemon is runnint PID(%s)' % pid)
-exit() 
+    log(0,'Status: Daemon is running PID(%s), lock(%s)' % (pid,str(isLock())))
+exit()
 #*--------------------------------[End of program] -----------------------------------------------
