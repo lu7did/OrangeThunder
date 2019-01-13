@@ -1,6 +1,24 @@
 #!/bin/phyton
 # -*- coding: latin-1 -*-
 from __future__ import with_statement
+#*-------------------------------------------------------------------------
+#* wsprtlm.py
+#* Compute a WSPR frame based on telemetry data
+#*-------------------------------------------------------------------------
+#// License:
+#//   This program is free software: you can redistribute it and/or modify
+#//   it under the terms of the GNU General Public License as published by
+#//   the Free Software Foundation, either version 2 of the License, or
+#//   (at your option) any later version.
+#//
+#//   This program is distributed in the hope that it will be useful,
+#//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#//   GNU General Public License for more details.
+#//
+#//   You should have received a copy of the GNU General Public License
+#//   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#// lu7did: initial load
 #*--------------------------------------------------------------------------------
 #* Import libraries
 #*--------------------------------------------------------------------------------
@@ -296,7 +314,7 @@ if args.q == True:
    if args.v == True:
       print("Telemetry Temperature, Battery and others: %s %s" % (GRID,PWR))
    else:
-      sys.stdout.write("%s %s" % (GRID,PWR))
+      sys.stdout.write("%s " % (GRID))
 #*-------------------------------------------------------------------------------
 #* Process (fake) power indicator
 #*-------------------------------------------------------------------------------
@@ -304,7 +322,8 @@ if args.q == True:
 if args.p == True:
    sys.stdout.write("7")
 
-print(" ")
-print("decode_CALLSIGN(%s%s %s)" % decode_CALLSIGN(LIC))
-print("decode_LOCATOR_POWER(%s %s %s %s)" % decode_LOCATOR_PWR(GRID,PWR))
+#print(" ")
+#print("decode_CALLSIGN(%s%s %s)" % decode_CALLSIGN(LIC))
+#print("decode_LOCATOR_POWER(%s %s %s %s)" % decode_LOCATOR_PWR(GRID,PWR))
+
 exit()
