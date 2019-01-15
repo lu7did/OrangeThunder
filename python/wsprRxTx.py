@@ -204,8 +204,8 @@ def doService(freq):
              cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -S' % (freq,id,grid,n)
              result=doShell(cmd)       
              log(0,"[RX]\n%s" % result)
-          except exception as e:
-             log(0,"[RX] Exception while processing rtlsdr-wsprd [%s]" % str(e.message))
+          except Exception as e:
+             log(0,"[RX] Exception while processing rtlsdr-wsprd [%s]" % repr(e))
        if args.rxonly == False:
        #*--------------------------*
        #* PTT high (transmit)      *
@@ -246,8 +246,7 @@ def startService():
     try:
       doService(freq)
     except Exception as e:
-      log(0,"Exception detected, program being terminated Exception(%s)" % str(e.message))
-      log(0,"Exception detected, %s" % repr(e))
+      log(0,"Exception detected, program being terminated Exception(%s)" % repr(e))
     else:
       log(0,"Program is ending normally")
 
@@ -309,7 +308,7 @@ args=ap.parse_args()
 
 if args.log == True :
    logFile="%s.log" % PROGRAM
-   with open(logFile, 'w+') as f:
+   with open(logFile, 'a') as f:
       f.write("")
    log(2,'(log) Set logfile(%s)' % logFile)
 
