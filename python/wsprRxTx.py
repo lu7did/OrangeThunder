@@ -78,7 +78,6 @@ cycle=5
 lckFile=("%s.lck") % PROGRAM
 logFile=("%s.log") % PROGRAM
 tlmFile=("%s.tlm") % PROGRAM
-pidFile=("%s.pid") % PROGRAM
 myPID=os.getpid()
 DEBUGLEVEL=0
 #*------------------------------------------------------------------------
@@ -122,17 +121,9 @@ def log(d,st):
 #*----------------------------------------------------------------------------
 def signal_handler(sig, frame):
    log(0,"signal_handler: WSPR Monitor and Beacon is being terminated, clean up completed!")
-   log(0,'Turning GPIO(27) low as PTT')
+   log(0,'Turning GPIO27 low as PTT')
    setPTT(False)
-
-   try:
-     log(0,"Process terminated, clean up completed!")
-     if os.file.exists(lckFile) == True:
-        os.remove(lckFile)
-     if os.file.exists(pidFile) == True:
-        os.remove(pidFile)
-   except:
-     log(0,"signal_handler: Process finalized")
+   log(0,"Process terminated, clean up completed!")
    sys.exit(0)
 #*-------------------------------------------------------------------------
 #* Exception management
@@ -208,10 +199,13 @@ def doService(freq):
           else:
              n=cycle
           log(0,"Starting receiver for %d cycles" % n)
-          cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n)
-          result=doShell(cmd)       
-          log(0,"[RX]\n%s" % result)
-
+          try:
+             #cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n) REMOVE  -a
+             cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -S' % (freq,id,grid,n)
+             result=doShell(cmd)       
+             log(0,"[RX]\n%s" % result)
+          except exception as e:
+             log(0,"[RX] Exception while processing rtlsdr-wsprd [%s]" % str(e.message))
        if args.rxonly == False:
        #*--------------------------*
        #* PTT high (transmit)      *
@@ -248,9 +242,7 @@ def startService():
     if freq==0 :
        log(0,'Non supported band(%s), exit' % band)
        exit()
-    log(1,"Starting daemon PID(%d) and creating PID %s" % (myPID,pidFile))
-    #createPID()
-    #log(1,"%s PID file created" % pidFile)
+    log(1,"Starting daemon PID(%d)" % (myPID))
     try:
       doService(freq)
     except Exception as e:
@@ -305,7 +297,6 @@ ap.add_argument("--log",help="Log activity to file",default=True,required=False,
 ap.add_argument("--lock",help="Lock further execution till reset",required=False,action="store_true")
 ap.add_argument("--reset",help="Reset locked execution", required=False,action="store_true")
 ap.add_argument("--debug",help="Debug level", required=False,default=0)
-ap.add_argument("--force",help="Force start", required=False,default=False,action="store_true")
 ap.add_argument("--ntpd",help="Force ntpd sync", required=False,default=False,action="store_true")
 ap.add_argument("--rxonly",help="Force only receiving", required=False,default=False,action="store_true")
 ap.add_argument("--txonly",help="Force ntpd transmitting", required=False,default=False,action="store_true")
@@ -344,29 +335,11 @@ if int(args.debug) != 0:
    DEBUGLEVEL=int(args.debug)
    log(0,"(debug) Debug level set to %d" % DEBUGLEVEL)
 
-#*---------------------------*
-#* Process force command     *
-#*---------------------------*
 
-if args.force == True:
-
-   pid=isRunning()
-   if(pid == ''):
-      log(0,'(force) Daemon is not running')
-   else:
-      log(0,'(force) Daemon found PID(%s), killing it' % pid)
-      n=int(pid)
-      cmd="sudo kill %s" % n
-      result=doShell(cmd)
-      log(0,'(force) Killing process completed')
-   if os.path.isfile(pidFile) == True:
-      os.remove(pidFile)   
-      log(0,'(force) pidFile %s removed' % pidFile)
 
 #*---------------------------*
 #* Process id command        *
 #*---------------------------*
-
 if args.id != None :
    id=args.id.upper()
    log(0,'(id) Set Callsign id(%s)' % id)
@@ -374,7 +347,6 @@ if args.id != None :
 #*---------------------------*
 #* Process cycle command     *
 #*---------------------------*
-
 if args.cycle != None:
    cycle=int(args.cycle)
    log(0,'(cycle) Set RX/TX cycle (%d)' % cycle)
@@ -413,6 +385,10 @@ if args.pwr != None :
 #* Process start command     *
 #*---------------------------*
 if args.start:
+   if os.path.isfile(lckFile) == True:
+      log(0,"(start) Process is locked, run with --reset option to release")
+      exit()
+
    PID=isRunning()
    if PID == '':
       setPTT(False)
@@ -434,9 +410,23 @@ if args.stop:
 #* Review lock status
 #*----------------------------------------------------------------------------
 if args.lock == True:
+   if os.path.isfile(lckFile) == True:
+      log(0,"(lock) Lock %s already exists, remove with --reset" % lckFile)
+   else:
+      with open(lckFile, 'w+') as lck:
+         lck.write(str(os.getpid()))
+      log(0,"(lock) Lock %s created" % lckFile)
    exit()
+#*---------------------------*
+#* Process reset command     *
+#*---------------------------*
 
 if args.reset == True:
+   if os.path.isfile(lckFile) == True:
+      os.remove(lckFile)
+      log(0,"(reset) Lock %s removed, start program with option --start" % lckFile)
+   else:
+      log(0,"(reset) No lock found, exit")
    exit()
 
 #*------------------------------------*
