@@ -193,19 +193,24 @@ def doService(freq):
        #*--------------------------*
        #* Receive WSPR             *
        #*--------------------------*
+       if cycle>1:
+          n=getRandom(1,cycle)
+       else:
+          n=cycle
+
        if args.txonly == False:
-          if cycle>1:
-             n=getRandom(1,cycle)
-          else:
-             n=cycle
           log(0,"Starting receiver for %d cycles" % n)
           try:
              #cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -a 1 -S' % (freq,id,grid,n) REMOVE  -a
-             cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -S' % (freq,id,grid,n)
+             cmd='sudo /home/pi/rtlsdr-wsprd/rtlsdr_wsprd -f %d -c %s -l %s -d 2 -n %d -g %d -S' % (freq,id,grid,n,args.gain)
              result=doShell(cmd)       
              log(0,"[RX]\n%s" % result)
           except Exception as e:
              log(0,"[RX] Exception while processing rtlsdr-wsprd [%s]" % repr(e))
+       else:
+          log(0,"Waiting for %d cycles" % n)
+          time.sleep(120*n)
+
        if args.rxonly == False:
        #*--------------------------*
        #* PTT high (transmit)      *
@@ -270,6 +275,26 @@ def isRunning():
            return s
     return ""
 
+#*--------------------------------------------------------------------------
+#* killChild
+#* Explore, list and kills all childs of a process plus the process itself
+#*--------------------------------------------------------------------------
+def killChild(PID):
+   try:
+     log(0,"Entering  parent identification thing PID %s" % PID)
+     parent = psutil.Process(int(PID))
+     log(0,"Parent process %s" % parent)
+     log(0,"killChild: process %s)" % parent)
+     for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+       log(0,"killChild:     -- child(%s)" % child)
+       #child.kill()
+     #parent.kill()
+   except UnboundLocalError as error:
+     log(0,"killChild: Unable to kill parent PID")
+   except NameError as error:
+     log(2,"killChild: Allocation error")
+   except Exception as exception:
+     pass
 #*============================================================================
 #* Main Program
 #*
@@ -285,7 +310,6 @@ ap = argparse.ArgumentParser()
 
 ap.add_argument("--start", help="Start the WSPR Transceiver", required=False, action="store_true")
 ap.add_argument("--stop",help="Stop the WSPR Transceiver",required=False, action="store_true")
-ap.add_argument("--list",help="List the WSPR Transceiver", required=False, action="store_true")
 ap.add_argument("--id",help="Callsign to be used",required=False)
 ap.add_argument("--grid",help="QTH Locator",required=False)
 ap.add_argument("--band",help="Band to use i.e. 20m",required=False)
@@ -296,9 +320,12 @@ ap.add_argument("--log",help="Log activity to file",default=True,required=False,
 ap.add_argument("--lock",help="Lock further execution till reset",required=False,action="store_true")
 ap.add_argument("--reset",help="Reset locked execution", required=False,action="store_true")
 ap.add_argument("--debug",help="Debug level", required=False,default=0)
+ap.add_argument("--gain",help="Receiver gain", required=False,default=29)
+ap.add_argument("--mark",help="Establish a log checkpoint mark", required=False,default="")
 ap.add_argument("--ntpd",help="Force ntpd sync", required=False,default=False,action="store_true")
 ap.add_argument("--rxonly",help="Force only receiving", required=False,default=False,action="store_true")
 ap.add_argument("--txonly",help="Force ntpd transmitting", required=False,default=False,action="store_true")
+ap.add_argument("--list",help="List main PID and all childs", required=False,default=False,action="store_true")
 
 args=ap.parse_args()
 
@@ -313,6 +340,23 @@ if args.log == True :
    log(2,'(log) Set logfile(%s)' % logFile)
 
 log(0,"Program %s Version %s PID(%d)" % (PROGRAM,VERSION,os.getpid()))
+
+#*---------------------------*
+#* Process receive only      *
+#*---------------------------*
+if args.mark != "":
+   log(0,"(mark) *** Checkpoint mark: %s ***" % args.mark)
+
+
+if args.list == True:
+   log(0,"(list) Listing all childs of running process")
+   PID=isRunning()
+   if PID =="":
+      log(0,"(list) No process running found, exit")
+   else:
+      log(0,"(list) Found process running PID(%s)" % PID)
+      killChild(PID)
+   exit()
 #*---------------------------*
 #* Process receive only      *
 #*---------------------------*
@@ -325,6 +369,7 @@ if args.rxonly == True:
 
 if args.txonly == True:
    log(0,"(txonly) Transmit only mode activated")
+
 
 #*---------------------------*
 #* Process debug level       *
