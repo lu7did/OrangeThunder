@@ -193,10 +193,13 @@ def doService(freq):
        #*--------------------------*
        #* Receive WSPR             *
        #*--------------------------*
-       if cycle>1:
-          n=getRandom(1,cycle)
-       else:
+       if args.cycle != None:
           n=cycle
+       else:
+          if cycle>1:
+             n=getRandom(1,cycle)
+          else:
+             n=cycle
 
        if args.txonly == False:
           log(0,"Starting receiver for %d cycles" % n)
@@ -207,7 +210,7 @@ def doService(freq):
              log(0,"[RX]\n%s" % result)
           except Exception as e:
              log(0,"[RX] Exception while processing rtlsdr-wsprd [%s]" % repr(e))
-       else:
+       else: 
           log(0,"Waiting for %d cycles" % n)
           time.sleep(120*n)
 
