@@ -34,6 +34,8 @@ ERR="whisper.err"
 LOCK="whisper.lck"
 VERSION="1.1"
 TLM="whisper.tlm"
+ON="1"
+OFF="0"
 #*-----------------------------------------------------------------------------
 #* getTelemetry()
 #* Create telemetry and WSPR frame
@@ -61,6 +63,7 @@ GRIX="TE"
 POWER="20 "
 BAND="20m 0 0 0 0  "
 HEIGHT=40
+GPIO="27"
 CHANNEL=0
 
 #*---- Find number of instances running
@@ -79,9 +82,14 @@ case $1 in
                   exit 0
                fi
 
-#*---- Collect telemetry
-               gpio -g write 27 1
-               getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG
+#*---- Turn GPIO27 On (Antenna to TX)
+
+               gpio -g write $GPIO $ON
+
+#*---- Collect telemetry 
+
+               getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG 
+
 #*---- If already running log telemetry and leave
 
                if [ $N \> 0 ]; then
