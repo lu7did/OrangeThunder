@@ -80,7 +80,7 @@ case $1 in
                fi
 
 #*---- Collect telemetry
-
+               gpio -g write 27 1
                getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG
 #*---- If already running log telemetry and leave
 
