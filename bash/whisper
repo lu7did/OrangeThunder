@@ -45,7 +45,8 @@ getTelemetry () {
    VOLT=`sudo python picheck.py -v`
    OPST=`sudo python picheck.py -s`
    FREQ=`sudo python picheck.py -f`
-   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V "$FREQ" MHz ("$OPST")" | tee -a $DPATH$TLM
+   DISK=`sudo df -k | grep "/dev/root" | awk '{ print $5 ; }'`
+   echo "Whisper: "`date`" Telemetry: "$TEMP" °C "$VOLT" V "$FREQ" Hz DISK("$DISK")["$OPST"]" | tee -a $DPATH$TLM
    CMD="python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p"  
    TLMG=`$CMD`
    echo "Whisper: "`date`" WSPR TLMF: "$TLMG  
