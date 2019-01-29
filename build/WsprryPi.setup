@@ -1,0 +1,10 @@
+#!/bin/sh
+#*----------------------------------------------------------------
+#* install WsprryPi
+#*----------------------------------------------------------------
+sudo apt-get update
+sudo apt-get install git
+git clone https://github.com/lu7did/WsprryPi
+cd WsprryPi
+make
+sudo make install

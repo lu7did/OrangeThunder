@@ -1,0 +1,11 @@
+#!/bin/sh
+cd rtl-sdr
+mkdir build
+cd build
+cmake ../ -DINSTALL_UDEV_RULES=ON
+make
+sudo make install
+cudo cp ../rtl-sdr.rules /etc/udev/rules.d/
+sudo ldconfig
+echo 'blacklist dvb_usb_rtl28xxu' | sudo tee -a /etc/modprobe.d/blacklist-dvb_usb_rtl28xxu
+
