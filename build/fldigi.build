@@ -1,0 +1,45 @@
+#!/bin/sh
+clear
+echo "*------------------------------------*"
+echo "*        fldigi                      *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+cd Downloads
+tar -zxvf fldigi-4.0.18.tar.gz
+cd fldigi-4.0.18
+./configure --prefix=/usr/local --enable-static
+
+/home/pi/pause.py "Review proper configure of fldigi"
+echo "*------------------------------------------*"
+echo "Review the following parameters before build"
+echo "*Configuration summary: (CPU optimizations is none"
+echo "*  Version ..................... 4.0.18"
+echo "*  Static linking .............. yes"
+echo "*  CPU optimizations ........... none"
+echo "*  Debugging ................... no"
+echo "*"
+echo "*  fldigi ...................... yes"
+echo "*  flarq ....................... yes"
+echo "*  i18n ........................ yes"
+echo "* fldigi build options (all yes or external lib):"
+echo "*  sndfile ..................... yes"
+echo "*  oss ......................... yes"
+echo "*  portaudio ................... yes"
+echo "*  pulseaudio .................. yes"
+echo "*  flxmlrpc .................... external lib"
+echo "*  hamlib ...................... yes"
+/home/pi/pause.py
+
+echo "*------------------------------------*"
+echo "*  Building fldigi                   *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+make
+sudo make install
+cd ..
+
+
+#*--- test with fldigi
+

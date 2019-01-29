@@ -1,0 +1,15 @@
+#!/bin/sh
+
+#*----------------------------------------
+#* Build wsjtx
+#*----------------------------------------
+cd /home/pi
+tar -zxvf Downloads/wsjtx-2.0.0.tgz 
+cd wsjtx-2.0.0/src/
+tar -zxvf wsjtx.tgz 
+mkdir build
+cd build
+cmake ../wsjtx
+make
+sudo make install
+cd ~
