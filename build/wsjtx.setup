@@ -1,0 +1,92 @@
+#!/bin/sh
+cd /home/pi
+
+#*--- Download pakcages
+
+echo "Download packages"
+
+cd Downloads
+sudo rm -r hamlib-3.3.tar.gz
+sudo rm -r wsjtx-2.0.0.tgz
+
+wget https://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
+wget https://physics.princeton.edu/pulsar/k1jt/wsjtx-2.0.0.tgz
+
+#*---- Set compilation clauses
+
+echo "Compilation clauses"
+cd ..
+export CXXFLAGS='-O2 -march=native -mtune=native'
+export CFLAGS='-O2 -march=native -mtune=native'
+
+
+
+#*--- Download pre-requisites
+echo "Download pre-requisites"
+
+sudo apt-get update
+sudo apt-get install -y cmake
+sudo apt-get install -y asciidoctor
+sudo apt-get install -y asciidoc
+sudo apt-get install -y gfortran
+sudo apt-get install -y subversion
+sudo apt-get install -y libwxgtk3.0-dev
+sudo apt-get install -y libusb-1.0-0-dev
+sudo apt-get install -y portaudio19-dev
+sudo apt-get install -y libsamplerate0-dev
+sudo apt-get install -y libasound2-dev
+sudo apt-get install -y libao-dev
+sudo apt-get install -y libgsm1-dev
+sudo apt-get install -y libsndfile1-dev
+sudo apt-get install -y libjpeg9-dev
+sudo apt-get install -y libxft-dev
+sudo apt-get install -y libxinerama-dev
+sudo apt-get install -y libxcursor-dev
+sudo apt-get install -y libboost-all-dev
+sudo apt-get install -y libqt5multimedia5
+sudo apt-get install -y libqt5multimedia5-plugins
+sudo apt-get install -y libqt5multimediaquick-p5
+sudo apt-get install -y libqt5multimediawidgets5
+sudo apt-get install -y libqt5serialport5-dev
+sudo apt-get install -y libqt5svg5-dev
+sudo apt-get install -y libqt5widgets5
+sudo apt-get install -y libqt5sql5-sqlite
+sudo apt-get install -y libqwt-qt5-dev
+sudo apt-get install -y libudev-dev
+sudo apt-get install -y qtmultimedia5-dev
+sudo apt-get install -y libfftw3-dev
+sudo apt-get install -y xsltproc
+sudo apt-get install -y swig
+
+sudo apt-get remove libhamlib2
+
+#*--- build hamlib
+
+echo "build hamlib"
+
+cd /home/pi
+
+tar -zxvf Downloads/hamlib-3.3.tar.gz
+cd hamlib-3.3
+./configure --prefix=/usr/local --enable-static
+make
+sudo make install
+sudo ldconfig
+cd ..
+
+#*--- build wsjtx
+
+echo "build wsjtx"
+
+cd /home/pi
+
+tar -zxvf Downloads/wsjtx-2.0.0.tgz 
+cd wsjtx-2.0.0/src/
+tar -zxvf wsjtx.tgz 
+mkdir build
+cd build
+cmake ../wsjtx
+make
+sudo make install
+cd ~
+
