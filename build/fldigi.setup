@@ -1,87 +1,45 @@
 #!/bin/sh
+clear
+echo "*------------------------------------*"
+echo "*        fldigi                      *"
+echo "*------------------------------------*"
+/home/pi/pause.py
 
-#!/bin/sh
-#*--- Download packages
-echo "Download packages"
-
-cd /home/pi
 cd Downloads
-
-sudo rm -r flxmlrpc-0.1.4.tar.gz
-sudo rm -r fldigi-4.1.00.tar.gz
-sudo rm -r flrig-1.3.41.tar.gz
-sudo rm -r hamlib-3.3.tar.gz
-
-wget http://www.w1hkj.com/files/flxmlrpc/flxmlrpc-0.1.4.tar.gz
-wget http://www.w1hkj.com/files/fldigi/fldigi-4.1.00.tar.gz
-wget http://www.w1hkj.com/files/flrig/flrig-1.3.41.tar.gz
-wget http://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
-
-cd /home/pi
-
-export CXXFLAGS='-O2 -march=native -mtune=native'
-export CFLAGS='-O2 -march=native -mtune=native'
-
-#*------
-
-echo "Download pre-requisites"
-sudo apt-get update
-sudo apt-get install libfltk1.3-dev
-sudo apt-get install libjpeg9-dev
-sudo apt-get install libxft-dev
-sudo apt-get install libxinerama-dev
-sudo apt-get install libxcursor-dev
-sudo apt-get install libsndfile1-dev
-sudo apt-get install libsamplerate0-dev
-sudo apt-get install portaudio19-dev
-sudo apt-get install libusb-1.0-0-dev
-sudo apt-get install libpulse-dev
-sudo apt-get install pulseaudio
-
-#*--- compile
-echo "Compile flxmlrpc"
-
-cd /home/pi
-tar -zxvf Downloads/flxmlrpc-0.1.4.tar.gz
-cd flxmlrpc-0.1.4
+tar -zxvf fldigi-4.0.18.tar.gz
+cd fldigi-4.0.18
 ./configure --prefix=/usr/local --enable-static
-make
-sudo make install
-sudo ldconfig
-cd ..
 
+/home/pi/pause.py "Review proper configure of fldigi"
+echo "*------------------------------------------*"
+echo "Review the following parameters before build"
+echo "*Configuration summary: (CPU optimizations is none"
+echo "*  Version ..................... 4.0.18"
+echo "*  Static linking .............. yes"
+echo "*  CPU optimizations ........... none"
+echo "*  Debugging ................... no"
+echo "*"
+echo "*  fldigi ...................... yes"
+echo "*  flarq ....................... yes"
+echo "*  i18n ........................ yes"
+echo "* fldigi build options (all yes or external lib):"
+echo "*  sndfile ..................... yes"
+echo "*  oss ......................... yes"
+echo "*  portaudio ................... yes"
+echo "*  pulseaudio .................. yes"
+echo "*  flxmlrpc .................... external lib"
+echo "*  hamlib ...................... yes"
+/home/pi/pause.py
 
-#*--- Compile hamlib
-echo "Compile Hamlib"
+echo "*------------------------------------*"
+echo "*  Building fldigi                   *"
+echo "*------------------------------------*"
+/home/pi/pause.py
 
-cd /home/pi
-
-tar -zxvf Downloads/hamlib-3.3.tar.gz
-cd hamlib-3.3
-./configure --prefix=/usr/local --enable-static
-make
-sudo make install
-sudo ldconfig
-cd ..
-
-#*----
-echo "Compile flrig"
-
-cd /home/pi
-tar -zxvf Downloads/flrig-1.3.41.tar.gz
-cd flrig-1.3.41
-./configure --prefix=/usr/local --enable-static
 make
 sudo make install
 cd ..
 
-echo "Compile fldigi"
-cd /home/pi
-tar -zxvf Downloads/fldigi-4.1.00.tar.gz
-cd fldigi-4.1.00
-./configure --prefix=/usr/local --enable-static
 
-make
-sudo make install
-cd ..
+#*--- test with fldigi
 

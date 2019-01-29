@@ -1,0 +1,6 @@
+#!/bin/sh
+
+sudo apt-get remove --purge gnome-schedule
+sudo apt-get clear
+
+sudo apt-get install gnome-schedule

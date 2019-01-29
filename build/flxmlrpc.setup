@@ -1,0 +1,18 @@
+#!/bin/sh
+
+clear
+echo "*------------------------------------*"
+echo "*  installing flxmlrpc              *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+cd Downloads
+
+tar -zxvf flxmlrpc-0.1.4.tar.gz
+cd flxmlrpc-0.1.4
+./configure --prefix=/usr/local --enable-static
+make
+sudo make install
+sudo ldconfig
+cd ..
+

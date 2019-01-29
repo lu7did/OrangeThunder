@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# Raspbian Stretch (stable)
+deb https://twolife.be/raspbian/ stretch main qt
+deb-src https://twolife.be/raspbian/ stretch main qt

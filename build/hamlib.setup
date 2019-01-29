@@ -1,0 +1,19 @@
+#!/bin/sh
+
+clear
+echo "*------------------------------------*"
+echo "*  building hamlib                   *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+sudo apt-get remove libhamlib2
+
+cd Downloads
+tar -zxvf hamlib-3.3.tar.gz
+cd hamlib-3.3
+./configure --prefix=/usr/local --enable-static
+make
+sudo make install
+sudo ldconfig
+cd ..
+

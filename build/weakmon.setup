@@ -1,0 +1,21 @@
+#!/bin/sh
+
+sudo apt-get install python2.7
+sudo apt-get install python-six
+sudo apt-get install gcc-5
+sudo apt-get install python-numpy
+sudo apt-get install python-scipy
+sudo apt-get install python-pyaudio
+sudo apt-get install python-serial
+
+sudo git clone https://github.com/rtmrtmrtmrtm/weakmon
+cd weakmon
+cd libldpc
+sudo make
+cd ../libfano
+sudo make
+cd ../librs
+sudo make
+cd ..
+cd ..
+

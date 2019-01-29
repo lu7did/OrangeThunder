@@ -1,0 +1,127 @@
+#!/bin/sh
+
+clear
+echo "*********************************************************************"
+echo "* Orange Thunder OT817 Setup script"
+echo "*********************************************************************"
+~/pause.py
+
+clear
+echo "*********************************************************************"
+echo "* update debian package repository"
+echo "*********************************************************************"
+sudo apt-get update
+
+clear
+echo "*********************************************************************"
+echo "* install rtlsdr library, if not installed run manually "
+echo "*********************************************************************"
+echo "*git clone git://git.osmocom.org/rtl-sdr.git"
+echo "*cd rtl-sdr/"
+echo "*mkdir build"
+echo "*cd build"
+echo "*cmake ../ -DINSTALL_UDEV_RULES=ON -DDETACH_KERNEL_DRIVER=ON"
+echo "*make"
+echo "*sudo make install"
+echo "*sudo cp ../rtl-sdr.rules /etc/udev/rules.d/"
+echo "*sudo ldconfig"
+echo "*echo 'blacklist dvb_usb_rtl28xxu' | sudo tee --append /etc/modprobe.d/blacklist-dvb_usb_rtl28xxu.conf"
+echo "*sudo reboot"
+echo "**********************************************************************"
+~/pause.py  #read -p "Press any key to continue.. "
+
+clear
+echo "**********************************************************************"
+echo "* install supporting packages and dependencies"
+echo "**********************************************************************"
+echo "Install pulseaudio, pavucontrol, mplayer, nmap, chrony  and libfftw3"
+
+sudo apt-get install pulseaudio pavucontrol mplayer -y
+sudo apt-get install libfftw3-dev -y
+sudo apt-get install nmap -y
+sudo apt-get install chrony -y
+
+clear
+echo "**********************************************************************"
+echo "*Install now CSDR library"
+echo "**********************************************************************"
+
+cd ~
+sudo rm -r csdr
+git clone https://github.com/simonyiszk/csdr
+cd csdr
+
+clear
+echo "**********************************************************************"
+echo "*Cambiar Makefile con sudo nano Makefile"
+echo "*"
+echo "*PARAMS_NEON:"
+echo "*   -march=armv8-a"
+echo "*   -mtune=cortex-a53"
+echo "*   -mfpu=neon-fp-armv8."
+echo "* and"
+echo "*PARAMS_RASPI:"
+echo "*   -mcpu=cortex-a53"
+echo "*-mfpu=neon-fp-armv8."
+echo "*********************************************************************"
+~/pause.py          #read -p "Press key to continue.. "
+make
+sudo make install
+
+clear
+echo "*********************************************************************"
+echo "*Install WSJT-X"
+echo "*Download from https://physics.princeton.edu/pulsar/k1jt/wsjtx.html"
+echo "*the raspbian package wsjtx_2.0.0_armhf.deb or updated version"
+echo "*install separately by double click on the tar file, then continue"
+echo "*********************************************************************"
+~/pause.py          #read -p "Press key to continue.. "
+clear
+
+echo "***********************************************************************"
+echo "*Now modify the pulseaudio configuration to create Virtual0 and Virtual1"
+echo "*the two virtual soundcards to be used"
+echo "*Edit sudo nano /etc/pulse/default.pa"
+echo "*then add the following lines at the end of the file:"
+echo "*"
+echo "*load-module module-null-sink sink_name=Virtual0 sink_properties=device.description=\"Virtual0\""
+echo "*load-module module-null-sink sink_name=Virtual1 sink_properties=device.description=\"Virtual1\""
+echo "***********************************************************************"
+~/pause.py          #read -p "Press key to continue.. "
+clear
+
+echo "************************************************************************"
+echo "*Now disable pulseaudio logging to reduce the CPU burden"
+echo "*Edit sudo nano /etc/pulse/daemon.conf"
+echo "*Find log-level and change to log-level = error"
+echo "*After the change should look like"
+echo "*; log-target = auto"
+echo "*log-level = error"
+echo "*; log-meta = no"
+echo "************************************************************************"
+~/pause.py           #read -p "Press key to continue.. " 
+
+clear
+echo "************************************************************************"
+echo "*Now create NTP offset to allow for the extra SDR processing"
+echo "*Edit sudo nano /etc/chrony/chrony.conf and set iburst offset -2.5"
+echo "*Then sudo invoke-rc.d chrony restart"
+echo "************************************************************************"
+~/pause.py           #read -p "Press key to continue.. " 
+sudo invoke-rc.d chrony restart
+
+clear
+echo "************************************************************************"
+echo "*Install rpitx"
+echo "************************************************************************"
+sudo rm -r rpitx
+git clone https://github.com/F5OEO/rpitx
+cd rpitx
+./install.sh
+
+clear
+echo "************************************************************************"
+echo "* Now press any key to reboot and complete installation"
+echo "************************************************************************"
+~/pause.py  #read -p "Press key to finalize and reboot "
+sudo reboot

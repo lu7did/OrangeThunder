@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Install FT8 functionality with PulseAudio
+sudo apt-get remove --purge pulseaudio
+sudo apt-get clean
+
+
+sudo apt-get update
+sudo apt-get install pulseaudio -y
+sudo wget https://sourceforge.net/projects/wsjt/files/wsjtx-2.0.0-rc3/wsjtx_2.0.0-rc3_armhf.deb
+sudo dpkg -i wsjtx_2.0.0-rc3_armhf.deb
+sudo apt --fix-broken install
+sudo dpkg -i wsjtx_2.0.0-rc3_armhf.deb
+echo Now reboot and execute start-pulseaudio-x11 then wsjtx 
+

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+sudo apt-get update
+sudo apt-get build-essential cmake libfftw3-dev
+sudo apt-get  libusb-1.0-0-dev curl libcurl4-gnutls-dev ntp
+sudo git clone https://github.com/steve-m/librtlsdr 
+sudo git clone https://github.com/Guenael/rtlsdr-wsprd 
+

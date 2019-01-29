@@ -1,28 +1,9 @@
 #!/bin/sh
-cd /home/pi
 
-#*--- Download pakcages
-
-echo "Download packages"
-
-cd Downloads
-sudo rm -r hamlib-3.3.tar.gz
-sudo rm -r wsjtx-2.0.0.tgz
-
-wget http://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
-wget http://physics.princeton.edu/pulsar/k1jt/wsjtx-2.0.0.tgz
-
-#*---- Set compilation clauses
-
-echo "Compilation clauses"
-cd ..
-export CXXFLAGS='-O2 -march=native -mtune=native'
-export CFLAGS='-O2 -march=native -mtune=native'
-
-
-
-#*--- Download pre-requisites
-echo "Download pre-requisites"
+echo "*-------------------------------------------"
+echo "* Installing pre-requisites"
+echo "*-------------------------------------------"
+/home/pi/pause.py 
 
 sudo apt-get update
 sudo apt-get install -y cmake
@@ -58,35 +39,10 @@ sudo apt-get install -y libfftw3-dev
 sudo apt-get install -y xsltproc
 sudo apt-get install -y swig
 
-sudo apt-get remove libhamlib2
+echo "Pre-requisites ended, downloading the package"
 
-#*--- build hamlib
+cd Downloads
+/home/pi/pause.py 
 
-echo "build hamlib"
-
+wget http://physics.princeton.edu/pulsar/k1jt/wsjtx-2.0.0.tgz
 cd /home/pi
-
-tar -zxvf Downloads/hamlib-3.3.tar.gz
-cd hamlib-3.3
-./configure --prefix=/usr/local --enable-static
-make
-sudo make install
-sudo ldconfig
-cd ..
-
-#*--- build wsjtx
-
-echo "build wsjtx"
-
-cd /home/pi
-
-tar -zxvf Downloads/wsjtx-2.0.0.tgz 
-cd wsjtx-2.0.0/src/
-tar -zxvf wsjtx.tgz 
-mkdir build
-cd build
-cmake ../wsjtx
-make
-sudo make install
-cd ~
-
