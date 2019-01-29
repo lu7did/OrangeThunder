@@ -28,7 +28,8 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 . /lib/lsb/init-functions
-DPATH="/home/pi/WsprryPi/"
+DPATH="/home/pi/whisper/"
+WSPRP="/home/pi/WsprryPi/"
 LOG="whisper.log"
 ERR="whisper.err"
 LOCK="whisper.lck"
@@ -62,7 +63,7 @@ CALLSIGN="LU7DID "
 GRID="GF05"
 GRIX="TE"
 POWER="20 "
-BAND="20m 0 0 0 0  "
+BAND="20m 0 0 0 0 " 
 HEIGHT=40
 GPIO="27"
 CHANNEL=0
@@ -100,7 +101,7 @@ case $1 in
 #*---- Start daemon in the background
 
                   echo "Whisper: "`date`" Starting daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                  sudo $DPATH$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG & 
+                  sudo $WSPRP$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG & 
                fi  
 		;;
 #*---- Stop the beacon if an instance is found running
