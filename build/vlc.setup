@@ -1,0 +1,4 @@
+#!/bin/sh
+
+sudo apt-get --remove purge vlc
+sudo apt-get install vlc

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+sudo apt-get install -y libltdl-dev libsamplerate0-dev libsndfile1-dev libglib2.0-dev libasound2-dev libavahi-client-dev libspeexdsp-dev liborc-0.4-dev libbluetooth-dev intltool libtdb-dev libssl-dev libudev-dev libjson0-dev bluez-firmware bluez-utils  libbluetooth-dev bluez-alsa libsbc-dev libcap-dev
+wget http://www.freedesktop.org/software/pulseaudio/releases/pulseaudio-5.0.tar.xz
+unxz pulseaudio-5.0.tar.xz 
+tar xvf pulseaudio-5.0.tar
+cd pulseaudio-5.0
+./configure
+
+make
+sudo make install

@@ -1,0 +1,7 @@
+#!/bin/sh
+wget http://http.debian.net/debian/pool/main/c/curl/curl_7.50.1.orig.tar.gz
+tar xzf curl_7.50.1.orig.tar.gz
+cd curl_7.50.1
+./configure
+make
+make install

@@ -1,0 +1,48 @@
+#!/bin/sh
+#*-----------------------------------------------------------------------
+#* fldigi.setup
+#*-----------------------------------------------------------------------
+
+cd /home/pi
+ 
+echo "*------------------------------------*"
+echo "*  installing FLDIGI pre-requisites  *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+export CXXFLAGS='-O2 -march=native -mtune=native'
+export CFLAGS='-O2 -march=native -mtune=native'
+
+#sudo apt-get update
+sudo apt-get install libfltk1.3-dev
+sudo apt-get install libjpeg9-dev
+sudo apt-get install libxft-dev
+sudo apt-get install libxinerama-dev
+sudo apt-get install libxcursor-dev
+sudo apt-get install libsndfile1-dev
+sudo apt-get install libsamplerate0-dev
+sudo apt-get install portaudio19-dev
+sudo apt-get install libusb-1.0-0-dev
+sudo apt-get install libpulse-dev
+
+clear
+echo "*------------------------------------*"
+echo "*  downloading packages              *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+cd Downloads
+wget https://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
+/home/pi/pause.py "hamlib download ok?"
+
+wget https://sourceforge.net/projects/fldigi/files/flrig/flrig-1.3.41.tar.gz
+/home/pi/pause.py "flrig download ok?"
+
+wget https://sourceforge.net/projects/fldigi/files/fldigi/fldigi-4.0.18.tar.gz
+/home/pi/pause.py "fldigi download ok?"
+
+wget https://sourceforge.net/projects/fldigi/files/flxmlrpc/flxmlrpc-0.1.4.tar.gz
+/home/pi/pause.py "flxmlrpc dowload ok?"
+
+cd ..
+

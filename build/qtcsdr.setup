@@ -1,6 +1,6 @@
 #!/bin/sh
-cd /home/pi
-git clone https://github.com/lu7did/qtcsdr
+
+git clone https://github.com/ha7ilm/qtcsdr
 cd qtcsdr
 ./rpi-install.sh
-
+./rpi-test.sh

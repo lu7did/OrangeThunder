@@ -1,0 +1,11 @@
+#!/bin/sh
+sudo apt-get update
+cd Downloads
+#wget https://github.com/csete/gqrx/releases/download/v2.11.5/gqrx-sdr-2.11.5-linux-rpi3.tar.xz
+#tar xvzf gqrx-sdr-2.11.5-linux-rpi3.tar.xz
+git clone https://github.com/csete/gqrx.git gqrx.git
+cd gqrx.git
+mkdir build
+cd build
+qmake ..
+make

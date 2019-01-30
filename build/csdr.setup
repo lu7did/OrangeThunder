@@ -1,0 +1,11 @@
+#!/bin/sh
+sudo apt-get update
+sudo apt-get install  mplayer octave gnuplot gnuplot-x11
+sudo apt-get install libfftw3-dev
+sudo apt-get install nmap
+
+sudo git clone https://github.com/simonyiszk/csdr
+cd csdr
+sudo ./configure --enable-float
+make
+sudo make install

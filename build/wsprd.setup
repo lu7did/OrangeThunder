@@ -1,0 +1,14 @@
+#!/bin/sh
+
+sudo apt-get update
+sudo apt-get upgrade
+
+sudo apt-get -f install build-essential cmake libfftw3-dev libusb-1.0-0-dev
+sudo apt-get -f install curl libcurl4-gnutls-dev ntp
+sudo apt-get autoclean
+sudo apt-get clean
+
+sudo wget https://github.com/steve-m/librtlsdr
+sudo wget https://github.com/Guenael/rtlsdr-wsprd
+
+exit 0

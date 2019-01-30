@@ -1,0 +1,44 @@
+#!/bin/sh
+
+#-- Install build environment tools
+
+sudo apt-get update
+sudo apt-get install build-essential subversion git automake libtool libusb-dev gfortran gfortran-5 g++ g++-5 libusb-1.0-0-dev texinfo cmake asciidoc asciidoctor libqt5serialport5 libqt5serialport5-dev libfftw3-dev libqt5multimedia5 libqt5multimedia5-plugins libqt5multimediawidgets5 qtmultimedia5-dev libudev-dev pavucontrol wget
+
+#-- enable all 4 cores
+
+export MAKEFLAGS='-j 4'
+
+#-- add temporary swap file to allow compilation to complete
+
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+
+#-- build Hamlib
+
+mkdir ~/hamlib-prefix && cd ~/hamlib-prefix && git clone git://git.code.sf.net/u/bsomervi/hamlib src
+cd src
+git checkout integration
+mkdir ../build
+cd ../build ../src/autogen.sh --prefix=$HOME/hamlib-prefix \ --disable-shared --enable-static \ --without-cxx-binding --disable-winradio \
+CFLAGS="-fdata-sections -ffunction-sections" \
+LDFLAGS="-Wl,--gc-sections"
+make
+sudo make install-strip
+
+#-- download JTDX source
+
+cd ~
+wget http://www.qrz.lt/ly3bg/JTDX/17.9/src_JTDX_v17.9.zip
+
+#-- build folder structure and extract source
+
+mkdir ~/wsjtx-prefix && mkdir ~/wsjtx-prefix/build && mkdir ~/wsjtx-prefix/src
+unzip src_JTDX_v17.9.zip
+mv wsjtx/* ~/wsjtx-prefix/src/
+
+#-- build and install JTDX
+
+cd ~/wsjtx-prefix/build
+cmake -D CMAKE_PREFIX_PATH=~/hamlib-prefix ../src
+cmake --build .
+sudo cmake --build . --target install

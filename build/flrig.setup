@@ -1,0 +1,17 @@
+#!/bin/sh
+clear
+echo "*------------------------------------*"
+echo "*  building flrig                    *"
+echo "*------------------------------------*"
+/home/pi/pause.py
+
+cd Downloads
+tar -zxvf flrig-1.3.41.tar.gz
+cd flrig-1.3.41
+./configure --prefix=/usr/local --enable-static
+make
+sudo make install
+cd ..
+
+echo “installation completed test with flrig”
+
