@@ -70,6 +70,8 @@ HEIGHT=40
 GPIO="27"
 CHANNEL=0
 SYNC="55"
+NMAX=1
+EVERY=5
 #*---- Find number of instances running
 
 cd $DPATH
@@ -95,22 +97,22 @@ case $1 in
                fi
 #*---- If already running log telemetry and leave
 
-               if [ $N \> 1 ]; then
+               if [ $N \> $NMAX ]; then
                   echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
                else
 #*---- Start daemon in the background
                   gpio -g write $GPIO $OFF
 
-                  echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   until [ $(( $(date +"%M") % 2)) -eq "1" ]; do
-                    sleep 1;
+                    echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                    sleep 10;
                   done;
 
                   count=0
                   while [ true ]
                   do
-                    n=$(( $count % 5 ))
+                    n=$(( $count % $EVERY ))
                     getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG 
 
                     w=$(date +"%S")
@@ -135,11 +137,12 @@ case $1 in
                        sudo $WSPRP$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG  
 
                    else
-#*---- Turn GPIO27 On (Antenna to TX)
 
-                       echo "Whisper: "`date`" Waiting for window" 2> $DPATH$ERR | tee -a $DPATH$LOG
+#*---- Turn GPIO27 Off (Antenna to RX) and wait during beacon silence window
+
                        gpio -g write $GPIO $OFF
                        WAIT=$(( $SYNC * 2 ))
+                       echo "Whisper: "`date`" Waiting beacon silence window ("$SYNC")" 2> $DPATH$ERR | tee -a $DPATH$LOG
                        sleep $WAIT
                    fi
                    count=$(( $count + 1 ))
@@ -155,7 +158,7 @@ case $1 in
 
 	stop)
 
-               if [ $N \> 1 ]; then
+               if [ $N \> $NMAX ]; then
           
                   echo "Whisper:" `date`" Stopping daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   S=`ps -ef | pgrep wspr`
@@ -231,7 +234,7 @@ case $1 in
 	status)
                 getTelemetry 2>$DPATH$ERR | tee -a $DPATH$LOG
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                if [ $N \> 1 ]; then
+                if [ $N \> $NMAX ]; then
           
                   echo "Whisper:" `date`" Process List" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   S=`ps -ef | pgrep wspr`
