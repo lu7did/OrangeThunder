@@ -33,7 +33,7 @@ WSPRP="/home/pi/WsprryPi/"
 LOG="whisper.log"
 ERR="whisper.err"
 LOCK="whisper.lck"
-VERSION="1.1"
+VERSION="1.2"
 TLM="whisper.tlm"
 ON="1"
 OFF="0"
@@ -58,20 +58,30 @@ getTelemetry () {
 #* Beacon specific data configuration 
 #*----------------------------------------------------------------------------
 DAEMON="wspr"
-OPTS=" -r -o -s "
+#OPTS=" -r -o -s "
+OPTS=" -x 1 -o -s "
 CALLSIGN="LU7DID "
 GRID="GF05"
 GRIX="TE"
 POWER="20 "
-BAND="20m 0 0 0 0 " 
+#BAND="20m 0 0 0 0 " 
+BAND="20m " 
 HEIGHT=40
 GPIO="27"
 CHANNEL=0
-
+SYNC="55"
 #*---- Find number of instances running
 
 cd $DPATH
-N=`ps -ef | pgrep "wspr" | wc -l`
+#N=`ps -ef | pgrep "wspr" | wc -l`
+PIDL=`sudo ps ax | awk '! /awk/ && /whisper/ { print $1}'`
+N=0
+for line in $PIDL; do
+    if [ $line -ne $$ ] 
+    then
+       N=$(( $N + 1 ))
+    fi
+done
 
 echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION 2>$DPATH$ERR | tee -a $DPATH$LOG
 #*---- React to argument (see whisper for command options)
@@ -83,37 +93,85 @@ case $1 in
                   echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
                fi
-
-#*---- Turn GPIO27 On (Antenna to TX)
-
-               gpio -g write $GPIO $ON
-
-#*---- Collect telemetry 
-
-               getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG 
-
 #*---- If already running log telemetry and leave
 
-               if [ $N \> 0 ]; then
+               if [ $N \> 1 ]; then
                   echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
                else
 #*---- Start daemon in the background
+                  gpio -g write $GPIO $OFF
 
-                  echo "Whisper: "`date`" Starting daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                  sudo $WSPRP$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG & 
+                  echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  until [ $(( $(date +"%M") % 2)) -eq "1" ]; do
+                    sleep 1;
+                  done;
+
+                  count=0
+                  while [ true ]
+                  do
+                    n=$(( $count % 5 ))
+                    getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG 
+
+                    w=$(date +"%S")
+                    if [ "$w" -lt "$SYNC" ]
+                    then
+                       t=$(( $SYNC - $w ))
+                       echo "Whisper: "`date`" Sync-ed Now waiting "$t" secs for WSPR window" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                       sleep $t
+                    fi
+
+                    if [ $n -eq 0 ]
+                    then
+
+#*---- Turn GPIO27 On (Antenna to TX)
+
+                       gpio -g write $GPIO $ON
+  
+#*---- Collect telemetry 
+
+
+                       echo "Whisper: "`date`" Starting daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                       sudo $WSPRP$DAEMON $OPTS $CALLSIGN $GRID $POWER $BAND 2>$DPATH$ERR >> $DPATH$LOG  
+
+                   else
+#*---- Turn GPIO27 On (Antenna to TX)
+
+                       echo "Whisper: "`date`" Waiting for window" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                       gpio -g write $GPIO $OFF
+                       WAIT=$(( $SYNC * 2 ))
+                       sleep $WAIT
+                   fi
+                   count=$(( $count + 1 ))
+                   if [ $count -eq 10 ]
+                   then
+                     count=0
+                   fi
+                 done
+
                fi  
 		;;
 #*---- Stop the beacon if an instance is found running
 
 	stop)
-               if [ $N \> 0 ]; then
+
+               if [ $N \> 1 ]; then
           
                   echo "Whisper:" `date`" Stopping daemon" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   S=`ps -ef | pgrep wspr`
                   for i in $S; do
-                     echo "Whisper: "`date`" Killing PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
+                     echo "Whisper: "`date`" Killing wspr PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
                      sudo kill $i 2> /dev/null | tee -a $DPATH$LOG
+                  done
+
+                  P=`sudo ps ax | awk '! /awk/ && /whisper/ { print $1}'`
+                  N=0
+                  for line in $P; do
+                     if [ $line -ne $$ ] 
+                     then
+                         echo "Whisper: "`date`" Killing  whisper PID("$line")" 2> /dev/null | tee -a $DPATH$LOG
+                         sudo kill $line 2> /dev/null | tee -a $DPATH$LOG
+                     fi
                   done
                 else
                   echo "Whisper:"`date`" No daemon found, exit" 2> /dev/null | tee -a $DPATH$LOG
@@ -167,20 +225,32 @@ case $1 in
                 echo "Whisper: "`date`" WSPR Log checkpoint("$2 $3 $4 $5")" 2> $DPATH$ERR | tee -a $DPATH$LOG
                 exit 0
                 ;;
+
+
+
 	status)
                 getTelemetry 2>$DPATH$ERR | tee -a $DPATH$LOG
                 echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
-           	S=`ps -ef | pgrep wspr | wc -l`
-		if [ $S \> 0 ]; then
-              	   echo "Whisper: "`date`" WSPR Process count("$S")" 2> $DPATH$ERR | tee -a $DPATH$LOG
-   		   V=`ps -ef | pgrep wspr`
-                   for i in $V; do
-  			echo "Whisper: "`date`" Process PID("$i")" 2> $DPATH$ERR | tee -a $DPATH$LOG
- 		   done
-		else
- 		   echo "Whisper: "`date`" No wspr processes found" 2> $DPATH$ERR | tee -a $DPATH$LOG
-  		fi
+                if [ $N \> 1 ]; then
+          
+                  echo "Whisper:" `date`" Process List" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  S=`ps -ef | pgrep wspr`
+                  for i in $S; do
+                     echo "Whisper: "`date`"   --- wspr PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
+                  done
 
+                  P=`sudo ps ax | awk '! /awk/ && /whisper/ { print $1}'`
+                  N=0
+                  for line in $P; do
+                     if [ $line -ne $$ ] 
+                     then
+                         echo "Whisper: "`date`"   --- whisper PID("$line")" 2> /dev/null | tee -a $DPATH$LOG
+                     fi
+                  done
+                else
+                  echo "Whisper:"`date`" No daemon found, exit" 2> /dev/null | tee -a $DPATH$LOG
+		  exit 0
+		fi
 
 		;;
 	*)
