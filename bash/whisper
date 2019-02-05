@@ -170,14 +170,14 @@ case $1 in
 
 #*---- It is here on even minutes, thus wait till sec $SYNC to continue (giving a chance if receiving to complete a frame)
 
-                  #w=$(date +"%S" | sed 's/^0*//')
-                  #echo "Valor de w($w) SYNC($SYNC)"
-                  #if [ "$w" -lt "$SYNC" ]
-                  #then
-                  #   t=$(( $SYNC - $w ))
-                  #   echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                  #   sleep $t
-                  #fi
+                  w=$(date +"%S" | sed 's/^0*//')
+                  echo "Valor de w($w) SYNC($SYNC)"
+                  if [ "$w" -lt "$SYNC" ]
+                  then
+                     t=$(( $SYNC - $w ))
+                     echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                     sleep $t
+                  fi
 
 #*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
                   echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2> $DPATH$ERR | tee -a $DPATH$LOG
