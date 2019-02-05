@@ -38,7 +38,7 @@ VERSION="1.3"
 TLM="whisper.tlm"
 ON="1"
 OFF="0"
-RX=1
+RX=0
 TX=1
 
 #*-----------------------------------------------------------------------------
@@ -117,7 +117,7 @@ GPIO="27"
 CHANNEL=0
 SYNC="55"
 NMAX=1
-EVERY=2
+EVERY=5
 RXPARMS="-f 14095600 -c $CALLSIGN -l $GRID $RXOPTS"
 
 #*---- Find number of instances running
@@ -180,7 +180,7 @@ case $1 in
                   #fi
 
 #*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
-
+                  echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2> $DPATH$ERR | tee -a $DPATH$LOG
                   if [ $n -eq 0 ]
                   then
   
@@ -189,7 +189,8 @@ case $1 in
                      then
                         gpio -g write $GPIO $ON 2> /dev/null | tee -a $DPATH$LOG
                         echo "Whisper: "`date`" Starting WSPR transmission cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2| tee -a $DPATH$LOG | tee -a $DPATH$LOG  
+                        sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2>&1 | tee -a $DPATH$LOG  
+                        gpio -g write $GPIO $OFF 2> /dev/null | tee -a $DPATH$LOG
                      else
                         echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2> $DPATH$ERR | tee -a $DPATH$LOG
                      fi
@@ -201,11 +202,11 @@ case $1 in
                      if [ $RX -eq "1" ]
                      then
                         echo "Whisper: "`date`" Starting WSPR monitoring cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        sudo $WSPRDPATH$WSPRD $RXPARMS 2| tee -a $DPATH$LOG | tee -a $DPATH$LOG 
+                        sudo $WSPRDPATH$WSPRD $RXPARMS 2>&1 | tee -a $DPATH$LOG 
                      else
-                        echo "Whisper: "`date`" Reception not enabled, wait twice $SYNC seconds" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        #WAIT=$(( $SYNC * 2 ))
-                        sleep 120
+                        WAIT=$(( $SYNC * 2 ))
+                        echo "Whisper: "`date`" Reception not enabled, wait ($WAIT secs)" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                        sleep $WAIT
                      fi
                  fi
                  count=$(( $count + 1 ))
