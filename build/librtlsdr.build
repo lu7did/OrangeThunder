@@ -1,0 +1,11 @@
+#!/bin/sh
+
+#*--- build librtlsdr
+
+cd /home/pi/librtlsdr
+sudo mkdir build
+cd build/
+sudo cmake ../
+sudo make
+sudo make install
+sudo ldconfig
