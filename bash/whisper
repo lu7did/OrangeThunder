@@ -106,6 +106,7 @@ WSPRD="rtlsdr_wsprd"
 TXOPTS="-x 1 -o -s "
 BAND="20m " 
 RXOPTS="-d 2 -n 4 -a 1 -S"
+#RXOPTS="-d 2 -n 1 -a 1 -S"
 
 CALLSIGN="LU7DID "
 GRID="GF05"
@@ -116,7 +117,7 @@ GPIO="27"
 CHANNEL=0
 SYNC="55"
 NMAX=1
-EVERY=5
+EVERY=2
 RXPARMS="-f 14095600 -c $CALLSIGN -l $GRID $RXOPTS"
 
 #*---- Find number of instances running
@@ -155,10 +156,10 @@ case $1 in
 
 
                gpio -g write $GPIO $OFF  2> /dev/null | tee -a $DPATH$LOG
-               until [ $(( $(date +"%M" | sed 's/^0*//') % 2)) -eq "1" ]; do
-                  echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                  sleep 10;
-                  done;
+               #until [ $(( $(date +"%M" | sed 's/^0*//') % 2)) -eq "1" ]; do
+               #   echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
+               #   sleep 10;
+               #   done;
 
 #*---- Infinite loop $EVERY defines how many times comes to RX than TX
 
@@ -169,14 +170,14 @@ case $1 in
 
 #*---- It is here on even minutes, thus wait till sec $SYNC to continue (giving a chance if receiving to complete a frame)
 
-                  w=$(date +"%S" | sed 's/^0*//')
-                  echo "Valor de w($w) SYNC($SYNC)"
-                  if [ "$w" -lt "$SYNC" ]
-                  then
-                     t=$(( $SYNC - $w ))
-                     echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                     sleep $t
-                  fi
+                  #w=$(date +"%S" | sed 's/^0*//')
+                  #echo "Valor de w($w) SYNC($SYNC)"
+                  #if [ "$w" -lt "$SYNC" ]
+                  #then
+                  #   t=$(( $SYNC - $w ))
+                  #   echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  #   sleep $t
+                  #fi
 
 #*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
 
@@ -188,7 +189,7 @@ case $1 in
                      then
                         gpio -g write $GPIO $ON 2> /dev/null | tee -a $DPATH$LOG
                         echo "Whisper: "`date`" Starting WSPR transmission cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2| tee -a $DPATH$ERR | tee -a $DPATH$LOG  
+                        sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2| tee -a $DPATH$LOG | tee -a $DPATH$LOG  
                      else
                         echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2> $DPATH$ERR | tee -a $DPATH$LOG
                      fi
@@ -200,11 +201,11 @@ case $1 in
                      if [ $RX -eq "1" ]
                      then
                         echo "Whisper: "`date`" Starting WSPR monitoring cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        sudo $WSPRDPATH$WSPRD $RXPARMS 2| tee -a $DPATH$ERR | tee -a $DPATH$LOG 
+                        sudo $WSPRDPATH$WSPRD $RXPARMS 2| tee -a $DPATH$LOG | tee -a $DPATH$LOG 
                      else
                         echo "Whisper: "`date`" Reception not enabled, wait twice $SYNC seconds" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                        WAIT=$(( $SYNC * 2 ))
-                        sleep $WAIT
+                        #WAIT=$(( $SYNC * 2 ))
+                        sleep 120
                      fi
                  fi
                  count=$(( $count + 1 ))
