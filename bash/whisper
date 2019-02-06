@@ -123,7 +123,8 @@ RXPARMS="-f 14095600 -c $CALLSIGN -l $GRID $RXOPTS"
 #*---- Find number of instances running
 
 cd $DPATH
-PIDL=`sudo ps ax | awk '! /awk/ && /whisper/ { print $1}'`
+PIDL=`sudo ps --no-headers -C whisper | awk '! /awk/ && /whisper/ { print $1}'`
+
 N=0
 for line in $PIDL; do
     if [ $line -ne $$ ] 
@@ -132,7 +133,9 @@ for line in $PIDL; do
     fi
 done
 
-echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION 2>$DPATH$ERR | tee -a $DPATH$LOG
+
+
+echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION" Proc("$N") PID("$$")" 2>$DPATH$ERR | tee -a $DPATH$LOG
 
 #*---- React to argument (see whisper for command options)
 
@@ -141,6 +144,8 @@ case $1 in
 #*---- Start the beacon. Control if instances are running and avoid reentrancy
 #*=========================================================================================================================
 	start)
+
+
                if [ -f $DPATH$LOCK ]; then
                   echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
                   exit 0
