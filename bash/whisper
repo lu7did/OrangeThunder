@@ -40,7 +40,25 @@ ON="1"
 OFF="0"
 RX=0
 TX=1
+MAXTEMP="57"
+COOLTIME="120"
 
+#*-----------------------------------------------------------------------------
+#* manageTemp()
+#* Get core temperature and stop the beacon to cool down if exceeded
+#*-----------------------------------------------------------------------------
+manageTemp() {
+echo "Whisper: "`date`" Managing temperature procedure" 2>&1 | tee -a $DPATH$LOG
+A=$(vcgencmd measure_temp)
+B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
+C=$(echo $B | cut -f1 -d".")
+D=$(($C * 1))
+if [ $D -ge $MAX ];
+then
+   echo "Whisper: "`date`" Temp ("$D") exceeds max ($MAX), stopping TX to cool down during $COOLTIME secs" 2>&1 | tee -a $DPATH$LOG && sleep $COOLTIME
+   echo "Whisper: "`date`" Temperature is now "$(vcgencmd measure_temp)" TX resumed" 2>&1 |  tee -a $DPATH$LOG
+fi
+}
 #*-----------------------------------------------------------------------------
 #* getTelemetry()
 #* Create telemetry and WSPR frame
@@ -170,6 +188,7 @@ case $1 in
 
                count=0
                while [ true ];  do
+                  manageTemp
                   n=$(( $count % $EVERY ))
                   getTelemetry  2>&1 | tee -a $DPATH$LOG 
 
