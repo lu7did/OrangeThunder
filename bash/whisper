@@ -135,7 +135,7 @@ done
 
 
 
-echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION" Proc("$N") PID("$$")" 2>$DPATH$ERR | tee -a $DPATH$LOG
+echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION" Proc("$N") PID("$$")" 2>&1 | tee -a $DPATH$LOG
 
 #*---- React to argument (see whisper for command options)
 
@@ -147,14 +147,14 @@ case $1 in
 
 
                if [ -f $DPATH$LOCK ]; then
-                  echo "Whisper: "`date`" Process lock found, terminating" 2>$DPATH$ERR | tee -a $DPATH$LOG
+                  echo "Whisper: "`date`" Process lock found, terminating" 2>&1 | tee -a $DPATH$LOG
                   exit 0
                fi
 
 #*---- If already running log telemetry and leave
 
                if [ $N \> $NMAX ]; then
-                  echo "Whisper: "`date`" Daemon already running, exit" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  echo "Whisper: "`date`" Daemon already running, exit" 2>&1 | tee -a $DPATH$LOG
                   exit 0
                else
 #*---- Start daemon in the background, if even can not start till next even, if odd continue, turn off GPIO
@@ -162,7 +162,7 @@ case $1 in
 
                gpio -g write $GPIO $OFF  2> /dev/null | tee -a $DPATH$LOG
                #until [ $(( $(date +"%M" | sed 's/^0*//') % 2)) -eq "1" ]; do
-               #   echo "Whisper: "`date`" Sync waiting till odd minute" 2> $DPATH$ERR | tee -a $DPATH$LOG
+               #   echo "Whisper: "`date`" Sync waiting till odd minute" 2>&1 | tee -a $DPATH$LOG
                #   sleep 10;
                #   done;
 
@@ -171,46 +171,48 @@ case $1 in
                count=0
                while [ true ];  do
                   n=$(( $count % $EVERY ))
-                  getTelemetry  2>$DPATH$ERR | tee -a $DPATH$LOG 
+                  getTelemetry  2>&1 | tee -a $DPATH$LOG 
 
 #*---- It is here on even minutes, thus wait till sec $SYNC to continue (giving a chance if receiving to complete a frame)
 
                   w=$(date +"%S" | sed 's/^0*//')
-                  echo "Valor de w($w) SYNC($SYNC)"
+                  echo "Whisper: "`date`" Cycle timer($w) Sync Timer($SYNC)" 2>&1 | tee -a $DPATH$LOG
                   if [ "$w" -lt "$SYNC" ]
                   then
                      t=$(( $SYNC - $w ))
-                     echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                     echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2>&1 | tee -a $DPATH$LOG
                      sleep $t
                   fi
 
 #*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
-                  echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2>&1 | tee -a $DPATH$LOG
                   if [ $n -eq 0 ]
                   then
   
 #*---- Turn antenna (GPIO27) and Launch the beacon transmission, it will align itself with the proper WSPR window, $BAND will control how many slots will be active 
                      if [ $TX -eq "1" ] 
                      then
-                        gpio -g write $GPIO $ON 2> /dev/null | tee -a $DPATH$LOG
-                        echo "Whisper: "`date`" Starting WSPR transmission cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                        echo "Whisper: "`date`" Turning $GPIO PTT($ON)" 2>&1 | tee -a $DPATH$LOG
+                        gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                        gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                        echo "Whisper: "`date`" Starting WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
                         sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2>&1 | tee -a $DPATH$LOG  
-                        gpio -g write $GPIO $OFF 2> /dev/null | tee -a $DPATH$LOG
+                        gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
                      else
-                        echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                        echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2>&1 | tee -a $DPATH$LOG
                      fi
                  else
 
 #*---- Turn GPIO27 Off (Antenna to RX) and enable the reception cycle (either local or remote)
 
-                     gpio -g write $GPIO $OFF  2> /dev/null | tee -a $DPATH$LOG
+                     gpio -g write $GPIO $OFF  2>&1 | tee -a $DPATH$LOG
                      if [ $RX -eq "1" ]
                      then
-                        echo "Whisper: "`date`" Starting WSPR monitoring cycle" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                        echo "Whisper: "`date`" Starting WSPR monitoring cycle" 2>&1 | tee -a $DPATH$LOG
                         sudo $WSPRDPATH$WSPRD $RXPARMS 2>&1 | tee -a $DPATH$LOG 
                      else
                         WAIT=$(( $SYNC * 2 ))
-                        echo "Whisper: "`date`" Reception not enabled, wait ($WAIT secs)" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                        echo "Whisper: "`date`" Reception not enabled, wait ($WAIT secs)" 2>&1 | tee -a $DPATH$LOG
                         sleep $WAIT
                      fi
                  fi
@@ -242,13 +244,13 @@ case $1 in
 #*=====================================================================================================================
 	restart|force-reload)
                 echo "Whisper: "`date`" Forcing reload" 2> /dev/null | tee -a $DPATH$LOG
-                sudo $0 stop  2> $DPATH$ERR | tee -a $DPATH$LOG
-                sudo $0 start 2> $DPATH$ERR | tee -a $DPATH$LOG
+                sudo $0 stop  2>&1 | tee -a $DPATH$LOG
+                sudo $0 start 2>&1 | tee -a $DPATH$LOG
   		;;
 #*---- Another alias to restart
 
 	try-restart)
-                echo "Whisper: "`date`" Trying to restart" 2>$DPATH$ERR | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" Trying to restart" 2>&1 | tee -a $DPATH$LOG
 		if sudo $0 status >/dev/null; then
 		   sudo $0 restart
 		else
@@ -258,7 +260,7 @@ case $1 in
 #*---- Yet another alias to restart
 
 	reload)
-                echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" Script reload" 2>&1 | tee -a $DPATH$LOG
 		sudo $0 restart
                 exit 3
 		;;
@@ -266,8 +268,8 @@ case $1 in
 #*---- Stop the beacon and create a special lock file which will prevent further launches until reset
 #*====================================================================================================
         lock)
-                echo "Whisper: "`date`" Script locked" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                sudo touch $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" Script locked" 2>&1 | tee -a $DPATH$LOG
+                sudo touch $DPATH$LOCK 2>&1 | tee -a $DPATH$LOG
                 sudo $0 stop
 
                 exit 4
@@ -276,8 +278,8 @@ case $1 in
 #*---- Erase the lock file and launch
 #*====================================================================================================
         reset)
-                echo "Whisper: "`date`" Script reload" 2> $DPATH$ERR | tee -a $DPATH$LOG
-                sudo rm -r $DPATH$LOCK 2> $DPATH$ERR | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" Script reload" 2>&1 | tee -a $DPATH$LOG
+                sudo rm -r $DPATH$LOCK 2>&1 | tee -a $DPATH$LOG
                 sudo $0 start
                 exit 3
                 ;;
@@ -285,7 +287,7 @@ case $1 in
 #*---- Marks log with special label (i.e. a change in the beacon)
 #*====================================================================================================
 	checkpoint)
-                echo "Whisper: "`date`" WSPR Log checkpoint("$2 $3 $4 $5")" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" WSPR Log checkpoint("$2 $3 $4 $5")" 2>&1 | tee -a $DPATH$LOG
                 exit 0
                 ;;
 
@@ -294,13 +296,13 @@ case $1 in
 #*---- beacon status
 #*====================================================================================================
 	status)
-                getTelemetry 2>$DPATH$ERR | tee -a $DPATH$LOG
-                echo "Whisper: "`date`" WSPR Process List Status" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                getTelemetry 2>&1 | tee -a $DPATH$LOG
+                echo "Whisper: "`date`" WSPR Process List Status" 2>&1 | tee -a $DPATH$LOG
                 if [ $N \> $NMAX ]; then
 
 #*---- instances of wspr
 
-                  echo "Whisper:" `date`" Process List" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  echo "Whisper:" `date`" Process List" 2>&1 | tee -a $DPATH$LOG
                   S=`ps -ef | pgrep wspr`
                   for i in $S; do
                      echo "Whisper: "`date`"   --- wspr PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
@@ -308,7 +310,7 @@ case $1 in
 
 #*---- instances of wsprd
 
-                  echo "Whisper:" `date`" Process List" 2> $DPATH$ERR | tee -a $DPATH$LOG
+                  echo "Whisper:" `date`" Process List" 2>&1 | tee -a $DPATH$LOG
                   S=`ps -ef | pgrep rtlsdr_wsprd`
                   for i in $S; do
                      echo "Whisper: "`date`"   --- rtlsdr_wsprd PID("$i")" 2> /dev/null | tee -a $DPATH$LOG
