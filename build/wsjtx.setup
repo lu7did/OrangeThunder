@@ -1,10 +1,10 @@
 #!/bin/sh
 
+cd ~
+
 echo "*-------------------------------------------"
 echo "* Installing pre-requisites"
 echo "*-------------------------------------------"
-/home/pi/pause.py 
-
 sudo apt-get update
 sudo apt-get install -y cmake
 sudo apt-get install -y asciidoctor
@@ -39,10 +39,13 @@ sudo apt-get install -y libfftw3-dev
 sudo apt-get install -y xsltproc
 sudo apt-get install -y swig
 
-echo "Pre-requisites ended, downloading the package"
+echo "Pre-requisites ended, downloading the packages"
 
+cd ~
 cd Downloads
-/home/pi/pause.py 
 
 wget http://physics.princeton.edu/pulsar/k1jt/wsjtx-2.0.0.tgz
-cd /home/pi
+wget https://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
+
+echo "Verify the packages has been properly downloaded (no errors) then build them"
+

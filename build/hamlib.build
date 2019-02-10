@@ -4,9 +4,9 @@ clear
 echo "*------------------------------------*"
 echo "*  building hamlib                   *"
 echo "*------------------------------------*"
-/home/pi/pause.py
+cd ~
 
-sudo apt-get remove libhamlib2
+sudo apt-get remove libhamlib2 2>&1 | /dev/null
 
 cd Downloads
 tar -zxvf hamlib-3.3.tar.gz
@@ -16,4 +16,4 @@ make
 sudo make install
 sudo ldconfig
 cd ..
-
+echo "Installation completed"

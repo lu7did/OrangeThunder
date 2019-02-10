@@ -40,35 +40,24 @@ ON="1"
 OFF="0"
 RX=0
 TX=1
-MAXTEMP="60"
+MAXTEMP="57"
 COOLTIME="120"
 
-#*-------------------------------------------------------------------------
-#* getCPU
-#* Get CPU load 
-#*--------------- Requires apt-get install sysstat
-#*-------------------------------------------------------------------------
-getCPU() {
-
-sar 1 3 | grep "Media:" | while read a ; do
- echo $a | awk '{print $3 + $4 + $5 + $6 + $7}';
-done
-}
 #*-----------------------------------------------------------------------------
 #* manageTemp()
 #* Get core temperature and stop the beacon to cool down if exceeded
 #*-----------------------------------------------------------------------------
 manageTemp() {
 echo "Whisper: "`date`" Managing temperature procedure" 2>&1 | tee -a $DPATH$LOG
-A=$(vcgencmd measure_temp)
-B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
-C=$(echo $B | cut -f1 -d".")
-D=$(($C * 1))
-if [ $D -ge $MAX ];
-then
-   echo "Whisper: "`date`" Temp ("$D") exceeds max ($MAX), stopping TX to cool down during $COOLTIME secs" 2>&1 | tee -a $DPATH$LOG && sleep $COOLTIME
-   echo "Whisper: "`date`" Temperature is now "$(vcgencmd measure_temp)" TX resumed" 2>&1 |  tee -a $DPATH$LOG
-fi
+#A=$(vcgencmd measure_temp)
+#B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
+#C=$(echo $B | cut -f1 -d".")
+#D=$(($C * 1))
+#if [ $D -ge $MAX ];
+#then
+#   echo "Whisper: "`date`" Temp ("$D") exceeds max ($MAX), stopping TX to cool down during $COOLTIME secs" 2>&1 | tee -a $DPATH$LOG && sleep $COOLTIME
+#   echo "Whisper: "`date`" Temperature is now "$(vcgencmd measure_temp)" TX resumed" 2>&1 |  tee -a $DPATH$LOG
+#fi
 }
 #*-----------------------------------------------------------------------------
 #* getTelemetry()
@@ -131,11 +120,10 @@ WSPRD="rtlsdr_wsprd"
 
 #TXOPTS=" -r -o -s "
 #BAND="20m 0 0 0 0 " 
-#TEST="/home/pi/WsprryPi/wspr -r -o -s LU7DID GF05 20 20m" 
 
 TXOPTS="-x 1 -o -s "
 BAND="20m " 
-RXOPTS="-d 2 -n 4 -g 35 -S"
+RXOPTS="-d 2 -n 4 -a 1 -S"
 #RXOPTS="-d 2 -n 1 -a 1 -S"
 
 CALLSIGN="LU7DID "
@@ -163,10 +151,8 @@ for line in $PIDL; do
     fi
 done
 
-
-CPU=`getCPU`
-
-echo "Whisper: "`date`" Starting  Ver "$VERSION" P("$N") PID("$$") CPU($CPU %)" 2>&1 | tee -a $DPATH$LOG
+gpio mode $GPIO out  2>&1 | tee -a $DPATH$LOG
+echo "Whisper: "`date`" Program "$DAEMON" Version "$VERSION" Proc("$N") PID("$$")" 2>&1 | tee -a $DPATH$LOG
 
 #*---- React to argument (see whisper for command options)
 

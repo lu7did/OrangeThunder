@@ -1,0 +1,35 @@
+#!/bin/sh
+
+main()  
+{
+    output=$(mktemp "${TMPDIR:-/tmp/}$(basename 0).XXX")
+    server &> $output &
+    server_pid=$!
+    echo "Server pid: $server_pid"
+    echo "Output: $output"
+    echo "Wait:"
+    until grep -q -i 'Something 3' $output
+    do       
+      if ! ps $server_pid > /dev/null 
+      then
+        echo "The server died" >&2
+        exit 1
+      fi
+      echo -n "."
+      sleep 1
+    done
+    echo 
+    echo "Server is running!" 
+}
+
+server() 
+{       
+    i=0
+    while true; do
+      let i++
+      echo "Something $i"  
+      sleep 1
+    done
+}
+
+main "$@"

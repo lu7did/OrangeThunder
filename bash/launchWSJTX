@@ -1,0 +1,6 @@
+#!/bin/sh
+
+cd /home/pi
+./whisper/receiver.sh
+wsjtx
+
