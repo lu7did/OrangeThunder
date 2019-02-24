@@ -132,8 +132,8 @@ DAEMON="wsmon"
 LOCK="wsmon.lck"
 THERMALLOCK="wsmon.temp"
 VERSION="1.1"
-MAXTEMP="80"
-TGTTEMP="70"
+MAXTEMP="82"
+TGTTEMP="68"
 LOG="wsmon.log"
 NMAX=1
 
@@ -170,9 +170,13 @@ case $1 in
           if [ $T -ge $TGTTEMP ];
           then
              echo "$DAEMON: "`date`" Temp ("$T" °C) exceeds cooling target ("$TGTTEMP" °C) wait" 2>&1 | tee -a $DPATH$LOG
-             exit 2
+             echo "Thermal runaway detected!" | logger -i -t "TLM"
+ 
+            exit 2
           else
              echo "$DAEMON: "`date`" Temp ("$T" °C) is below target ("$TGTTEMP" °C) remove and reboot" 2>&1 |  tee -a $DPATH$LOG
+             echo "Thermal management, cooling off detected " | logger -i -t "TLM"
+
              sudo rm -r $DPATH$THERMALLOCK 2>&1 | tee -a $DPATH$LOG
              sudo reboot
              sleep 10000
@@ -187,6 +191,8 @@ case $1 in
           echo "$DAEMON: "`date`" Temp ("$T" °C) exceeds max ("$MAXTEMP" °C) kill procs and thermal lock" 2>&1 | tee -a $DPATH$LOG
           sudo touch $DPATH$THERMALLOCK 2>&1 | tee -a $DPATH$LOG
           killProcess 2>&1 | tee -a $DPATH$LOG
+          echo "Thermal runaway detected!" | logger -i -t "TLM"
+ 
           exit 0
        else
           echo "$DAEMON: "`date`" Temp ("$T" °C) is nominal and below max ("$MAXTEMP" °C)" 2>&1 |  tee -a $DPATH$LOG
@@ -252,7 +258,7 @@ case $1 in
 
     status)
        echo "$DAEMON"`date`"List Processes" 2>&1 | tee -a $DPATH$LOG
-       listProcess 
+       listProcess 2>&1 | tee -a $DPATH$LOG 
        exit 2
       
 
@@ -261,7 +267,8 @@ case $1 in
     ;;
 
     *)
-     echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|checkpoint|force-reload|status}"
+     $0 start
+     #echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|checkpoint|force-reload|status}"
      exit 2
     ;;
 
