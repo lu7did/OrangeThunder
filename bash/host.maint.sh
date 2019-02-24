@@ -57,7 +57,7 @@ WAV="/home/pi/.local/share/WSJT-X/save/"
 echo "-------------------------------------------------------" 2>&1 >$BPATH$LOG
 echo "Maintenance "$0 "hostname("`hostname`") epoch("`date`")" 2>&1 >>$BPATH$LOG
 
-copyFile $BPATH$BUP"(3)"
+#copyFile $BPATH$BUP"(3)"
 
 cd /home/pi
 echo `date`" Removing oldest version" 2>&1 >>$BPATH$LOG
