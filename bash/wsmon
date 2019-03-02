@@ -1,0 +1,276 @@
+#!/bin/sh
+#// wsmon
+#// Execute the sdr chain to implement the WSPR and FT8 monitoring
+#// and manage it
+#//
+#// See accompanying README
+#// file for a description on how to use this code.
+#// based on the package WsprryPi (https://github.com/JamesP6000/WsprryPi)
+#// License:
+#//   This program is free software: you can redistribute it and/or modify
+#//   it under the terms of the GNU General Public License as published by
+#//   the Free Software Foundation, either version 2 of the License, or
+#//   (at your option) any later version.
+#//
+#//   This program is distributed in the hope that it will be useful,
+#//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#//   GNU General Public License for more details.
+#//
+#//
+#//   wsmon {start|stop|lock|reset|status}
+#//
+#*-----------------------------------------------------------------------------------------------
+#*
+#*-----------------------------------------------------------------------------------------------
+listProcess() {
+echo "List current monitoring processes"
+
+for p in `pgrep "wsjtx"`;   do echo "wsjtx  ("$p")"; done
+for p in `pgrep "jt9"`;     do echo "jt9    ("$p")"; done
+
+for p in `pgrep "rtl_sdr"`; do echo "rtl_sdr("$p")"; done
+for p in `pgrep "csdr"`;    do echo "csdr   ("$p")"; done
+for p in `pgrep "ncat"`;    do echo "ncat   ("$p")"; done
+for p in `pgrep "mplayer"`; do echo "mplayer("$p")"; done
+
+
+}
+#*-----------------------------------------------------------------------------
+#* manageTemp()
+#* Get core temperature and stop the beacon to cool down if exceeded
+#*-----------------------------------------------------------------------------
+manageTemp() {
+#echo "$DAEMON: "`date`" Managing temperature procedure" 2>&1 | tee -a $DPATH$LOG
+A=$(vcgencmd measure_temp)
+B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
+C=$(echo $B | cut -f1 -d".")
+D=$(($C * 1))
+echo $D
+
+}
+
+#*---------------------------------------------------------------------------
+#* Kill all processes related to the monitoring function
+#*---------------------------------------------------------------------------
+killProcess() {
+
+sudo ps -aux | for p in `pgrep "rtl_sdr"`; do echo "killing "$p; sudo kill -9 $p; done
+sudo ps -aux | for p in `pgrep "csdr"`; do echo "killing "$p; sudo kill -9 $p; done
+sudo ps -aux | for p in `pgrep "ncat"`; do echo "killing "$p; sudo kill -9 $p; done
+sudo ps -aux | for p in `pgrep "mplayer"`; do echo "killing "$p; sudo kill -9 $p; done
+
+#* sudo ps -aux | for p in `pgrep "wsjtx"`; do echo "killing "$p; sudo kill -9 $p; done
+sudo ps -aux | for p in `pgrep "jt9"`; do echo "killing "$p; sudo kill -9 $p; done
+
+}
+#*---------------------------------------------------------------------------
+#* getCPU
+#* Compute current CPU usage
+#*---------------------------------------------------------------------------
+getCPU () {
+sar 1 3 | grep "Media:" | while read a ; do
+ echo $a | awk '{print $3 + $4 + $5 + $6 + $7}';
+done
+}
+#*---------------------------------------------------------------------------
+#* getTemp
+#* Compute current CPU temperature
+#*---------------------------------------------------------------------------
+getTemp () {
+
+TEMP=$(vcgencmd measure_temp)
+echo $TEMP | cut -f2 -d"=" | cut -f1 -d"'"
+
+}
+#*---------------------------------------------------------------------------
+#* getVolt
+#* Compute current CPU voltage
+#*---------------------------------------------------------------------------
+getVolt () {
+
+VOLT=$(vcgencmd measure_volts | cut -f2 -d"=" | cut -f1 -d"V" )
+VOLT=$(python -c "print ('%.2f' % ($VOLT*1.0))" )
+echo $VOLT
+
+}
+#*---------------------------------------------------------------------------
+#* getClock
+#* Compute current CPU clock
+#*---------------------------------------------------------------------------
+getClock () {
+
+CLOCK=$(vcgencmd measure_clock arm | cut -f2 -d"=")
+FX=$(python -c "print float($CLOCK)/1000000")
+echo $FX
+
+}
+#*---------------------------------------------------------------------------
+#* getStatus
+#* Compute current CPU status
+#*---------------------------------------------------------------------------
+getStatus () {
+
+STATUS=$(vcgencmd get_throttled)
+echo $STATUS | cut -f2 -d"="
+
+}
+#*---------------------------------------------------------------------------
+#* getDASD
+#* Compute current DASD usage
+#*---------------------------------------------------------------------------
+getDASD () {
+sudo df -k | grep "/dev/root" | awk '{ print $5 ; }' | cut -f1 -d"%"
+}
+
+#*---------------------------------------------------------------------
+#* Initialize variables
+#*---------------------------------------------------------------------
+
+DPATH="/home/pi/whisper/"
+DAEMON="wsmon"
+LOCK="wsmon.lck"
+THERMALLOCK="wsmon.temp"
+VERSION="1.1"
+MAXTEMP="82"
+TGTTEMP="68"
+LOG="wsmon.log"
+NMAX=1
+
+N=$(ps -aux | pgrep "wsjtx" | wc -l)
+echo "$DAEMON: "`date`" Version "$VERSION" PID("$$")" 2>&1 | tee -a $DPATH$LOG
+
+
+case $1 in
+
+#*------------------ Normal mode of execution
+
+    start)
+
+       #*---- Gather telemetry, log in both the local log and system log
+
+       STATE="T($(getTemp)°C) V($(getVolt)V) Clk($(getClock)MHz) St($(getStatus)) CPU($(getCPU)%) DASD($(getDASD)%)"
+       echo "$DAEMON: "`date`" TLM $STATE" 2>&1 | tee -a $DPATH$LOG
+       echo $STATE | logger -i -t "TLM"
+
+       T=$(manageTemp)
+       #T=$2
+
+#*------------------ See if the execution is externally locked (maintenance)
+
+       if [ -f $DPATH$LOCK ]; then
+          echo "$DAEMON: "`date`" Process lock found, terminating" 2>&1 | tee -a $DPATH$LOG
+          exit 0
+       fi
+
+#*------------------ See if a thermal lock is in place
+
+       if [ -f $DPATH$THERMALLOCK ]; then
+          echo "$DAEMON: "`date`" Process is under thermal lock, evaluating" 2>&1 | tee -a $DPATH$LOG
+          if [ $T -ge $TGTTEMP ];
+          then
+             echo "$DAEMON: "`date`" Temp ("$T" °C) exceeds cooling target ("$TGTTEMP" °C) wait" 2>&1 | tee -a $DPATH$LOG
+             echo "Thermal runaway detected!" | logger -i -t "TLM"
+ 
+            exit 2
+          else
+             echo "$DAEMON: "`date`" Temp ("$T" °C) is below target ("$TGTTEMP" °C) remove and reboot" 2>&1 |  tee -a $DPATH$LOG
+             echo "Thermal management, cooling off detected " | logger -i -t "TLM"
+
+             sudo rm -r $DPATH$THERMALLOCK 2>&1 | tee -a $DPATH$LOG
+             sudo reboot
+             sleep 10000
+             exit 0
+          fi
+       fi
+
+#*-------------- If not under a thermal lock check if it should be under one
+
+       if [ $T -ge $MAXTEMP ];
+       then
+          echo "$DAEMON: "`date`" Temp ("$T" °C) exceeds max ("$MAXTEMP" °C) kill procs and thermal lock" 2>&1 | tee -a $DPATH$LOG
+          sudo touch $DPATH$THERMALLOCK 2>&1 | tee -a $DPATH$LOG
+          killProcess 2>&1 | tee -a $DPATH$LOG
+          echo "Thermal runaway detected!" | logger -i -t "TLM"
+ 
+          exit 0
+       else
+          echo "$DAEMON: "`date`" Temp ("$T" °C) is nominal and below max ("$MAXTEMP" °C)" 2>&1 |  tee -a $DPATH$LOG
+       fi
+
+#*-------------- identify if the monitor is running
+
+       if [ $N -ge $NMAX ]; then
+         #echo "$DAEMON: "`date`" Found already running, exit" 2>&1 | tee -a $DPATH$LOG
+         exit 0  
+       else
+          echo "$DAEMON: "`date`" No daemon found, exit" 2>&1 | tee -a $DPATH$LOG
+       fi
+       exit 0
+    ;;
+
+#*-------------- Auxiliary, stop wsjtx processes
+
+    stop)
+
+       if [ $N -ge $NMAX ]; then
+          echo "$DAEMON:"`date`" Daemon found, kill processes" 2>&1 | tee -a $DPATH$LOG
+          killProcess 2>&1 | tee -a $DPATH$LOG
+       else
+          echo "$DAEMON:"`date`" No daemon found, exit" 2>&1 | tee -a $DPATH$LOG
+       fi
+       exit 0
+
+    ;;
+
+#*------ lock for maintenance
+
+    lock)
+       echo "$DAEMON: "`date`" Script locked" 2>&1 | tee -a $DPATH$LOG
+       sudo touch $DPATH$LOCK 2>&1 | tee -a $DPATH$LOG
+       echo "Locked for maintenance" | logger -i -t "TLM"
+       exit 4
+
+    ;;
+
+    reset)
+       sudo rm -r $DPATH$LOCK 2>&1 | tee -a $DPATH$LOG
+       echo "Lock removed" | logger -i -t "TLM"
+       exit 2
+    ;;
+
+    reload)
+
+    ;;
+
+    restart)
+
+    ;;
+
+#*---- Establish a checkpoint and log it
+
+    check)
+       echo "$DAEMON"`date`"CheckPoint: $2 $3 $4 $5" 2>&1 | tee -a $DPATH$LOG
+       echo "Checkpoint: $2 $3 $4 $5" | logger -i -t "TLM"
+
+       exit 2
+    ;;
+
+    status)
+       echo "$DAEMON"`date`"List Processes" 2>&1 | tee -a $DPATH$LOG
+       listProcess 2>&1 | tee -a $DPATH$LOG 
+       exit 2
+      
+
+
+
+    ;;
+
+    *)
+     $0 start
+     #echo "Usage: $0 {start|stop|lock|reset|restart|try-restart|checkpoint|force-reload|status}"
+     exit 2
+    ;;
+
+esac
+
