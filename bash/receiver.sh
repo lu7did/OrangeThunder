@@ -1,10 +1,7 @@
 #!/bin/sh
 #// receiver
 #// Execute the rtl_sdr front end script, wait for proper start and then
-#// launch the decoder backend into the virtual cable
-#// 
-#// Pre-requisite packages
-#// ntp pulseaudio csdr pavucontrol nmap rtl-sdr mplayer 
+#// launch the decoder backend into the ASA
 #//
 #// See accompanying README
 #// file for a description on how to use this code.
@@ -27,14 +24,10 @@
 #* Initialization
 #* DO NOT RUN EITHER AS A rc.local script nor as a systemd controlled service
 #*----------------------------------------------------------------------------
-#* Valid for WSPR (14095600) replace by 14074000 for FT8
-#*----------------------------------------------------------------------------
-LO="14100000"
+FO="14095600"
 SAMPLERATE="1200000"
-FREQ="14095600"
-FX=$(python -c "print float($LO-$FREQ)/$SAMPLERATE")
-LOCALHOST="127.0.0.1"
-AUDIORATE="48000"
+LO="14100000"
+MODE="wspr"
 
 #*----------------------------------------------------------------------------
 # Clean up previous execution
@@ -47,13 +40,11 @@ sudo ps -aux | for p in `pgrep "ncat"`; do echo "killing "$p; sudo kill -9 $p; d
 sudo ps -aux | for p in `pgrep "mplayer"`; do echo "killing "$p; sudo kill -9 $p; done
 
 #*--- Launch the command, pipe StdErr of rtl_sdr into the fiforx
-#*--- Exit if an error occurs
-
 mkfifo fiforx || exit
-exec rtl_sdr -s $SAMPLERATE -f $LO -D 2 - 2> fiforx | csdr convert_u8_f | ncat -4l 4952 -k --send-only --allow $LOCALHOST  &
+exec rtl_sdr -s $SAMPLERATE -f $LO -D 2 - 2> fiforx | csdr convert_u8_f | ncat -4l 4952 -k --send-only --allow 127.0.0.1  &
 
 #*--- while executing watch for the "async" word to appear, that means
-#*--- the startup has been completed
+#*--- startup has been completed
 
 while read line; do
     case $line in
@@ -63,12 +54,20 @@ while read line; do
     esac
 done < fiforx
 
-#*--- clean up the pipe, it is not longer needed
+#*--- clean up the pipe, is not longer needed
 
 rm -f fiforx
 
-#*---- Now launch the decoder backend
+#*---- Now launch the decoder backend based on the selected mode
 
-exec ncat -v $LOCALHOST 4952 | csdr shift_addition_cc $FX | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | mplayer -nocache -rawaudio samplesize=2:channels=1:rate=$AUDIORATE -demuxer rawaudio - &
+if [ "$1" =  "ft8" ]; then
+   FO="14074000"
+   MODE="ft8"
+fi
+
+FX=$(python -c "print float($LO-$FO)/$SAMPLERATE")
+echo "Arg $1 MODE=$MODE FO=$FO LO=$LO SAMPLERATE=$SAMPLERATE FX=$FX"
+
+exec ncat -v 127.0.0.1 4952 | csdr shift_addition_cc $FX | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | mplayer -nocache -rawaudio samplesize=2:channels=1:rate=48000 -demuxer rawaudio - &
 
 exit 0
