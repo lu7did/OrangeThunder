@@ -293,7 +293,7 @@ case $1 in
                          echo "Whisper: "`date`" Starting CW transmission cycle" 2>&1 | tee -a $DPATH$LOG
                          sleep 2
                          gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
-                         sudo $CWPATH$CW --freq $FCW --wpm 20 "VVV $CALLSIGN $GRID $POWER $TLM 73 K" 2>&1 | tee -a $DPATH$LOG
+                         sudo $CWPATH$CW --freq $FCW --wpm 20 "CQ DE $CALLSIGN/B $GRID $POWER $TLM K" 2>&1 | tee -a $DPATH$LOG
 #*---- Turn off and entering waiting cycle
                          sudo $DPATH/turnoff.py
                          gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
