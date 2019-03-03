@@ -97,17 +97,9 @@ C=$(echo $B | cut -f1 -d".")
 D=$(($C * 1))
 echo $D
 }
-#*-----------------------------------------------------------------------------
-#* getTelemetry()
-#* Create telemetry and WSPR frame
-#*-----------------------------------------------------------------------------
-getTelemetry () {
-   return 0
-}
 #+-----------------------------------------------------------------------------
 #* Get telemetry from all major sub-systems
 #*-----------------------------------------------------------------------------
-
 getCPU () {
 sar 1 3 | grep "Media:" | while read a ; do
  echo $a | awk '{print $3 + $4 + $5 + $6 + $7}';
@@ -240,7 +232,7 @@ case $1 in
                n=$(( $count % $EVERY ))
                VOLT=$(getVolt)
                TEMP=$(getTemp)
-               STATE="T($TEMP°C) V($VOLTV) Clk($(getClock)MHz) St($(getStatus)) CPU($(getCPU)%) DASD($(getDASD)%)" 
+               STATE="T($TEMP°C) V($VOLT) Clk($(getClock)MHz) St($(getStatus)) CPU($(getCPU)%) DASD($(getDASD)%)" 
                echo $STATE | logger -i -t "TLM"
                echo "Whisper: "`date`" Telemetry: "$STATE 2>&1 | tee -a $DPATH$LOG
                TLM=$(python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p) 
@@ -248,70 +240,71 @@ case $1 in
 
 #*---- It is here on even minutes, thus wait till sec $SYNC to continue (giving a chance if receiving to complete a frame)
 
-                  w=$(date +"%S" | sed 's/^0*//')
-                  echo "Whisper: "`date`" Cycle timer($w) Sync Timer($SYNC)" 2>&1 | tee -a $DPATH$LOG
-                  if [ "$w" -lt "$SYNC" ]
-                  then
-                     t=$(( $SYNC - $w ))
-                     echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2>&1 | tee -a $DPATH$LOG
-                     sleep $t
-                  fi
+               w=$(date +"%S" | sed 's/^0*//')
+               echo "Whisper: "`date`" Cycle timer($w) Sync Timer($SYNC)" 2>&1 | tee -a $DPATH$LOG
+               if [ "$w" -lt "$SYNC" ]
+               then
+                  t=$(( $SYNC - $w ))
+                  echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2>&1 | tee -a $DPATH$LOG
+                  sleep $t
+               fi
 
 #*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
-                  echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2>&1 | tee -a $DPATH$LOG
-                  if [ $n -eq 0 ]
-                  then
+               echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2>&1 | tee -a $DPATH$LOG
+               if [ $n -eq 0 ]
+               then
   
 #*---- Turn antenna (GPIO27) and Launch the beacon transmission, it will align itself with the proper WSPR window, $BAND will control how many slots will be active 
-                     if [ $TX -eq "1" ] 
-                     then
-                        echo "Whisper: "`date`" Turning $GPIO PTT($ON)" 2>&1 | tee -a $DPATH$LOG
-                        gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
-                        gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                   if [ $TX -eq "1" ] 
+                   then
+                      echo "Whisper: "`date`" Turning $GPIO PTT($ON)" 2>&1 | tee -a $DPATH$LOG
+                      gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                      gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
 
-                        echo "Whisper: "`date`" Starting WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
-                        sudo $DPATH/turnon.py
-                        sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2>&1 | tee -a $DPATH$LOG  
+                      echo "Whisper: "`date`" Starting WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                      sudo $DPATH/turnon.py
+                      sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2>&1 | tee -a $DPATH$LOG  
+                      count=$(( $count + 1 ))
 
 #*---- End of WSPR cycle, now starts FT8 cycle, first FT8 cycle
-                        if [ $FT8ON -eq "1" ] 
-                        then
-                           echo "Whisper: "`date`" Starting FT8 [1/2] WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
-                           sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
+     
+                      if [ $FT8ON -eq "1" ] 
+                      then
+                         echo "Whisper: "`date`" Starting FT8 [1/2] WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
 #*---- Listen cycle
-                           gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
-                           sleep 15
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 15
 #*---- Second FT8 cycle
-                           echo "Whisper: "`date`" Starting FT8 [2/2] transmission cycle" 2>&1 | tee -a $DPATH$LOG
-                           gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
-                           sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
+                         echo "Whisper: "`date`" Starting FT8 [2/2] transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                         sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
 #*---- Listen again
-                           gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
-                           sleep 15
-                        else
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 15
+                      else
                            gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
                            sleep 60
-                        fi
+                      fi
 
 #*---- Now CW beacon
-                        if [ $CWON -eq "1" ] 
-                        then
-
-                           echo "Whisper: "`date`" Starting CW transmission cycle" 2>&1 | tee -a $DPATH$LOG
-                           sleep 2
-                           gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
-                           sudo $CWPATH$CW --freq $FCW --wpm 20 "VVV $CALLSIGN $GRID $POWER $TLM 73 K" 2>&1 | tee -a $DPATH$LOG
+                      if [ $CWON -eq "1" ] 
+                      then
+                         echo "Whisper: "`date`" Starting CW transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         sleep 2
+                         gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                         sudo $CWPATH$CW --freq $FCW --wpm 20 "VVV $CALLSIGN $GRID $POWER $TLM 73 K" 2>&1 | tee -a $DPATH$LOG
 #*---- Turn off and entering waiting cycle
-                           sudo $DPATH/turnoff.py
-                           gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
-                           sleep 25
-                         else
-                           gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
-                           sleep 50
-                         fi
-                     else
-                        echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2>&1 | tee -a $DPATH$LOG
-                     fi
+                         sudo $DPATH/turnoff.py
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 25
+                       else
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 50
+                       fi
+                   else
+                      echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2>&1 | tee -a $DPATH$LOG
+                   fi
                  else
 
 #*---- Turn GPIO27 Off (Antenna to RX) and enable the reception cycle (either local or remote)
@@ -341,7 +334,6 @@ case $1 in
 #*=====================================================================================================================
 #*---- Stop the beacon if an instance is found running
 #*=====================================================================================================================
-
 	stop)
 
                if [ $N \> $NMAX ]; then
@@ -407,7 +399,6 @@ case $1 in
 #*---- beacon status
 #*====================================================================================================
 	status)
-                getTelemetry 2>&1 | tee -a $DPATH$LOG
                 echo "Whisper: "`date`" WSPR Process List Status" 2>&1 | tee -a $DPATH$LOG
                 if [ $N \> $NMAX ]; then
 
