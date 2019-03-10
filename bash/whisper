@@ -147,6 +147,17 @@ X=1
 
 }
 #*--------------------------------------------------------------------------
+#* txRTTY   ** Transmit RTTY **
+#*--------------------------------------------------------------------------
+txRTTY () {
+fRTTY="14097000"
+
+echo "Whisper: "`date`" Starting RTTY transmission cycle"
+sudo pirtty $fRTTY $1 170 45.5 
+
+}
+
+#*--------------------------------------------------------------------------
 #* txWSPR   ** Transmit WSPR **
 #*--------------------------------------------------------------------------
 txWSPR () {
@@ -357,8 +368,16 @@ case $1 in
 
 #*---- Odd times the CW beacon follows, Even times the PSK31 Beacon is transmitted instead
 
-                     case $b in 
-                     1) b=0 ;
+                     case $b in
+                     0) b=1 ;
+                        echo "Whisper: "`date`" RTTY Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
+                        sleep 2 2>&1 | tee -a $DPATH$LOG;
+                        PTTOn 2>&1 | tee -a $DPATH$LOG;
+                        txRTTY "   RYRYRYRY CQ $CALLSIGN/B $GRID $POWER DBM $TLM K\n" 2>&1 | tee -a $DPATH$LOG;
+                        PTTOff  2>&1 | tee -a $DPATH$LOG;
+                        sleep 25 ;
+                        ;;
+                     1) b=2 ;
                         echo "Whisper: "`date`" CW Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
                         sleep 2 2>&1 | tee -a $DPATH$LOG;
                         PTTOn 2>&1 | tee -a $DPATH$LOG;
@@ -366,7 +385,7 @@ case $1 in
                         PTTOff  2>&1 | tee -a $DPATH$LOG;
                         sleep 25 ;
                         ;;
-                     0) b=1;
+                     2) b=0;
                         echo "Whisper: "`date`" PSK31 Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
                         PTTOn 2>&1 | tee -a $DPATH$LOG; 
                         txPSK31 "$CALLSIGN" "$GRID" "$POWER" "$TLM" 2>&1 | tee -a $DPATH$LOG  ;
