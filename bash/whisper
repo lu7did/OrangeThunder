@@ -153,7 +153,7 @@ txRTTY () {
 fRTTY="14097000"
 
 echo "Whisper: "`date`" Starting RTTY transmission cycle"
-sudo pirtty $fRTTY $1 170 45.5 
+sudo /home/pi/pirtty/pirtty  14097000 "   RYRYRYRYRY CQ $1 $1 $2 $3DBM $4 K  " 170 45.5
 
 }
 
@@ -169,7 +169,6 @@ sudo /home/pi/WsprryPi/wspr $1 $2 $3 $4 $5
 #*--------------------------------------------------------------------------
 #* txFT8   ** Transmit FT8 **
 #*--------------------------------------------------------------------------
-
 txFT8 () {
 
 SLOT="0"
@@ -373,7 +372,7 @@ case $1 in
                         echo "Whisper: "`date`" RTTY Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
                         sleep 2 2>&1 | tee -a $DPATH$LOG;
                         PTTOn 2>&1 | tee -a $DPATH$LOG;
-                        txRTTY "   RYRYRYRY CQ $CALLSIGN/B $GRID $POWER DBM $TLM K\n" 2>&1 | tee -a $DPATH$LOG;
+                        txRTTY "$CALLSIGN" "$GRID" "$POWER" "$TLM" 2>&1 | tee -a $DPATH$LOG;
                         PTTOff  2>&1 | tee -a $DPATH$LOG;
                         sleep 25 ;
                         ;;
@@ -401,7 +400,6 @@ case $1 in
                  else
 
 #*---- If this is a monitoring slot just wait
-
                      PTTOff  2>&1 | tee -a $DPATH$LOG
                      WAIT=$((( $SYNC * 2 ) - 3 ))
                      echo "Whisper: "`date`" Reception block waiting ($WAIT secs)" 2>&1 | tee -a $DPATH$LOG
