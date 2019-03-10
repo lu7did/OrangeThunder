@@ -28,24 +28,36 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 . /lib/lsb/init-functions
-
 DPATH="/home/pi/whisper/"
+WSPRPATH="/home/pi/WsprryPi/"
+WSPRDPATH="/home/pi/rtlsdr-wsprd/"
+RPITXPATH="/home/pi/rpitx/"
+CWPATH="/home/pi/PiCW/"
 LOG="whisper.log"
+ERR="whisper.err"
 LOCK="whisper.lck"
 VERSION="1.3"
+TLM="whisper.tlm"
 ON="1"
 OFF="0"
 RX=0
 TX=1
 MAXTEMP="60"
 COOLTIME="120"
-PROCLIST='wspr pift8 PiCW PSK31 rtlsdr_wsprd' 
+FT8ON=1
+CWON=1
+PROCLIST='wspr pift8 PiCW rtlsdr_wsprd' 
 
 #*----------------------------------------------------------------------------
 #* Beacon specific data configuration 
 #*----------------------------------------------------------------------------
+WSPR="wspr"
+WSPRD="rtlsdr_wsprd"
+FT8="pift8"
+CW="PiCW"
 TXOPTS="-x 1 -o -s "
 BAND="20m " 
+RXOPTS="-d 2 -n 4 -g 35 -S"
 CALLSIGN="LU7DID"
 GRID="GF05"
 GRIX="TE"
@@ -56,13 +68,18 @@ CHANNEL=0
 SYNC="55"
 NMAX=1
 EVERY=5
-b=0
+RXPARMS="-f 14095600 -c $CALLSIGN -l $GRID $RXOPTS"
+SLOT="0"
+OFFSET="1240"
+FFT8="14074000"
+FCW="14099000"
+
 #*-------------------------------------------------------------------------
 #* getCPU
 #* Get CPU load 
 #*--------------- Requires apt-get install sysstat
 #*-------------------------------------------------------------------------
-getCPU () {
+getCPU() {
 
 sar 1 3 | grep "Media:" | while read a ; do
  echo $a | awk '{print $3 + $4 + $5 + $6 + $7}';
@@ -72,121 +89,13 @@ done
 #* manageTemp()
 #* Get core temperature and stop the beacon to cool down if exceeded
 #*-----------------------------------------------------------------------------
-manageTemp () {
-
-#echo "Whisper: "`date`" Managing temperature procedure" 
-#A=$(vcgencmd measure_temp)
-#B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
-#C=$(echo $B | cut -f1 -d".")
-#D=$(($C * 1))
-#echo $D
-
-echo "45"
-}
-#*--------------------------------------------------------------------------
-#* PTTOn ** Turn the antenna relay to Transmit **
-#*--------------------------------------------------------------------------
-PTTOn () {
-
-echo "Whisper: "`date`" PTT Port(27) State(1)"
-gpio mode "27"  out
-gpio -g write "27" 1  2> /dev/null
-
-sudo /home/pi/whisper/turnon.py
-
-}
-#*--------------------------------------------------------------------------
-#* PTTOff ** Turn the antenna relay to Receive **
-#*--------------------------------------------------------------------------
-PTTOff () {
-
-echo "Whisper: "`date`" PTT Port(27) State(0)"
-gpio mode "27" out
-gpio -g write "27" 0  2> /dev/null
-
-sudo /home/pi/whisper/turnoff.py
-
-}
-#*--------------------------------------------------------------------------
-#* putTelemetry 
-#* Gather telemetry and assemble an information frame with it, log at Syslog
-#*--------------------------------------------------------------------------
-
-putTelemetry () {
-
-STATE="T($(getTemp)°C) V($(getVolt)V) Clk($(getClock)MHz) St($(getStatus)) CPU($(getCPU)%) DASD($(getDASD)%)" 
-echo $STATE | logger -i -t "TLM"
-echo "Whisper: "`date`" Telemetry: "$STATE 
-
-}
-
-#*--------------------------------------------------------------------------
-#* getTelemetry
-#* Obtain telemetry in WSPR format
-#*--------------------------------------------------------------------------
-getTelemetry () {
-
-VOLT=$(getVolt)
-TEMP=$(getTemp)
-
-echo $(python wsprtlm.py -g "$1$2" -e "$3" -c "$4" -b "$VOLT" -t "$TEMP" -l -q -p) 
-}
-#*--------------------------------------------------------------------------
-#* evaluateTemp
-#* Temperature management (inactive)
-#*--------------------------------------------------------------------------
-evaluateTemp () {
-
-X=1
-#T=$(manageTemp)
-#X=$1
-#if [ $T -ge $X ] ; then
-#   echo "Whisper: "`date`" Temp ("$T") exceeds max ($MAX), stopping TX to cool down during $COOLTIME secs" && sleep $2
-#   echo "Whisper: "`date`" Temperature is now "$(vcgencmd measure_temp)" TX resumed" 
-#fi
-
-}
-#*--------------------------------------------------------------------------
-#* txWSPR   ** Transmit WSPR **
-#*--------------------------------------------------------------------------
-txWSPR () {
-
-echo "Whisper: "`date`" Starting WSPR transmission cycle"
-sudo /home/pi/WsprryPi/wspr $1 $2 $3 $4 $5   
-
-}
-#*--------------------------------------------------------------------------
-#* txFT8   ** Transmit FT8 **
-#*--------------------------------------------------------------------------
-
-txFT8 () {
-
-SLOT="0"
-OFFSET="1240"
-FFT8="14074000"
-
-echo "Whisper: "`date`" Starting FT8 transmission cycle [$3/2]" 
-sudo /home/pi/rpitx/pift8 -f "$FFT8" -m "CQ $1 $2" -o "$OFFSET" -s "$SLOT"
-
-}
-#*--------------------------------------------------------------------------
-#* txCW  ** Transmit CW **
-#*--------------------------------------------------------------------------
-txCW() {
-
-FCW="14097000"
-sudo /home/pi/PiCW/PiCW --freq $FCW --wpm 20 "CQ DE $1 $2 $3 $4 K"
-
-}
-#*--------------------------------------------------------------------------
-#* txPSK31 ** Transmit PSK31 (uses PSK31.sh script) **
-#*--------------------------------------------------------------------------
-txPSK31() {
-
-sleep 2
-FPSK="14097000"
-sudo /home/pi/whisper/PSK31.sh $FPSK "CQ DE $1/B $2 $3 $4 K\r"
-
+manageTemp() {
+echo "Whisper: "`date`" Managing temperature procedure" 2>&1 | tee -a $DPATH$LOG
+A=$(vcgencmd measure_temp)
+B=$(echo $A  | cut -f2 -d"=" | cut -d"'" -f1 | tr -d '\r')
+C=$(echo $B | cut -f1 -d".")
+D=$(($C * 1))
+echo $D
 }
 #+-----------------------------------------------------------------------------
 #* Get telemetry from all major sub-systems
@@ -196,18 +105,14 @@ sar 1 3 | grep "Media:" | while read a ; do
  echo $a | awk '{print $3 + $4 + $5 + $6 + $7}';
 done
 }
-#+-----------------------------------------------------------------------------
-#* Get telemetry from all major sub-systems
-#*-----------------------------------------------------------------------------
+
 getTemp () {
 
 TEMP=$(vcgencmd measure_temp)
 echo $TEMP | cut -f2 -d"=" | cut -f1 -d"'"
 
 }
-#+-----------------------------------------------------------------------------
-#* Get telemetry from all major sub-systems
-#*-----------------------------------------------------------------------------
+
 getVolt () {
 
 VOLT=$(vcgencmd measure_volts | cut -f2 -d"=" | cut -f1 -d"V" )
@@ -215,9 +120,7 @@ VOLT=$(python -c "print ('%.2f' % ($VOLT*1.0))" )
 echo $VOLT 
 
 }
-#+-----------------------------------------------------------------------------
-#* Get telemetry from all major sub-systems
-#*-----------------------------------------------------------------------------
+
 getClock () {
 
 CLOCK=$(vcgencmd measure_clock arm | cut -f2 -d"=")
@@ -225,18 +128,14 @@ FX=$(python -c "print float($CLOCK)/1000000")
 echo $FX
 
 }
-#+-----------------------------------------------------------------------------
-#* Get telemetry from all major sub-systems
-#*-----------------------------------------------------------------------------
+
 getStatus () {
 
 STATUS=$(vcgencmd get_throttled)
 echo $STATUS | cut -f2 -d"="
 
 }
-#+-----------------------------------------------------------------------------
-#* Get telemetry from all major sub-systems
-#*-----------------------------------------------------------------------------
+
 getDASD () {
 sudo df -k | grep "/dev/root" | awk '{ print $5 ; }' | cut -f1 -d"%"
 }
@@ -286,7 +185,11 @@ for line in $PIDL; do
        N=$(( $N + 1 ))
     fi
 done
+
+
 CPU=`getCPU`
+
+echo "Whisper: "`date`" Starting  Ver "$VERSION" P("$N") PID("$$") CPU($CPU %)" 2>&1 | tee -a $DPATH$LOG
 
 #*---- React to argument (see whisper for command options)
 
@@ -296,7 +199,6 @@ case $1 in
 #*=========================================================================================================================
 	start)
 
-#*---- If locked leave
 
                if [ -f $DPATH$LOCK ]; then
                   echo "Whisper: "`date`" Process lock found, terminating" 2>&1 | tee -a $DPATH$LOG
@@ -306,102 +208,129 @@ case $1 in
 #*---- If already running leave
 
                if [ $N \> $NMAX ]; then
+                  echo "Whisper: "`date`" Daemon already running, exit" 2>&1 | tee -a $DPATH$LOG
                   exit 0
-               fi
+               else
 
-#*---- Mark the beginning of the execution
+#*---- Turn off relay so PTT=low, if even can not start till next even, if odd continue, turn off GPIO
 
-               echo "Whisper: "`date`" Starting  Ver "$VERSION" P("$N") PID("$$") CPU($CPU %)" 2>&1 | tee -a $DPATH$LOG
-               PTTOff  2>&1 | tee -a $DPATH$LOG
+               gpio mode $GPIO out  2>&1 | tee -a $DPATH$LOG
+               gpio -g write $GPIO $OFF  2> /dev/null | tee -a $DPATH$LOG
+               sudo $DPATH/turnoff.py
 
 #*---- Infinite loop $EVERY defines how many times comes to RX than TX
 
-
                count=0
                while [ true ];  do
+               T=$(manageTemp)
+               if [ $T -ge $MAXTEMP ]
+               then
+                 echo "Whisper: "`date`" Temp ("$T") exceeds max ($MAX), stopping TX to cool down during $COOLTIME secs" 2>&1 | tee -a $DPATH$LOG && sleep $COOLTIME
+                 echo "Whisper: "`date`" Temperature is now "$(vcgencmd measure_temp)" TX resumed" 2>&1 |  tee -a $DPATH$LOG
+               fi
 
-#*---- Collect and register telemetry
+               n=$(( $count % $EVERY ))
+               VOLT=$(getVolt)
+               TEMP=$(getTemp)
+               STATE="T($TEMP°C) V($VOLT) Clk($(getClock)MHz) St($(getStatus)) CPU($(getCPU)%) DASD($(getDASD)%)" 
+               echo $STATE | logger -i -t "TLM"
+               echo "Whisper: "`date`" Telemetry: "$STATE 2>&1 | tee -a $DPATH$LOG
+               TLM=$(python wsprtlm.py -g "$GRID$GRIX" -e "$HEIGHT" -c "$CHANNEL" -b "$VOLT" -t "$TEMP" -l -q -p) 
+               echo "Whisper: "`date`" TLM($TLM)"  2>&1 | tee -a $DPATH$LOG 
 
-                  n=$(( $count % $EVERY ))
-                  echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2>&1 | tee -a $DPATH$LOG
-                  #evaluateTemp "$MAXTEMP" "$COOLTIME" 2>&1 | tee -a $DPATH$LOG && sleep $COOLTIME
-                  putTelemetry 2>&1 | tee -a $DPATH$LOG  
+#*---- It is here on even minutes, thus wait till sec $SYNC to continue (giving a chance if receiving to complete a frame)
 
-#*---- Once $EVERY loops the beacon gets activated
-                  if [ $n -eq 0 ]; then
+               w=$(date +"%S" | sed 's/^0*//')
+               echo "Whisper: "`date`" Cycle timer($w) Sync Timer($SYNC)" 2>&1 | tee -a $DPATH$LOG
+               if [ "$w" -lt "$SYNC" ]
+               then
+                  t=$(( $SYNC - $w ))
+                  echo "Whisper: "`date`" Sync with WSPR window waiting "$t" secs" 2>&1 | tee -a $DPATH$LOG
+                  sleep $t
+               fi
 
-#*---- WSPR Beacon, the program control the proper window, would last 2 minutes plus the waiting time
+#*---- if it is a transmission slot continue, otherwise go to reception mode (always starts in transmission slot)
+               echo "Whisper: "`date`" Cycle ($count of $EVERY) TX($n)" 2>&1 | tee -a $DPATH$LOG
+               if [ $n -eq 0 ]
+               then
   
-                     PTTOn  2>&1 | tee -a $DPATH$LOG
-                     txWSPR "$TXOPTS" "$CALLSIGN" "$GRID" "$POWER" "$BAND"  2>&1 | tee -a $DPATH$LOG
-                     count=$(( $count + 1 )) 
+#*---- Turn antenna (GPIO27) and Launch the beacon transmission, it will align itself with the proper WSPR window, $BAND will control how many slots will be active 
+                   if [ $TX -eq "1" ] 
+                   then
+                      echo "Whisper: "`date`" Turning $GPIO PTT($ON)" 2>&1 | tee -a $DPATH$LOG
+                      gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                      gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
 
-#*---- FT8 Beacon, two frames are emited waiting one slot between each
+                      echo "Whisper: "`date`" Starting WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                      sudo $DPATH/turnon.py
+                      sudo $WSPRPATH$WSPR $TXOPTS $CALLSIGN $GRID $POWER $BAND 2>&1 | tee -a $DPATH$LOG  
+                      count=$(( $count + 1 ))
 
-                     echo "Whisper: "`date`" FT8 [1/2]" 2>&1 | tee -a $DPATH$LOG
-                     txFT8 "$CALLSIGN" "$GRID" "1" 2>&1 | tee -a $DPATH$LOG
-                     PTTOff  2>&1 | tee -a $DPATH$LOG
-                     sleep 15
+#*---- End of WSPR cycle, now starts FT8 cycle, first FT8 cycle
+     
+                      if [ $FT8ON -eq "1" ] 
+                      then
+                         echo "Whisper: "`date`" Starting FT8 [1/2] WSPR transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
+#*---- Listen cycle
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 15
+#*---- Second FT8 cycle
+                         echo "Whisper: "`date`" Starting FT8 [2/2] transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                         sudo $RPITXPATH$FT8 -f "$FFT8" -m "CQ $CALLSIGN $GRID" -o "$OFFSET" -s "$SLOT" 2>&1 | tee -a $DPATH$LOG
+#*---- Listen again
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 15
+                      else
+                           gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                           sleep 60
+                      fi
 
-                     echo "Whisper: "`date`" FT8 [2/2]" 2>&1 | tee -a $DPATH$LOG
-                     PTTOn  2>&1 | tee -a $DPATH$LOG
-                     txFT8 "$CALLSIGN" "$GRID" "2" 2>&1 | tee -a $DPATH$LOG
-                     PTTOff  2>&1 | tee -a $DPATH$LOG
-
-#*---- Collect telemetry while waiting for the FT8 slot window to complete
-
-                     TLM=$(getTelemetry "$GRID" "$GRIX" "$HEIGHT" "$CHANNEL" )
-                     echo "Whisper: "`date`" Telemetry acquisition completed ($TLM) slot type b($b)" 2>&1 | tee -a $DPATH$LOG
-
-                     sleep 15
-
-#*---- Odd times the CW beacon follows, Even times the PSK31 Beacon is transmitted instead
-
-                     case $b in 
-                     1) b=0 ;
-                        echo "Whisper: "`date`" CW Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
-                        sleep 2 2>&1 | tee -a $DPATH$LOG;
-                        PTTOn 2>&1 | tee -a $DPATH$LOG;
-                        txCW "$CALLSIGN" "$GRID" "$POWER" "$TLM" 2>&1 | tee -a $DPATH$LOG;
-                        PTTOff  2>&1 | tee -a $DPATH$LOG;
-                        sleep 25 ;
-                        ;;
-                     0) b=1;
-                        echo "Whisper: "`date`" PSK31 Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
-                        PTTOn 2>&1 | tee -a $DPATH$LOG; 
-                        txPSK31 "$CALLSIGN" "$GRID" "$POWER" "$TLM" 2>&1 | tee -a $DPATH$LOG  ;
-                        PTTOff  2>&1 | tee -a $DPATH$LOG;
-                        sleep 20 ; 
-                        ;;
-                     esac
-
-#*---- complete beacon slot
-
-                     echo "Whisper: "`date`" Beacon cycle completed count($count)" 2>&1 | tee -a $DPATH$LOG
-
+#*---- Now CW beacon
+                      if [ $CWON -eq "1" ] 
+                      then
+                         echo "Whisper: "`date`" Starting CW transmission cycle" 2>&1 | tee -a $DPATH$LOG
+                         sleep 2
+                         gpio -g write $GPIO $ON 2>&1 | tee -a $DPATH$LOG
+                         sudo $CWPATH$CW --freq $FCW --wpm 20 "CQ DE $CALLSIGN/B $GRID $POWER $TLM K" 2>&1 | tee -a $DPATH$LOG
+#*---- Turn off and entering waiting cycle
+                         sudo $DPATH/turnoff.py
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 25
+                       else
+                         gpio -g write $GPIO $OFF 2>&1 | tee -a $DPATH$LOG
+                         sleep 50
+                       fi
+                   else
+                      echo "Whisper: "`date`" Transmission not enabled, yield window to reception" 2>&1 | tee -a $DPATH$LOG
+                   fi
                  else
 
-#*---- If this is a monitoring slot just wait
+#*---- Turn GPIO27 Off (Antenna to RX) and enable the reception cycle (either local or remote)
 
-                     PTTOff  2>&1 | tee -a $DPATH$LOG
-                     WAIT=$((( $SYNC * 2 ) - 3 ))
-                     echo "Whisper: "`date`" Reception block waiting ($WAIT secs)" 2>&1 | tee -a $DPATH$LOG
-                     sleep $WAIT
+                     gpio -g write $GPIO $OFF  2>&1 | tee -a $DPATH$LOG
+                     sudo $DPATH/turnoff.py
+
+                     if [ $RX -eq "1" ]
+                     then
+                        echo "Whisper: "`date`" Starting WSPR monitoring cycle" 2>&1 | tee -a $DPATH$LOG
+                        sudo $WSPRDPATH$WSPRD $RXPARMS 2>&1 | tee -a $DPATH$LOG 
+                     else
+                        WAIT=$((( $SYNC * 2 ) - 10 ))
+                        echo "Whisper: "`date`" Reception not enabled, wait ($WAIT secs)" 2>&1 | tee -a $DPATH$LOG
+                        sleep $WAIT
+                     fi
                  fi
-
-#*---- Update monitoring slot
-
                  count=$(( $count + 1 ))
-                 if [ $count -eq $EVERY ]; then
+                 if [ $count -eq $EVERY ]
+                 then
                     count=0
                  fi
-                 echo "Whisper: "`date`" Beacon time slot [$count/$EVERY]" 2>&1 | tee -a $DPATH$LOG
-
                done
-               echo "Whisper: "`date`" Beacon cycle abnormally terminated [$count/$EVERY]" 2>&1 | tee -a $DPATH$LOG
 
-
-      	;;
+               fi  
+		;;
 #*=====================================================================================================================
 #*---- Stop the beacon if an instance is found running
 #*=====================================================================================================================
