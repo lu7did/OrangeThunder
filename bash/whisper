@@ -348,14 +348,24 @@ case $1 in
 
 #*---- FT8 Beacon, two frames are emited waiting one slot between each
 
-                     echo "Whisper: "`date`" FT8 [1/2]" 2>&1 | tee -a $DPATH$LOG
+                     echo "Whisper: "`date`" FT8 [1/4]" 2>&1 | tee -a $DPATH$LOG
                      txFT8 "$CALLSIGN" "$GRID" "1" 2>&1 | tee -a $DPATH$LOG
                      PTTOff  2>&1 | tee -a $DPATH$LOG
                      sleep 15
 
-                     echo "Whisper: "`date`" FT8 [2/2]" 2>&1 | tee -a $DPATH$LOG
+                     echo "Whisper: "`date`" FT8 [2/4]" 2>&1 | tee -a $DPATH$LOG
                      PTTOn  2>&1 | tee -a $DPATH$LOG
                      txFT8 "$CALLSIGN" "$GRID" "2" 2>&1 | tee -a $DPATH$LOG
+                     PTTOff  2>&1 | tee -a $DPATH$LOG
+
+                     echo "Whisper: "`date`" FT8 [3/4]" 2>&1 | tee -a $DPATH$LOG
+                     PTTOn  2>&1 | tee -a $DPATH$LOG
+                     txFT8 "$CALLSIGN" "$GRID" "3" 2>&1 | tee -a $DPATH$LOG
+                     PTTOff  2>&1 | tee -a $DPATH$LOG
+
+                     echo "Whisper: "`date`" FT8 [4/4]" 2>&1 | tee -a $DPATH$LOG
+                     PTTOn  2>&1 | tee -a $DPATH$LOG
+                     txFT8 "$CALLSIGN" "$GRID" "4" 2>&1 | tee -a $DPATH$LOG
                      PTTOff  2>&1 | tee -a $DPATH$LOG
 
 #*---- Collect telemetry while waiting for the FT8 slot window to complete
@@ -366,7 +376,7 @@ case $1 in
                      sleep 15
 
 #*---- Odd times the CW beacon follows, Even times the PSK31 Beacon is transmitted instead
-
+                     b=4;
                      case $b in
                      0) b=1 ;
                         echo "Whisper: "`date`" RTTY Beacon b[$b]" 2>&1 | tee -a $DPATH$LOG
