@@ -3,14 +3,13 @@ clear
 echo "*------------------------------------*"
 echo "*        fldigi                      *"
 echo "*------------------------------------*"
-/home/pi/pause.py
+read -p "Presione [ENTER] para continuar" A
 
 cd Downloads
 tar -zxvf fldigi-4.0.18.tar.gz
 cd fldigi-4.0.18
 ./configure --prefix=/usr/local --enable-static
 
-/home/pi/pause.py "Review proper configure of fldigi"
 echo "*------------------------------------------*"
 echo "Review the following parameters before build"
 echo "*Configuration summary: (CPU optimizations is none"
@@ -29,17 +28,22 @@ echo "*  portaudio ................... yes"
 echo "*  pulseaudio .................. yes"
 echo "*  flxmlrpc .................... external lib"
 echo "*  hamlib ...................... yes"
-/home/pi/pause.py
+read -p "Presione [ENTER] para continuar" A
 
 echo "*------------------------------------*"
 echo "*  Building fldigi                   *"
 echo "*------------------------------------*"
-/home/pi/pause.py
+read -p "Presione [ENTER] para continuar" A
+
 
 make
 sudo make install
 cd ..
 
+echo "*------------------------------------*"
+echo "*  Testing  fldigi                   *"
+echo "*------------------------------------*"
+read -p "Presione [ENTER] para continuar" A
 
 #*--- test with fldigi
 
