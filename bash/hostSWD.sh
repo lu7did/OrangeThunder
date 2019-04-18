@@ -1,8 +1,8 @@
 #!/bin/sh
 
-CPUList='acrux bcrux gacrux kcrux ecrux mucrux magellan'
-SWList='hostPing.sh hostShut.sh'
-for i in $CPUList
+#CPUList='acrux bcrux gacrux kcrux ecrux mucrux magellan'
+SWList='hostPing.sh'
+for i in $(cat /etc/hosts | grep "192." | awk '{ print $2 ; }' | cut -f1 -d"%")
  do
     for j in $SWList
     do
