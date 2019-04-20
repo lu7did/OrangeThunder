@@ -32,7 +32,7 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin
 DPATH="/home/pi/whisper/"
 LOG="whisper.log"
 LOCK="whisper.lck"
-VERSION="1.3"
+VERSION="1.4"
 ON="1"
 OFF="0"
 RX=0
@@ -88,11 +88,11 @@ echo "45"
 #*--------------------------------------------------------------------------
 PTTOn () {
 
-echo "Whisper: "`date`" PTT Port(27) State(1)"
-gpio mode "27"  out
-gpio -g write "27" 1  2> /dev/null
-
-sudo /home/pi/whisper/turnon.py
+#echo "Whisper: "`date`" PTT Port(27) State(1)"
+#gpio mode "27"  out
+#gpio -g write "27" 1  2> /dev/null#
+#
+#sudo /home/pi/whisper/turnon.py
 
 }
 #*--------------------------------------------------------------------------
@@ -100,11 +100,11 @@ sudo /home/pi/whisper/turnon.py
 #*--------------------------------------------------------------------------
 PTTOff () {
 
-echo "Whisper: "`date`" PTT Port(27) State(0)"
-gpio mode "27" out
-gpio -g write "27" 0  2> /dev/null
-
-sudo /home/pi/whisper/turnoff.py
+#echo "Whisper: "`date`" PTT Port(27) State(0)"
+#gpio mode "27" out
+#gpio -g write "27" 0  2> /dev/null
+#
+#sudo /home/pi/whisper/turnoff.py
 
 }
 #*--------------------------------------------------------------------------
@@ -150,10 +150,10 @@ X=1
 #* txRTTY   ** Transmit RTTY **
 #*--------------------------------------------------------------------------
 txRTTY () {
-fRTTY="14097000"
+fRTTY="28097000"
 
-echo "Whisper: "`date`" Starting RTTY transmission cycle"
-sudo /home/pi/pirtty/pirtty  14097000 "   RYRYRYRYRY CQ $1 $1 $2 $3DBM $4 K  " 170 45.5
+echo "Whisper: "`date`" Starting RTTY transmission cycle at $fRTTY"
+sudo /home/pi/pirtty/pirtty $fRTTY "   RYRYRYRYRY CQ $1 $1 $2 $3DBM $4 K  " 170 45.5
 
 }
 
@@ -173,9 +173,9 @@ txFT8 () {
 
 SLOT="0"
 OFFSET="1240"
-FFT8="14074000"
+FFT8="28074000"
 
-echo "Whisper: "`date`" Starting FT8 transmission cycle [$3/2]" 
+echo "Whisper: "`date`" Starting FT8 transmission cycle at $FFT8 [$3/2]" 
 sudo /home/pi/rpitx/pift8 -f "$FFT8" -m "CQ $1 $2" -o "$OFFSET" -s "$SLOT"
 
 }
@@ -184,7 +184,7 @@ sudo /home/pi/rpitx/pift8 -f "$FFT8" -m "CQ $1 $2" -o "$OFFSET" -s "$SLOT"
 #*--------------------------------------------------------------------------
 txCW() {
 
-FCW="14097000"
+FCW="28060000"
 sudo /home/pi/PiCW/PiCW --freq $FCW --wpm 20 "CQ DE $1 $2 $3 $4 K"
 
 }
@@ -194,7 +194,7 @@ sudo /home/pi/PiCW/PiCW --freq $FCW --wpm 20 "CQ DE $1 $2 $3 $4 K"
 txPSK31() {
 
 sleep 2
-FPSK="14097000"
+FPSK="28120000"
 sudo /home/pi/whisper/PSK31.sh $FPSK "CQ DE $1/B $2 $3 $4 K\r"
 
 }
