@@ -88,7 +88,8 @@ echo "45"
 #*--------------------------------------------------------------------------
 PTTOn () {
 
-#echo "Whisper: "`date`" PTT Port(27) State(1)"
+
+echo "Whisper: "`date`" PTT Port(27) State(1)"
 #gpio mode "27"  out
 #gpio -g write "27" 1  2> /dev/null#
 #
@@ -100,7 +101,7 @@ PTTOn () {
 #*--------------------------------------------------------------------------
 PTTOff () {
 
-#echo "Whisper: "`date`" PTT Port(27) State(0)"
+echo "Whisper: "`date`" PTT Port(27) State(0)"
 #gpio mode "27" out
 #gpio -g write "27" 0  2> /dev/null
 #
