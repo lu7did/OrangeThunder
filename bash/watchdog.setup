@@ -14,4 +14,9 @@ sudo service watchdog start
 echo "*****************************************"
 echo "* Watchdog installation finished now    *"
 echo "*****************************************"
+if [ $(sudo systemctl -l status watchdog | grep "Started watchdog daemon" | wc -l) -eq 1 ];
+ then echo "Daemon installed correctly";
+ else echo "Daemon not installed correctly" ;
+fi;
+
 exit 0
