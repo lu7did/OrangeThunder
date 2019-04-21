@@ -1,4 +1,5 @@
 #!/bin/sh
+cd /home/pi
 
 echo "Installing Watchdog at $(hostname)"
 sudo apt-get install watchdog
@@ -7,20 +8,10 @@ sudo update-rc.d watchdog defaults
 sudo modprobe bcm2835_wdt
 echo "bcm2835_wdt" | sudo tee -a /etc/modules
 
-echo "********************************************"
-echo "* Execute the instructions and press ENTER *"
-echo "********************************************"
-echo "Go to another window and perform the following changes..."
-echo "sudo nano /etc/watchdog.conf"
-echo "Uncomment the line that starts with"
-echo "#watchdog-device by removing the hash (#) to enable the watchdog daemon to use the watchdog device."
-echo "Uncomment the line that says #max-load-1 = 24 by removing the hash symbol to reboot the device if the load goes over 24 over 1 minute."
-echo "A load of 25 of one minute means that you would have needed 25 Raspberry Pis to complete that task in 1 minute. You may tweak this value to your liking."
-echo "Add a line saying watchdog-timeout = 15"
-read -n1 -r -p "Press any key to continue..." key
-
+sudo cp ./OrangeThunder/archive/watchdog.conf /etc/watchdog.conf 
 
 sudo service watchdog start
 echo "*****************************************"
 echo "* Watchdog installation finished now    *"
 echo "*****************************************"
+exit 0
