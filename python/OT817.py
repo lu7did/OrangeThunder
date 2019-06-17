@@ -61,7 +61,9 @@ ft817_modes={ 0x00 : 'LSB',
 #*----------------------------------------------------------------------------
 #* Prototype commands
 #*----------------------------------------------------------------------------
-cmdRXUSB="rtl_sdr -s 1200000 -f %LO% -D 2 - | csdr convert_u8_f | csdr shift_addition_cc `python -c "print float(%LO%-%FREQ%)/%SAMPLE%"`| csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | aplay -t raw -f S16_LE -c1 -r48000"
+#cmdRXUSB="rtl_sdr -s 1200000 -f %LO% -D 2 - | csdr convert_u8_f | csdr shift_addition_cc `python -c "print float(%LO%-%FREQ%)/%SAMPLE%"`| csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | aplay -t raw -f S16_LE -c1 -r48000"
+cmdRXUSB="rtl_sdr -s 1200000 -f %LO% -D 2 - | csdr convert_u8_f "
+
 cmdTXUSB="arecord -c1 -r48000 -D default -fS16_LE - | csdr convert_i16_f | csdr fir_interpolate_cc 2 | csdr dsb_fc | csdr bandpass_fir_fft_cc 0.002 0.06 0.01 | csdr fastagc_ff | sudo ./sendiq -i /dev/stdin -s 96000 -f %FREQ% -t float"
 pRX=None
 pTX=None
