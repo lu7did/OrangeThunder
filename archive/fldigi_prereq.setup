@@ -29,11 +29,13 @@ echo "*------------------------------------*"
 echo "*  downloading packages              *"
 echo "*------------------------------------*"
 
-cd Downloads
+cd /home/pi/Downloads
 wget https://sourceforge.net/projects/hamlib/files/hamlib/3.3/hamlib-3.3.tar.gz
-wget https://sourceforge.net/projects/fldigi/files/flrig/flrig-1.3.41.tar.gz
-wget https://sourceforge.net/projects/fldigi/files/fldigi/fldigi-4.0.18.tar.gz
+wget https://sourceforge.net/projects/fldigi/files/flrig/flrig-1.3.44.tar.gz
+wget https://sourceforge.net/projects/fldigi/files/fldigi/fldigi-4.1.03.tar.gz
 wget https://sourceforge.net/projects/fldigi/files/flxmlrpc/flxmlrpc-0.1.4.tar.gz
 
 cd ..
-
+echo "*************************************"
+echo "*        Finished download          *"
+echo "*************************************"
