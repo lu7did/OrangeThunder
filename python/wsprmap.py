@@ -94,17 +94,20 @@ c=0
 MH= 'GF05te'
 
 #map = Basemap(projection='ortho',lat_0=-34.6,lon_0=-58.4,resolution='c')
+#*---------------------------------------------------------------------------------------------------
 # Process WSPRNet dataset with awk '{print "plotMap(map,\""$7"\",\""$10"\")"}' wsprdata.lst > set.py
+#*---------------------------------------------------------------------------------------------------
+
 hour=0
-#t = datetime.utcnow()
-#x = datetime.time(hour, 0)
-#f = datetime.combine(t, x)
-fFirst=True
+
 f = datetime.datetime.now()
 x = datetime.datetime.utcnow()
+
 print("Initialization of maps LOCAL  %s\n" % (f.strftime("%b %d %Y %H:%M:%S")))
 print("Initialization of maps UTC    %s\n" % (x.strftime("%b %d %Y %H:%M:%S")))
+
 map=buildMap();
+
 #*-------------------------------------------------------------------------------------
 #* Scan data and build datasets
 #*-------------------------------------------------------------------------------------
@@ -124,32 +127,33 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
     hour=int(timestamp.split(':')[0])
     band=freq.split('.')[0]
 
-    print("Hour(%s) Time(%s) toCall(%s) freq(%s) SNR(%s) DT(%s) locatorTo(%s) pwr(%s) fromCall(%s) locatorFrom(%s)\n" % (hour,timestamp,toCall,freq,SNR,DT,toLocator,pwr,fromCall,fromLocator))
+    #print("Hour(%s) Time(%s) toCall(%s) freq(%s) SNR(%s) DT(%s) locatorTo(%s) pwr(%s) fromCall(%s) locatorFrom(%s)" % (hour,timestamp,toCall,freq,SNR,DT,toLocator,pwr,fromCall,fromLocator))
 
 #*--- Identify change of the hour
 
     while hour!=lastHour:
-      print("\nBand %s hour %d has changed processed spots (%d)\n" % (band,lastHour,c))
 
-      if c!=0:
-       x = datetime.datetime.utcnow()
-       f = datetime.datetime(x.year,x.month,x.day,lastHour,0,0)
-       #x = datetime.time(hour, 0)
-       #f = datetime.combine(t, x)
-       print("CONDX LOCAL  %s\n" % (f.strftime("%b %d %Y %H:%M:%S")))
 
-       CS=map.nightshade(f)
-       map.bluemarble(scale=0.25)
-      #map.shadedrelief()
-       plt.title("Band %s Hour GMT %d\n" % (band,lastHour))
-       plt.savefig("condx"+str(lastHour)+".png")
-       #plt.savefig('condx.pdf')
-       #plt.show()
-       plt.close("all")
-       #plt=None
-       print("Generated conditions for hour %s\n" % lastHour)
-       map=None
-       map=buildMap()
+      x = datetime.datetime.utcnow()
+      f = datetime.datetime(x.year,x.month,x.day,lastHour,0,0)
+      print("\nBand %sMHz Processing spots for hour %d Spots(%d)\n " % (band,lastHour,c))
+
+      CS=map.nightshade(f)
+      #map.shadedrelief(scale=0.25)
+      map.bluemarble(scale=0.25)
+
+      plt.title("Band %s Hour GMT %d\n" % (band,lastHour))
+      if len(str(lastHour)) == 1:
+         stHour="0"+str(lastHour)
+      else:
+         stHour=str(lastHour)
+      plt.savefig("condx"+stHour+".png")
+     #plt.savefig('condx.pdf')
+     #plt.show()
+      plt.close("all")
+      print("Image generation for hour hour %s has been completed\n" % lastHour)
+      map=None
+      map=buildMap()
 
       lastHour=lastHour+1
       c=0
@@ -157,6 +161,29 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
           print("EoF\n")
           exit(0)
     if hour==lastHour:
-       print("Band %s processing hour %d\n" % (band,lastHour))
+       #print("Band %s processing hour %d\n" % (band,lastHour))
        c=c+1
        plotMap(map,toLocator,fromLocator)
+
+while lastHour<24:
+   map=None
+   map=buildMap()
+   x = datetime.datetime.utcnow()
+   f = datetime.datetime(x.year,x.month,x.day,lastHour,0,0)
+   print("\nBand %sMHz Processing spots for hour %d Spots(%d)\n " % (band,lastHour,c))
+
+   CS=map.nightshade(f)
+   #map.shadedrelief(scale=0.25)
+   map.bluemarble(scale=0.25)
+
+   plt.title("Band %s Hour GMT %d\n" % (band,lastHour))
+   if len(str(lastHour)) == 1:
+      stHour="0"+str(lastHour)
+   else:
+      stHour=str(lastHour)
+   plt.savefig("condx"+stHour+".png")
+  #plt.savefig('condx.pdf')
+  #plt.show()
+   plt.close("all")
+   print("Image generation for hour hour %s has been completed\n" % lastHour)
+   lastHour=lastHour+1
