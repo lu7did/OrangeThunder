@@ -166,8 +166,6 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
        plotMap(map,toLocator,fromLocator)
 
 while lastHour<24:
-   map=None
-   map=buildMap()
    x = datetime.datetime.utcnow()
    f = datetime.datetime(x.year,x.month,x.day,lastHour,0,0)
    print("\nBand %sMHz Processing spots for hour %d Spots(%d)\n " % (band,lastHour,c))
@@ -187,3 +185,5 @@ while lastHour<24:
    plt.close("all")
    print("Image generation for hour hour %s has been completed\n" % lastHour)
    lastHour=lastHour+1
+   map=None
+   map=buildMap()
