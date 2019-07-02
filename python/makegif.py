@@ -9,5 +9,4 @@ for file_name in sorted(os.listdir(png_dir)):
         file_path = os.path.join(png_dir, file_name)
         print("makegif: including file %s\n" % file_path)
         images.append(imageio.imread(file_path))
-print(images)
-imageio.mimsave('./CONDX.gif', images, duration=0.5)
+imageio.mimsave('./CONDX.gif', images, duration=0.05)

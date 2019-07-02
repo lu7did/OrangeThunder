@@ -1,3 +1,9 @@
+#*------------------------------------------------------------------------------------------------------
+#* wsprmap.py
+#* Plot WSPR reports at http://www.wsprnet.org for a given period
+#*
+#* By Dr. Pedro E. Colla (LU7DID)
+#*------------------------------------------------------------------------------------------------------
 import sys
 import csv
 import time
@@ -6,7 +12,9 @@ import numpy as np
 from mpl_toolkits.basemap import Basemap
 import datetime
 
-
+#*------------------------------------------------------------------------------------------------------
+#* Return Start and end Longitude as a string
+#*------------------------------------------------------------------------------------------------------
 def GetLon(ONE, THREE, FIVE):
     StrStartLon = ''
     StrEndLon = ''
@@ -20,6 +28,9 @@ def GetLon(ONE, THREE, FIVE):
     StrEndLon = str(Field + Square + SubSquareHigh - 180 )
 
     return StrStartLon, StrEndLon
+#*------------------------------------------------------------------------------------------------------
+#* Return Start and end Latitude as a string
+#*------------------------------------------------------------------------------------------------------
 
 def GetLat(TWO, FOUR, SIX):
     StrStartLat = ''
@@ -34,6 +45,10 @@ def GetLat(TWO, FOUR, SIX):
     StrEndLat = str(Field + Square + SubSquareHigh - 90)    
 
     return StrStartLat, StrEndLat
+
+#*------------------------------------------------------------------------------------------------------
+#* Return Lat and long as a string starting from locator as QTH Maindenhead locator
+#*------------------------------------------------------------------------------------------------------
 
 def GridToLatLong(strMaidenHead):
     if len(strMaidenHead) < 6: strMaidenHead=strMaidenHead+"aa" 
@@ -55,6 +70,9 @@ def GridToLatLong(strMaidenHead):
     #print ('End   Lat = ' + strEndLat)
 
     return strStartLon,strStartLat
+#*------------------------------------------------------------------------------------------------------
+#* Draw a line in the map given initial and ending coordinates expressed as Maindenhead locator
+#*------------------------------------------------------------------------------------------------------
 
 def plotMap(map,gFrom,gTo):
 
@@ -76,8 +94,12 @@ def plotMap(map,gFrom,gTo):
     map.plot(x, y, 'o-', markersize=1, linewidth=1) 
     return
 
+#*------------------------------------------------------------------------------------------------------
+#* Build a map (Mercator projection)
+#*------------------------------------------------------------------------------------------------------
+
 def buildMap():
-    m = Basemap(width=1024,height=1024,projection='merc',llcrnrlon=-170,llcrnrlat=-75,urcrnrlon=170,urcrnrlat=75,resolution='l')
+    m = Basemap(projection='merc',llcrnrlon=-170,llcrnrlat=-75,urcrnrlon=170,urcrnrlat=75,resolution='l')
 
 
     m.drawmeridians(np.arange(0,360,30))
@@ -87,7 +109,9 @@ def buildMap():
     return m
 
 
-
+#*------------------------------------------------------------------------------------------------------
+#* MAIN 
+#*------------------------------------------------------------------------------------------------------
 
 lastHour=0
 c=0
@@ -103,9 +127,7 @@ hour=0
 f = datetime.datetime.now()
 x = datetime.datetime.utcnow()
 
-print("Initialization of maps LOCAL  %s\n" % (f.strftime("%b %d %Y %H:%M:%S")))
-print("Initialization of maps UTC    %s\n" % (x.strftime("%b %d %Y %H:%M:%S")))
-
+print("Initialization of maps LOCAL  %s -- UTC %s" % (f.strftime("%b %d %Y %H:%M:%S"),x.strftime("%b %d %Y %H:%M:%S")))
 map=buildMap();
 
 #*-------------------------------------------------------------------------------------
@@ -136,13 +158,13 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
 
       x = datetime.datetime.utcnow()
       f = datetime.datetime(x.year,x.month,x.day,lastHour,0,0)
-      print("\nBand %sMHz Processing spots for hour %d Spots(%d)\n " % (band,lastHour,c))
+      print("Band %sMHz Processing spots for hour %d Spots(%d)\n " % (band,lastHour,c))
 
       CS=map.nightshade(f)
       #map.shadedrelief(scale=0.25)
-      map.bluemarble(scale=0.25)
+      map.bluemarble(scale=0.1)
 
-      plt.title("Band %s Hour GMT %d\n" % (band,lastHour))
+      plt.title("Band %s MHz Hour %d:00Z\n" % (band,lastHour))
       if len(str(lastHour)) == 1:
          stHour="0"+str(lastHour)
       else:
@@ -151,7 +173,7 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
      #plt.savefig('condx.pdf')
      #plt.show()
       plt.close("all")
-      print("Image generation for hour hour %s has been completed\n" % lastHour)
+      print("Image generation for hour %s:00Z has been completed\n" % lastHour)
       map=None
       map=buildMap()
 
@@ -161,9 +183,10 @@ for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
           print("EoF\n")
           exit(0)
     if hour==lastHour:
-       #print("Band %s processing hour %d\n" % (band,lastHour))
        c=c+1
        plotMap(map,toLocator,fromLocator)
+
+#*---- Completes till midnight is CONDX ends before
 
 while lastHour<24:
    x = datetime.datetime.utcnow()
@@ -180,8 +203,6 @@ while lastHour<24:
    else:
       stHour=str(lastHour)
    plt.savefig("condx"+stHour+".png")
-  #plt.savefig('condx.pdf')
-  #plt.show()
    plt.close("all")
    print("Image generation for hour hour %s has been completed\n" % lastHour)
    lastHour=lastHour+1
