@@ -227,6 +227,7 @@ print("Creating graphics at (%s) GIF(%s)" % (outpath,outGIF))
 for row in csv.reader(iter(sys.stdin.readline, ''),delimiter='\t'):
 
 #*--- Parse data out of the dataset
+    print_msg("Data: %s" % row)
 
     timestamp=row[0]
     toCall=row[1]
