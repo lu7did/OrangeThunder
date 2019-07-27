@@ -62,7 +62,7 @@ storeFile /home/pi/whisper/whisper.log
 storeFile /home/pi/.local/share/WSJT-X/ALL_WSPR.TXT
 
 sudo cat /var/log/syslog > /home/pi/$(hostname).syslog
-storeFile  /home/pi/syslog
+storeFile  /home/pi/$(hostname).syslog
 
 cd $WAV
 echo `date`" Pruning wsjtx .Wav/.C2 files" 2>>$BPATH$ERR >>$BPATH$LOG
