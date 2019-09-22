@@ -5,7 +5,7 @@ echo "*        fldigi                      *"
 echo "*------------------------------------*"
 read -p "Presione [ENTER] para continuar" A
 
-cd Downloads
+cd /home/pi/Downloads
 tar -zxvf fldigi-4.0.18.tar.gz
 cd fldigi-4.0.18
 ./configure --prefix=/usr/local --enable-static

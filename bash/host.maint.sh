@@ -57,47 +57,12 @@ WAV="/home/pi/.local/share/WSJT-X/save/"
 echo "-------------------------------------------------------" 2>&1 >$BPATH$LOG
 echo "Maintenance "$0 "hostname("`hostname`") epoch("`date`")" 2>&1 >>$BPATH$LOG
 
-#copyFile $BPATH$BUP"(3)"
-
-cd /home/pi
-echo `date`" Removing oldest version" 2>&1 >>$BPATH$LOG
-sudo rm -r $BPATH$BUP"(3)" 2>&1 >>$BPATH$LOG
-
-echo `date`" Rotating previous versions" 2>&1 >>$BPATH$LOG
-
-echo `date`" Version (2) to (3)" 2>&1 >>$BPATH$LOG
-sudo cp $BPATH$BUP"(2)" $BPATH$BUP"(3)" 2>>$BPATH$ERR >>$BPATH$LOG#
-
-echo `date`" Version (1) to (2)" 2>&1 >>$BPATH$LOG
-sudo cp $BPATH$BUP"(1)" $BPATH$BUP"(2)" 2>>$BPATH$ERR >>$BPATH$LOG
-
-echo `date`" Version (*) to (1)" 2>&1 >>$BPATH$LOG
-sudo cp $BPATH$BUP $BPATH$BUP"(1)" 2>&1 >>$BPATH$LOG
-
-echo `date`" Remove last backup" 2>&1 >>$BPATH$LOG
-sudo -rm -r $BPATH$BUP  2>>$BPATH$ERR >>$BPATH$LOG
-
-echo `date`" Executing backup path("$APATH") at ("$BPATH$BUP")" 2>&1 >>$BPATH$LOG
-sudo tar -zcf $BPATH$BUP $APATH 2>&1 >>$BPATH$LOG
-
-sudo tar -tf $BPATH$BUP 2>&1 >>$BPATH$LST
-echo `date`" Backup finished, backup " `sudo cat $BPATH$LST | wc -l`" files. Content list is "$BPATH$LST 2>>$BPATH$ERR >>$BPATH$LOG
-
-echo `date`" Removing mailbox Executing backup pat("$MAILBOX")" 2>>$BPATH$ERR >>$BPATH$LOG
-sudo rm -r $MAILBOX 2>&1 >>$BPATH$LOG
-
-echo `date`" Pruning Logs("$WSPR")" 2>&1 >>$BPATH$LOG
-
-F=$(date -d yesterday '+%Y%m%d').log
-echo `date`" Datum for logs is $F" 2>&1 >>$BPATH$LOG
-
 storeFile /home/pi/whisper/wsprRxTx.log
 storeFile /home/pi/whisper/whisper.log
 storeFile /home/pi/.local/share/WSJT-X/ALL_WSPR.TXT
-copyFile /home/pi/$(hostname).host.tar.gz
 
-sudo cat /var/log/syslog > /home/pi/syslog
-storeFile  /home/pi/syslog
+sudo cat /var/log/syslog > /home/pi/$(hostname).syslog
+storeFile  /home/pi/$(hostname).syslog
 
 cd $WAV
 echo `date`" Pruning wsjtx .Wav/.C2 files" 2>>$BPATH$ERR >>$BPATH$LOG
