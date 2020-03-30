@@ -80,6 +80,21 @@ spec.
 
 This statement of specs will be implemented slowly over time, progress will be checked at this forum.
 
+## PixiePi, Sister project
+
+A very similar project, based on the same foundations is named [PixiePi](http://www.github.com/lu7did/PixiePi), software
+libraries created for it are used on this project, and viceversa. The main difference among projects is the 
+hardware used to implement the transceiver.
+
+Main features and differences of PixiePi compared with OrangeThunder
+
+* The receiver chain is a double conversion receiver and the transmitter chain a CW (class C) amplifier, based on the DIY kit Pixie.
+* Is based on a Raspberry Pi Zero board which is substancially less powerful than a Raspberry Pi 3 or 4 board.
+* Is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
+* Requires a 12V power supply
+* Mostly headed toward CW usage although other modes are supported.
+* Allows a local control with LCD display, tuniing know and other hardware.  
+
 ## DISCLAIMER
 
 This is a pure, non-for-profit, project being performed in the pure ham radio spirit of experimentation, learning and sharing.
