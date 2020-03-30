@@ -1,3 +1,39 @@
+import smbus
+from time import *
+
+class i2c_device:
+   def __init__(self, addr, port=1):
+      self.addr = addr
+      self.bus = smbus.SMBus(port)
+
+# Write a single command
+   def write_cmd(self, cmd):
+      self.bus.write_byte(self.addr, cmd)
+      sleep(0.0001)
+
+# Write a command and argument
+   def write_cmd_arg(self, cmd, data):
+      self.bus.write_byte_data(self.addr, cmd, data)
+      sleep(0.0001)
+
+# Write a block of data
+   def write_block_data(self, cmd, data):
+      self.bus.write_block_data(self.addr, cmd, data)
+      sleep(0.0001)
+
+# Read a single byte
+   def read(self):
+      return self.bus.read_byte(self.addr)
+
+# Read
+   def read_data(self, cmd):
+      return self.bus.read_byte_data(self.addr, cmd)
+
+# Read a block of data
+   def read_block_data(self, cmd):
+      return self.bus.read_block_data(self.addr, cmd)
+#The second file is called lcddriver.py
+
 import i2c_lib
 from time import *
 
@@ -101,14 +137,14 @@ class lcd:
       self.lcd_write(LCD_CLEARDISPLAY)
       self.lcd_write(LCD_RETURNHOME)
 
-# The last file, which is the example script, is called lcd.py
+#The last file, which is the example script, is called lcd.py
 
 import lcddriver
 from time import *
-import socket
 
 lcd = lcddriver.lcd()
 
-lcd.lcd_display_string("Hello world cruel", 1)
-lcd.lcd_display_string("I am %s" % socket.gethostname(), 2)
-lcd.backlight(OFF)
+lcd.lcd_display_string("Hello world", 1)
+lcd.lcd_display_string("My name is", 2)
+lcd.lcd_display_string("picorder", 3)
+lcd.lcd_display_string("I am a Raspberry Pi", 4)
