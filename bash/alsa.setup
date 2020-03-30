@@ -1,0 +1,6 @@
+#!/bin/sh
+wget ftp://ftp.alsa-project.org/pub/lib/alsa-lib-1.2.2.tar.bz2 
+tar jxf alsa-lib-1.2.2.tar.bz2
+cd alsa-lib-1.2.2
+./configure
+make install
