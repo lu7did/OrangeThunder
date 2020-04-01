@@ -83,6 +83,8 @@
 #include "/home/pi/PixiePi/src/lib/DDS.h"
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 
+#include "/home/pi/OrangeThunder/src/lib/receive.h"
+
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x)
 #define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
@@ -107,6 +109,8 @@ typedef bool boolean;
 
 DDS*        dds=nullptr;
 iqdmasync*  iqtest=nullptr;
+
+receive*    r=nullptr;
 
 float       SampleRate=6000;
 float       SetFrequency=7080000;
@@ -821,6 +825,8 @@ float   gain=1.0;
         float voxmax=0.0;
         float voxlvl=voxmin;
 
+
+        r=new receive();
         setPTT(false);
 
 // ==================================================================================================================================

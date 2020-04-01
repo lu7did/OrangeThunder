@@ -1,0 +1,5 @@
+Name: alsa-topology
+Description: Advanced Linux Sound Architecture (ALSA) - Topology Library
+Version: 1.2.2
+Requires: alsa >= 1.2.2
+Libs: -latopology
