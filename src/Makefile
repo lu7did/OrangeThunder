@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/pcm_min 
+all: ../bin/OT ../bin/pcm_min ../bin/test_rtlsdr
 
 OSC_CFLAGS=-DOSCILLATOR_Z -DOSCILLATOR_D
 CSDRPATH= /home/pi/csdr/
@@ -18,6 +18,9 @@ GCC = gcc
 
 ../bin/pcm_min : lib/pcm_min.c 
 	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/pcm_min ./lib/pcm_min.c  $(LDFLAGS)
+
+../bin/test_rtlsdr : lib/test_rtlsdr.c 
+	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/test_rtlsdr ./lib/test_rtlsdr.c  $(LDFLAGS)
 
 clean:
 	rm -r  ../bin/OT

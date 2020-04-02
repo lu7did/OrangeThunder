@@ -34,7 +34,7 @@ MODE="FT8"
 #*----------------------------------------------------------------------------
 echo "cleaning up previous pipes and processes"
 sudo rm -r fiforx > /dev/null 2> /dev/null
-sudo rm -r rtlsdr > /dev/null 2> /dev/null
+sudo rm -r rtlsdrpipe > /dev/null 2> /dev/null
 
 sudo ps -aux | for p in `pgrep "rtl_sdr"`; do echo "killing "$p; sudo kill -9 $p; done
 sudo ps -aux | for p in `pgrep "csdr"`; do echo "killing "$p; sudo kill -9 $p; done
@@ -44,9 +44,10 @@ sudo ps -aux | for p in `pgrep "mplayer"`; do echo "killing "$p; sudo kill -9 $p
 echo "launching new FIFO pipes"
 #*--- Launch the command, pipe StdErr of rtl_sdr into the fiforx
 mkfifo fiforx || exit
+mkfifo rtlsdrpipe || exit
 
 echo "executing rtl_sdr"
-exec rtl_sdr -s $SAMPLERATE -f $LO -D 2 - 2> fiforx | csdr convert_u8_f | ncat -4l 4952 -k --send-only --allow 127.0.0.1  &
+exec rtl_sdr -s $SAMPLERATE -f $LO -D 2 - 2> fiforx | csdr convert_u8_f > rtlsdr &
 
 #*--- while executing watch for the "async" word to appear, that means
 #*--- startup has been completed
@@ -70,6 +71,12 @@ FX=$(python -c "print float($LO-$FO)/$SAMPLERATE")
 echo "Arg $1 MODE=$MODE FO=$FO LO=$LO SAMPLERATE=$SAMPLERATE FX=$FX"
 
 #exec ncat -v 127.0.0.1 4952 | csdr shift_addition_cc $FX | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | mplayer -nocache -rawaudio samplesize=2:channels=1:rate=48000 -demuxer rawaudio - &
-exec ncat -v 127.0.0.1 4952 | csdr shift_addition_cc $FX | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | aplay -r 48000 -f S16_LE -t raw -c 1 &
+while read l; do
+
+    echo $l
+
+done < rtlsdrpipe
+
+#exec ncat -v 127.0.0.1 4952 | csdr shift_addition_cc $FX | csdr fir_decimate_cc 25 0.05 HAMMING | csdr bandpass_fir_fft_cc 0 0.5 0.05 | csdr realpart_cf | csdr agc_ff | csdr limit_ff | csdr convert_f_s16 | aplay -r 48000 -f S16_LE -t raw -c 1 &
 
 exit 0
