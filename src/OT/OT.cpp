@@ -41,7 +41,6 @@
  * MA 02110-1301, USA.
  */
 
-
 //#define PROGRAM_VERSION "1.0"
 #define MAX_SAMPLERATE 200000
 #define BUFFERSIZE      96000
@@ -102,17 +101,6 @@ const char   *CFGFILE="Pi4D.cfg";
 typedef unsigned char byte;
 typedef bool boolean;
 
-// ---------------------------------------------------------------------------------------------------
-// rtlfm
-extern "C" {
-//bool running=true;
-//bool ready=false;
-
-#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
-
-}
-
-
 
 // ****************************************************************************************************
 // --- DDS & I/Q Generator
@@ -122,7 +110,20 @@ iqdmasync*  iqtest=nullptr;
 
 
 float       SampleRate=6000;
-float       SetFrequency=7080000;
+float       SetFrequency=14074000;
+
+
+// ---------------------------------------------------------------------------------------------------
+// rtlfm
+// ---------------------------------------------------------------------------------------------------
+extern "C" {
+//bool running=true;
+//bool ready=false;
+
+#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
+
+}
+
 
 
 // --- Define minIni related parameters
@@ -565,6 +566,14 @@ static void terminate(int num)
     }
     exitrecurse++;
 
+// --- Terminate rtl-sdr dongle
+
+    fprintf(stderr, "%s: Terminating rtl-sdr dongle!\n",PROGRAMID);
+    do_exit = 1;
+    //rtlsdr_cancel_async(dongle.dev);
+
+
+
 }
 //---------------------------------------------------------------------------------
 // ISRAuxPTTOn
@@ -751,6 +760,8 @@ float   gain=1.0;
         nIni=ini_gets("Pi4D", "INPUT", "/dev/stdin", FileName, sizearray(FileName), inifile);
         catbaud=(long int)ini_getl("Pi4D","BAUD",CATBAUD,inifile);
 
+        fprintf(stderr,"%s:main(): INI file processed\n",PROGRAMID); 
+
 //--------------------------------------------------------------------------------------------------
 //      Argument parsting
 //      Second pass, this is to override all configuration coming from a file
@@ -758,9 +769,13 @@ float   gain=1.0;
         arg_parse(argc,argv);
 
 //--------------------------------------------------------------------------------------------------
-// Parse input file (normally /dev/stdin)
+// Initialize rtl-sdr execution parameters
 //--------------------------------------------------------------------------------------------------
-	//if(FileName==NULL) {fprintf(stderr,"%s: Need an input\n",PROGRAMID);exit(1);}
+        fprintf(stderr,"%s:main(): Start rtlfm_reset()\n",PROGRAMID); 
+
+        rtlfm_reset();
+
+        fprintf(stderr,"%s:main(): Completed rtlfm_reset()\n",PROGRAMID); 
 
 //--------------------------------------------------------------------------------------------------
 // Setup trap handling
@@ -777,6 +792,8 @@ float   gain=1.0;
 //--------------------------------------------------------------------------------------------------
 // Setup CAT object
 //--------------------------------------------------------------------------------------------------
+
+        fprintf(stderr,"%s:main(): Creating CAT object\n",PROGRAMID); 
 
         cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
 
@@ -836,6 +853,12 @@ float   gain=1.0;
 
 
         setPTT(false);
+
+// ===========================================================================
+// start rtl-sdr loop
+// ===========================================================================
+
+        rtlfm_start();
 
 // ==================================================================================================================================
 //                                               MAIN LOOP
@@ -908,6 +931,13 @@ float   gain=1.0;
 		}
            }
 	}
+
+
+// ==========================================================================================================
+// terminate rtl-sdr receiver
+// ==========================================================================================================
+        int rc_rtl_sdr=rtlfm_close();
+        fprintf(stderr,"%s rtl-sdr threads terminated rc(%d)\n",PROGRAMID,rc_rtl_sdr);
 
 // ==================================================================================================================================
 // end of loop  

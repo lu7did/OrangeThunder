@@ -8,6 +8,7 @@
  *    - introduce functionality to mute the receiver (while transmiting)
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
  * ----------------------------------------------------------------------------
+
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
  * Copyright (C) 2012 by Hoernchen <la@tfc-server.de>
  * Copyright (C) 2012 by Kyle Keen <keenerd@gmail.com>
@@ -78,6 +79,14 @@
 
 #define PI_INT				(1<<14)
 #define ONE_INT				(1<<14)
+
+
+const char *USB="usb";
+const char *LSB="lsb";
+const char *AM="am";
+const char *FM="fm";
+const char *RAW="raw";
+const char *WBFM="wbfm";
 
 static volatile int do_exit = 0;
 static int lcm_post[17] = {1,1,1,3,1,5,3,7,1,9,5,11,3,13,7,15,1};
@@ -285,27 +294,6 @@ void usage(void)
 		"\t  -s 22050 | multimon -t raw /dev/stdin\n\n");
 	exit(1);
 }
-
-#ifdef _WIN32
-BOOL WINAPI
-sighandler(int signum)
-{
-	if (CTRL_C_EVENT == signum) {
-		fprintf(stderr, "Signal caught, exiting!\n");
-		do_exit = 1;
-		rtlsdr_cancel_async(dongle.dev);
-		return TRUE;
-	}
-	return FALSE;
-}
-#else
-static void sighandler(int signum)
-{
-	fprintf(stderr, "Signal caught, exiting!\n");
-	do_exit = 1;
-	rtlsdr_cancel_async(dongle.dev);
-}
-#endif
 
 /* more cond dumbness */
 #define safe_cond_signal(n, m) pthread_mutex_lock(m); pthread_cond_signal(n); pthread_mutex_unlock(m)
@@ -1483,8 +1471,58 @@ int generate_header(struct demod_state *d, struct output_state *o)
 	return 0;
 }
 
-// Modificar el main como start
-void  rtlfm_reset(int argc, char **argv)
+// ---------------------------------------------------------------------------------------
+// rtl_setFrequency
+// Establish the proper frequency
+//----------------------------------------------------------------------------------------
+void rtlsdr_setFrequency(float f) {
+
+     controller.freqs[0]=(uint32_t) f;
+
+}
+// ---------------------------------------------------------------------------------------
+// rtl_setMode
+// Point to the proper demodulator based on the mode selected
+//----------------------------------------------------------------------------------------
+void rtlsdr_setMode(char* optarg) {
+
+
+	if (strcmp(FM,  optarg) == 0) {
+	   demod.mode_demod = &fm_demod;}
+
+	if (strcmp(RAW,  optarg) == 0) {
+   	   demod.mode_demod = &raw_demod;}
+
+	if (strcmp(AM,  optarg) == 0) {
+	   demod.mode_demod = &am_demod;}
+
+	if (strcmp(USB, optarg) == 0) {
+	   demod.mode_demod = &usb_demod;}
+
+	if (strcmp(LSB, optarg) == 0) {
+ 	   demod.mode_demod = &lsb_demod;}
+
+	if (strcmp(WBFM,  optarg) == 0) {
+ 	   controller.wb_mode = 1;
+	   demod.mode_demod = &fm_demod;
+	   demod.rate_in = 170000;
+	   demod.rate_out = 170000;
+	   demod.rate_out2 = 32000;
+	   output.rate = 32000;
+	   demod.custom_atan = 1;
+	   //demod.post_downsample = 4;
+	   demod.deemph = 1;
+	   demod.squelch_level = 0;}
+
+        return;
+}
+
+// ---------------------------------------------------------------------------------------
+// rtl_reset
+// Initializes mode and initial setup
+//----------------------------------------------------------------------------------------
+
+void  rtlfm_reset()
 {
 
 	dongle_init(&dongle);
@@ -1493,135 +1531,33 @@ void  rtlfm_reset(int argc, char **argv)
 	output_init(&output);
 	controller_init(&controller);
 
-	while ((opt = getopt(argc, argv, "d:f:g:s:b:l:o:t:r:p:E:F:A:M:h")) != -1) {
-		switch (opt) {
-		case 'd':
-			dongle.dev_index = verbose_device_search(optarg);
-			dev_given = 1;
-			break;
-		case 'f':
-			if (controller.freq_len >= FREQUENCIES_LIMIT) {
-				break;}
-			if (strchr(optarg, ':'))
-				{frequency_range(&controller, optarg);}
-			else
-			{
-				controller.freqs[controller.freq_len] = (uint32_t)atofs(optarg);
-				controller.freq_len++;
-			}
-			break;
-		case 'g':
-			dongle.gain = (int)(atof(optarg) * 10);
-			break;
-		case 'l':
-			demod.squelch_level = (int)atof(optarg);
-			break;
-		case 's':
-			demod.rate_in = (uint32_t)atofs(optarg);
-			demod.rate_out = (uint32_t)atofs(optarg);
-			break;
-		case 'r':
-			output.rate = (int)atofs(optarg);
-			demod.rate_out2 = (int)atofs(optarg);
-			break;
-		case 'o':
-			fprintf(stderr, "Warning: -o is very buggy\n");
-			demod.post_downsample = (int)atof(optarg);
-			if (demod.post_downsample < 1 || demod.post_downsample > MAXIMUM_OVERSAMPLE) {
-				fprintf(stderr, "Oversample must be between 1 and %i\n", MAXIMUM_OVERSAMPLE);}
-			break;
-		case 't':
-			demod.conseq_squelch = (int)atof(optarg);
-			if (demod.conseq_squelch < 0) {
-				demod.conseq_squelch = -demod.conseq_squelch;
-				demod.terminate_on_squelch = 1;
-			}
-			break;
-		case 'p':
-			dongle.ppm_error = atoi(optarg);
-			custom_ppm = 1;
-			break;
-		case 'E':
-			if (strcmp("edge",  optarg) == 0) {
-				controller.edge = 1;}
-			if (strcmp("no-dc", optarg) == 0) {
-				demod.dc_block = 0;}
-			if (strcmp("deemp",  optarg) == 0) {
-				demod.deemph = 1;}
-			if (strcmp("swagc",  optarg) == 0) {
-				demod.agc_mode = agc_normal;}
-			if (strcmp("swagc-aggressive",  optarg) == 0) {
-				demod.agc_mode = agc_aggressive;}
-			if (strcmp("direct",  optarg) == 0) {
-				//dongle.direct_sampling = 1;}
-				dongle.direct_sampling = 2;}
-			if (strcmp("no-mod",  optarg) == 0) {
-				dongle.direct_sampling = 3;}
-			if (strcmp("offset",  optarg) == 0) {
-				dongle.offset_tuning = 1;
-				dongle.pre_rotate = 0;}
-			if (strcmp("wav",  optarg) == 0) {
-				output.wav_format = 1;}
-			if (strcmp("pad",  optarg) == 0) {
-				output.padded = 1;}
-			if (strcmp("lrmix",  optarg) == 0) {
-				output.lrmix = 1;}
-			break;
-		case 'F':
-			demod.downsample_passes = 1;  /* truthy placeholder */
-			demod.comp_fir_size = atoi(optarg);
-			break;
-		case 'A':
-			if (strcmp("std",  optarg) == 0) {
-				demod.custom_atan = 0;}
-			if (strcmp("fast", optarg) == 0) {
-				demod.custom_atan = 1;}
-			if (strcmp("lut",  optarg) == 0) {
-				atan_lut_init();
-				demod.custom_atan = 2;}
-			if (strcmp("ale", optarg) == 0) {
-				demod.custom_atan = 3;}
-			break;
-		case 'M':
-			if (strcmp("fm",  optarg) == 0) {
-				demod.mode_demod = &fm_demod;}
-			if (strcmp("raw",  optarg) == 0) {
-				demod.mode_demod = &raw_demod;}
-			if (strcmp("am",  optarg) == 0) {
-				demod.mode_demod = &am_demod;}
-			if (strcmp("usb", optarg) == 0) {
-				demod.mode_demod = &usb_demod;}
-			if (strcmp("lsb", optarg) == 0) {
-				demod.mode_demod = &lsb_demod;}
-			if (strcmp("wbfm",  optarg) == 0) {
-				controller.wb_mode = 1;
-				demod.mode_demod = &fm_demod;
-				demod.rate_in = 170000;
-				demod.rate_out = 170000;
-				demod.rate_out2 = 32000;
-				output.rate = 32000;
-				demod.custom_atan = 1;
-				//demod.post_downsample = 4;
-				demod.deemph = 1;
-				demod.squelch_level = 0;}
-			break;
-		case 'h':
-		default:
-			usage();
-			break;
-		}
-	}
+        dongle.dev_index=0;
+        rtlsdr_setFrequency(SetFrequency);
 
- if (argc <= optind) {
-     sprintf(output.filename,"-");
- } else {
-     sprintf(output.filename,"%s",argv[optind]);
- }
+        float gain=0.0;
+	dongle.gain = (int)(gain * 10);
+        demod.squelch_level = 0;
+
+        demod.rate_in = 4000;
+        demod.rate_out = 4000;
+
+        demod.conseq_squelch=10;
+        // defaults
+        //output.rate
+        //demod.rate_out2
+	dongle.direct_sampling = 2;
+
+        sprintf(output.filename,"-");
+
+        rtlsdr_setMode((char*)USB);
 
 
  return ;
 } // --- end of reset
-
+// ---------------------------------------------------------------------------------------
+// rtl_start
+// Launch the receiving threads
+//----------------------------------------------------------------------------------------
 void rtlfm_start() {    // start operations
 
 	agc_init(&demod);
@@ -1656,14 +1592,14 @@ void rtlfm_start() {    // start operations
 
 // -- esto tiene que pasar al main de OT
 
-	sigact.sa_handler = sighandler;
-	sigemptyset(&sigact.sa_mask);
-	sigact.sa_flags = 0;
-	sigaction(SIGINT, &sigact, NULL);
-	sigaction(SIGTERM, &sigact, NULL);
-	sigaction(SIGQUIT, &sigact, NULL);
-	sigaction(SIGPIPE, &sigact, NULL);
-	signal(SIGPIPE, SIG_IGN);
+	//sigact.sa_handler = sighandler;
+	//sigemptyset(&sigact.sa_mask);
+	//sigact.sa_flags = 0;
+	//sigaction(SIGINT, &sigact, NULL);
+	//sigaction(SIGTERM, &sigact, NULL);
+	//sigaction(SIGQUIT, &sigact, NULL);
+	//sigaction(SIGPIPE, &sigact, NULL);
+	//signal(SIGPIPE, SIG_IGN);
 
 // -- fin del pasaje al main de OT
 
@@ -1716,8 +1652,15 @@ void rtlfm_start() {    // start operations
 //	while (!do_exit) {
 //		usleep(100000);
 //	}
+
+// ---------------------------------------------------------------------------------------
+// rtl_close
+// Shut down the rtl-sdr services
+//----------------------------------------------------------------------------------------
 int rtlfm_close() {
-        do_exit=0x00;  //signal all threads to cancel
+
+        do_exit=1;     //signal all threads to cancel
+
 	//if (do_exit) {
 	//	fprintf(stderr, "\nUser cancel, exiting...\n");}
 	//else {
