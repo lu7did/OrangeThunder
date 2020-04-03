@@ -33,6 +33,6 @@ MODE="FT8"
 # Clean up previous execution
 #*----------------------------------------------------------------------------
 
-#sudo /home/pi/OrangeThunder/bin/OT | mplayer -nocache -af volume=-10 -rawaudio samplesize=2:channels=1:rate=4000 -demuxer rawaudio -
-sudo /home/pi/OrangeThunder/bin/OT
+sudo /home/pi/OrangeThunder/bin/OT | mplayer -nocache -af volume=-10 -rawaudio samplesize=2:channels=1:rate=4000 -demuxer rawaudio -
+#sudo /home/pi/OrangeThunder/bin/OT
 exit 0

@@ -1475,16 +1475,17 @@ int generate_header(struct demod_state *d, struct output_state *o)
 // rtl_setFrequency
 // Establish the proper frequency
 //----------------------------------------------------------------------------------------
-void rtlsdr_setFrequency(float f) {
+void rtlfm_setFrequency(float f) {
 
      controller.freqs[0]=(uint32_t) f;
-
+     controller.freq_len=1;
+ 
 }
 // ---------------------------------------------------------------------------------------
 // rtl_setMode
 // Point to the proper demodulator based on the mode selected
 //----------------------------------------------------------------------------------------
-void rtlsdr_setMode(char* optarg) {
+void rtlfm_setMode(char* optarg) {
 
 
 	if (strcmp(FM,  optarg) == 0) {
@@ -1532,7 +1533,7 @@ void  rtlfm_reset()
 	controller_init(&controller);
 
         dongle.dev_index=0;
-        rtlsdr_setFrequency(SetFrequency);
+        rtlfm_setFrequency(SetFrequency);
 
         float gain=0.0;
 	dongle.gain = (int)(gain * 10);
@@ -1549,7 +1550,7 @@ void  rtlfm_reset()
 
         sprintf(output.filename,"-");
 
-        rtlsdr_setMode((char*)USB);
+        rtlfm_setMode((char*)USB);
 
 
  return ;
@@ -1560,21 +1561,28 @@ void  rtlfm_reset()
 //----------------------------------------------------------------------------------------
 void rtlfm_start() {    // start operations
 
+        fprintf(stderr,"%s::rtlfm_start() agc_init\n",PROGRAMID);
 	agc_init(&demod);
 
 	/* quadruple sample_rate to limit to Δθ to ±π/2 */
+        fprintf(stderr,"%s::rtlfm_start() set rate_in\n",PROGRAMID);
 	demod.rate_in *= demod.post_downsample;
 
-	if (!output.rate) {
-		output.rate = demod.rate_out;}
+        fprintf(stderr,"%s::rtlfm_start() define output.rate\n",PROGRAMID);
+	//if (!output.rate) {
+	//	output.rate = demod.rate_out;}
 
+        fprintf(stderr,"%s::rtlfm_start() sanity_checks()\n",PROGRAMID);
 	sanity_checks();
 
-	if (controller.freq_len > 1) {
-		demod.terminate_on_squelch = 0;}
+	//if (controller.freq_len > 1) {
+        fprintf(stderr,"%s::rtlfm_start() terminate_on_squelch\n",PROGRAMID);
+	demod.terminate_on_squelch = 0;
 
+        fprintf(stderr,"%s::rtlfm_start() process lcm_post\n",PROGRAMID);
 	ACTUAL_BUF_LENGTH = lcm_post[demod.post_downsample] * DEFAULT_BUF_LENGTH;
 
+        fprintf(stderr,"%s::rtlfm_start() dongle.dev_index=0\n",PROGRAMID);
         dongle.dev_index=0;
 	//if (!dev_given) {
 	//	dongle.dev_index = verbose_device_search("0");
@@ -1584,6 +1592,7 @@ void rtlfm_start() {    // start operations
 	//	exit(1);
 	//}
 
+        fprintf(stderr,"%s::rtlfm_start() rtlsdr_open\n",PROGRAMID);
 	r = rtlsdr_open(&dongle.dev, (uint32_t)dongle.dev_index);
 	if (r < 0) {
 		fprintf(stderr, "Failed to open rtlsdr device #%d.\n", dongle.dev_index);
@@ -1603,11 +1612,14 @@ void rtlfm_start() {    // start operations
 
 // -- fin del pasaje al main de OT
 
+        fprintf(stderr,"%s::rtlfm_start() demod.deemph\n",PROGRAMID);
+
 	if (demod.deemph) {
 		demod.deemph_a = (int)round(1.0/((1.0-exp(-1.0/(demod.rate_out * 75e-6)))));
 	}
 
 	/* Set the tuner gain */
+        fprintf(stderr,"%s::rtlfm_start() dongle.gain\n",PROGRAMID);
 	if (dongle.gain == AUTO_GAIN) {
 		verbose_auto_gain(dongle.dev);
 	} else {
@@ -1615,11 +1627,13 @@ void rtlfm_start() {    // start operations
 		verbose_gain_set(dongle.dev, dongle.gain);
 	}
 
+        fprintf(stderr,"%s::rtlfm_start() custom_ppm\n",PROGRAMID);
 	if (!custom_ppm) {
 		verbose_ppm_eeprom(dongle.dev, &(dongle.ppm_error));
 	}
 	verbose_ppm_set(dongle.dev, dongle.ppm_error);
 
+        fprintf(stderr,"%s::rtlfm_start() output.filename\n",PROGRAMID);
 	if (strcmp(output.filename, "-") == 0) { /* Write samples to stdout */
 		output.file = stdout;
 	} else {
@@ -1630,21 +1644,32 @@ void rtlfm_start() {    // start operations
 		}
 	}
 
+        fprintf(stderr,"%s::rtlfm_start() output.wav_format\n",PROGRAMID);
 	if (output.wav_format) {
 		generate_header(&demod, &output);
 	}
 
 
 	/* Reset endpoint before we start reading from it (mandatory) */
+        fprintf(stderr,"%s::rtlfm_start() reset_buffer\n",PROGRAMID);
 	verbose_reset_buffer(dongle.dev);
 
+        fprintf(stderr,"%s::rtlfm_start() create controller thread\n",PROGRAMID);
 	pthread_create(&controller.thread, NULL, controller_thread_fn, (void *)(&controller));
 	usleep(100000);
+
+        fprintf(stderr,"%s::rtlfm_start() create output thread\n",PROGRAMID);
 	pthread_create(&output.thread, NULL, output_thread_fn, (void *)(&output));
+
+        fprintf(stderr,"%s::rtlfm_start() create demodulator thread\n",PROGRAMID);
 	pthread_create(&demod.thread, NULL, demod_thread_fn, (void *)(&demod));
+
+        fprintf(stderr,"%s::rtlfm_start() create lrmix thread\n",PROGRAMID);
 	if (output.lrmix) {
 		pthread_create(&demod2.thread, NULL, demod_thread_fn, (void *)(&demod2));
 	}
+
+        fprintf(stderr,"%s::rtlfm_start() create dongle thread\n",PROGRAMID);
 	pthread_create(&dongle.thread, NULL, dongle_thread_fn, (void *)(&dongle));
 
 }

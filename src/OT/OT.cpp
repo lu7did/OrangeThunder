@@ -81,6 +81,8 @@
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 
 
+
+
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x)
 
 #define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
@@ -257,6 +259,7 @@ void unmap_peripheral(struct bcm2835_peripheral *p) {
 void setGPIO(int pin,bool v) {
 
 // ---  acquire resources
+ return;
 
  if(map_peripheral(&gpio) == -1) 
   {
@@ -323,27 +326,27 @@ void setPTT(bool statePTT) {
           setWord(&cat->FT817,PTT,true);
           setWord(&MSW,PTT,true);
 
-          if (dds != nullptr) {
-             dds->close();
-   	     delete(dds);
-             dds=nullptr;
-             usleep(100000);
-          }
-          fprintf(stderr,"%s:setPTT() PTT On PTT(%s) USB mode\n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
+          //if (dds != nullptr) {
+          //   dds->close();
+   	  //   delete(dds);
+          //   dds=nullptr;
+          //   usleep(100000);
+          //}
+          //fprintf(stderr,"%s:setPTT() PTT On PTT(%s) USB mode\n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
 
        } else {
           fprintf(stderr,"%s:setPTT() PTT On PTT(%s) TUNE  mode\n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
        }
 
-       setGPIO(COOLER_GPIO,true);
-       setGPIO(KEYER_OUT_GPIO,true);
+       //setGPIO(COOLER_GPIO,true);
+       //setGPIO(KEYER_OUT_GPIO,true);
 
-       if (getWord(MSW,TUNE) == false) {
-          iqtest=new iqdmasync(SetFrequency,SampleRate,14,FifoSize,MODE_IQ);
-          iqtest->SetPLLMasterLoop(3,4,0);
-          cat->SetFrequency=SetFrequency;
-          usleep(10000);
-       }
+       //if (getWord(MSW,TUNE) == false) {
+       //   iqtest=new iqdmasync(SetFrequency,SampleRate,14,FifoSize,MODE_IQ);
+       //   iqtest->SetPLLMasterLoop(3,4,0);
+       //   cat->SetFrequency=SetFrequency;
+       //   usleep(10000);
+       //}
        return;
     } 
 
@@ -353,31 +356,31 @@ void setPTT(bool statePTT) {
     setWord(&cat->FT817,PTT,false);
     setWord(&MSW,PTT,false);
 
-    if (getWord(MSW,TUNE) == false) {
-       if (iqtest != nullptr) {
-          iqtest->stop();
-          delete(iqtest);
-          iqtest=nullptr;
-          usleep(10000);
-       }
-       fprintf(stderr,"%s:setPTT() PTT released PTT(%s) USB mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
+    //if (getWord(MSW,TUNE) == false) {
+    //   if (iqtest != nullptr) {
+    //      iqtest->stop();
+    //      delete(iqtest);
+    //      iqtest=nullptr;
+    //      usleep(10000);
+    //   }
+    //   fprintf(stderr,"%s:setPTT() PTT released PTT(%s) USB mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
+//
+  //  } else {
+  //     fprintf(stderr,"%s:setPTT() PTT released PTT(%s) TUNE mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
+  //  }
 
-    } else {
-       fprintf(stderr,"%s:setPTT() PTT released PTT(%s) TUNE mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
-    }
-
-    setGPIO(KEYER_OUT_GPIO,false);
+    //setGPIO(KEYER_OUT_GPIO,false);
 
 // --- Create a DDS object
 
-    if (getWord(MSW,TUNE)==false) {
-       dds=new DDS(NULL);
-       dds->gpio=byte(GPIO04);
-       dds->power=7;
-       dds->open(SetFrequency); 
-       cat->SetFrequency=SetFrequency;
-       setWord(&MSW,TUNE,false);
-    }
+   // if (getWord(MSW,TUNE)==false) {
+   //    dds=new DDS(NULL);
+   //    dds->gpio=byte(GPIO04);
+   //    dds->power=7;
+   //    dds->open(SetFrequency); 
+   //    cat->SetFrequency=SetFrequency;
+   //    setWord(&MSW,TUNE,false);
+   // }
 
 
 }
@@ -844,6 +847,19 @@ float   gain=1.0;
 	std::complex<float> CIQBuffer[IQBURST];	
         int numBytesRead=0;
 
+        setPTT(false);
+
+// ===========================================================================
+// start rtl-sdr loop
+// ===========================================================================
+
+        fprintf(stderr,"%s: rtlfm_start() starting f(%f)\n",PROGRAMID,SetFrequency);   
+
+        rtlfm_setFrequency(SetFrequency);
+        rtlfm_start();
+        fprintf(stderr,"%s: rtlfm_start() completed\n",PROGRAMID);   
+
+
         fprintf(stderr,"%s: Starting operations\n",PROGRAMID);
         setWord(&MSW,RUN,true);
 
@@ -852,13 +868,8 @@ float   gain=1.0;
         float voxlvl=voxmin;
 
 
-        setPTT(false);
 
-// ===========================================================================
-// start rtl-sdr loop
-// ===========================================================================
 
-        rtlfm_start();
 
 // ==================================================================================================================================
 //                                               MAIN LOOP

@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm
+all: ../bin/OT ../bin/rtl_fm ../bin/test_rtlfm
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -31,8 +31,8 @@ LSDR = /usr/local/lib/librtlsdr.a
 #../bin/pcm_min : lib/pcm_min.c 
 #	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/pcm_min ./lib/pcm_min.c  $(LDFLAGS)
 #
-#../bin/test_rtlsdr : lib/test_rtlsdr.c 
-#	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/test_rtlsdr ./lib/test_rtlsdr.c  $(LDFLAGS)
+../bin/test_rtlfm : lib/test_rtlfm.c 
+	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/test_rtlfm ./lib/test_rtlfm.c  $(LDFLAGS)
 
 clean:
 	rm -r  ../bin/OT
