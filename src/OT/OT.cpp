@@ -1,8 +1,5 @@
 /*
  * Pi4D.cpp
-
-
-
  * Raspberry Pi based USB experimental SSB Generator for digital modes (mainly WSPR and FT8)
  * Experimental version largely modelled after Generator.java by Takafumi INOUE (JI3GAB) and librpitx by Evariste  (F5OEO)
  * This program tries to mimic the behaviour of simple DSB transceivers used to operate low signal digital modes such as
@@ -86,6 +83,7 @@
 
 
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x)
+
 #define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
 #define SET_GPIO_ALT(g,a) *(gpio.addr + (((g)/10))) |= (((a)<=3?(a) + 4:(a)==4?3:2)<<(((g)%10)*3))
@@ -104,9 +102,21 @@ const char   *CFGFILE="Pi4D.cfg";
 typedef unsigned char byte;
 typedef bool boolean;
 
+// ---------------------------------------------------------------------------------------------------
+// rtlfm
+extern "C" {
+//bool running=true;
+//bool ready=false;
 
+#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
+
+}
+
+
+
+// ****************************************************************************************************
 // --- DDS & I/Q Generator
-
+// ****************************************************************************************************
 DDS*        dds=nullptr;
 iqdmasync*  iqtest=nullptr;
 
