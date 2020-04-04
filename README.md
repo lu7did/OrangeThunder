@@ -132,6 +132,27 @@ Remember that most national regulations requires the armonics and other spurious
 
 Most scripts arguments can be obtained using either -h o --h as argument, or just execute without them
 
+## Pre-requisites
+
+
+Most pre-requisites are described on the excellent tutorial "Setting up a low cost QRP monitoring station with an RTL-SDR V3 and Raspberry Pi 3" [here](https://www.rtl-sdr.com/tutorial-setting-up-a-low-cost-qrp-ft8-jt9-wspr-etc-monitoring-station-with-an-rtl-sdr-v3-and-raspberry-pi-3/)
+
+### RTL-SDR Drivers
+
+### PulseAudio and MPlayer
+
+### CSDR
+
+### ncat
+
+### ntp Daemon
+
+### WSJT-X
+
+### Audio Piping Setup
+
+### snd-aloop configuration
+
 
 ## Installation / update:
 
@@ -141,6 +162,15 @@ Download and compile code:
   *  cd OrangeThunder/src
   *  sudo make
   *  sudo make install
+
+## Software installation
+
+### WSJT-X
+
+### FLRig
+
+### rigctl
+
 
 ## Radio licensing / RF:
 
