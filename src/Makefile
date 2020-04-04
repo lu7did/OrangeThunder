@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm ../bin/test_rtlfm ../bin/test_rtlfm2
+all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm 
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -25,22 +25,25 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
-../bin/rtl_fm : lib/rtl_fm.c lib/convenience.c
-	$(CC) $(OSC_CFLAGS) -o ../bin/rtl_fm ./lib/rtl_fm.c lib/convenience.c $(LDFLAGS)
+../bin/rtl_fm : rtl-sdr/rtl_fm.c rtl-sdr/convenience.c
+	$(CC) $(OSC_CFLAGS) -o ../bin/rtl_fm ./rtl-sdr/rtl_fm.c rtl-sdr/convenience.c $(LDFLAGS)
 
+../bin/demo_rtlfm : lib/demo_rtlfm.c 
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_rtlfm ./lib/demo_rtlfm.c  $(LDFLAGS)
+
+#---- Staffing crypt
+#../bin/test_rtlfm2 : lib/test_rtlfm2.c 
+#	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/test_rtlfm2 ./lib/test_rtlfm2.c  $(LDFLAGS)
 #../bin/pcm_min : lib/pcm_min.c 
 #	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/pcm_min ./lib/pcm_min.c  $(LDFLAGS)
 #
-../bin/test_rtlfm : lib/test_rtlfm.c 
-	$(CC) $(OSC_CFLAGS) $(CFLAGS) -o ../bin/test_rtlfm ./lib/test_rtlfm.c  $(LDFLAGS)
-
-../bin/test_rtlfm2 : lib/test_rtlfm2.c 
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/test_rtlfm2 ./lib/test_rtlfm2.c  $(LDFLAGS)
-
+#---------------
 clean:
 	rm -r  ../bin/OT
-#	rm -r  ../bin/pcm_min
+	rm -r  ../bin/rtl_fm
+	rm -r  ../bin/demo_rtlfm
 
 install: all
 	install -m 0755 ../bin/OT  /usr/bin
-#	install -m 0755 ../bin/pcm_min /usr/bin
+	install -m 0755 ../bin/rtl_fm  /usr/bin
+	install -m 0755 ../bin/demo_rtlfm  /usr/bin

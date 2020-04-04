@@ -2,7 +2,6 @@
  * rtl-fm, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  *-----------------------------------------------------------------------------
 
-
  * Quick refactoring to integrate origina rtl_fm.c code into OT project
  * main reasons for change:
  *    - introduce ability to change frequency while running
@@ -86,6 +85,9 @@ int main(int argc, char** argv)
 
   r=new rtlfm();  
   r->start();
+  r->setFrequency(7074000);
+  r->setFrequency(14074000);
+
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
   while(bRun==0)
   

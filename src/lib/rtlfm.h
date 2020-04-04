@@ -21,6 +21,7 @@
 #include<string.h>
 #include<stdio.h>
 #include<fcntl.h> 
+
 #include <iostream>
 #include <fstream>
 using namespace std;
@@ -66,7 +67,7 @@ class rtlfm
       int                 sr;
       int                 so;
       int                 vol;
-
+      int		  mode;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="rtlfm";
 const char   *PROG_VERSION="1.0";
@@ -79,7 +80,7 @@ const char   *mFM="fm";
 const char   *mLSB="lsb";
 private:
 
-     char mode[128];
+     char MODE[128];
      char FREQ[16];
    
 
@@ -98,12 +99,16 @@ rtlfm::rtlfm(){
    so=4000;
    fprintf(stderr,"%s::rtlfm() Initialization completed\n",PROGRAMID);
    vol=0;
+   running=false;
 }
 //---------------------------------------------------------------------------------------------------
 // setFrequency CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 void rtlfm::setFrequency(float f) {
 
+   if (f==this->f) {
+      return;
+   }
    this->f=f;
    if (this->f >= 1000000) {
       sprintf(FREQ,"%gM",this->f/1000000);
@@ -111,18 +116,26 @@ void rtlfm::setFrequency(float f) {
       sprintf(FREQ,"%gK",this->f/1000);
    }
 
+  
+   fprintf(stderr,"<FREQ=%s> len(%d)\n",FREQ,(unsigned)strlen(FREQ));
+   write(outpipefd[1], FREQ,(unsigned)strlen(FREQ)+1);
+
 }
 //---------------------------------------------------------------------------------------------------
 // setMode CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 void rtlfm::setMode(byte m) {
 
+if ( m == this->mode) {
+   return;
+}
+
 switch(m) {
            case MCW:
            case MCWR: 
            case MUSB:
                    {
-  	             sprintf(mode,"%s",mUSB);
+  	             sprintf(MODE,"%s",mUSB);
 		     sr=4000;
 		     so=4000;
                      break;
@@ -131,7 +144,7 @@ switch(m) {
                    {
 		     sr=4000;
 		     so=4000;
-  	             sprintf(mode,"%s",mLSB);
+  	             sprintf(MODE,"%s",mLSB);
                      break;
                    }
 	   case MAM:
@@ -139,26 +152,26 @@ switch(m) {
 		     sr=4000;
 		     so=4000;
 
-  	             sprintf(mode,"%s",mAM);
+  	             sprintf(MODE,"%s",mAM);
      		     break;
 		   }
  	   case MWFM:
 		   {
-  	             sprintf(mode,"%s","fm -o 4 -A fast -l 0 -E deemp ");
+  	             sprintf(MODE,"%s","fm -o 4 -A fast -l 0 -E deemp ");
 		     sr=170000;
 	  	     so=32000;
 	  	     break;
 		   }
 	   case MFM:
 		   {
-  	             sprintf(mode,"%s",mFM);
+  	             sprintf(MODE,"%s",mFM);
 		     sr=4000;
 		     so=4000;
 	  	     break;
 		   }
 	   case MDIG:
 		   {
-  	             sprintf(mode,"%s",mUSB);
+  	             sprintf(MODE,"%s",mUSB);
 		     sr=4000;
 		     so=4000;
 	  	     break;
@@ -166,13 +179,22 @@ switch(m) {
 	   case MPKT:
 		   {
 
-  	             sprintf(mode,"%s",mUSB);
+  	             sprintf(MODE,"%s",mUSB);
 		     sr=4000;
 		     so=4000;
 	  	     break;
 		   }
 
        }
+
+   if ( running == false) {
+      this->mode=m;
+      return;
+   }
+
+   this->stop();
+   this->start();
+   return;
 }
 //---------------------------------------------------------------------------------------------------
 // start operations (fork processes) Implementation
@@ -208,7 +230,7 @@ char   CMD[256];
 
 // --- format command
 
-   sprintf(CMD,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null >/dev/null",mode,FREQ,sr,so,vol,so); 
+   sprintf(CMD,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",MODE,FREQ,sr,so,vol,so); 
    fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,CMD);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
@@ -227,6 +249,7 @@ char   CMD[256];
 // exit unexpectedly, the parent process will obtain SIGCHLD signal that
 // can be handled (e.g. you can respawn the child process).
 //**************************************************************************
+  running=true;
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -234,11 +257,15 @@ char   CMD[256];
 //--------------------------------------------------------------------------------------------------
 int rtlfm::readpipe(char* buffer,int len) {
 
-int nread=read(inpipefd[0],buffer,len);
-    buffer[nread]=0x00;
+ if (running == true) {
+    return read(inpipefd[0],buffer,len);
+ } else {
+    return 0;
+ }
+
+    //buffer[nread]=0x00;
     //fprintf(stderr,"%s::read() %s",PROGRAMID,(char*)buffer);
-    //write(STDOUT_FILENO,buffer,nread);
-    return nread;
+    //return nread;
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -248,9 +275,13 @@ void rtlfm::stop() {
 
 // --- Normal termination kills the child first and wait for its termination
 
+  if (running==false) {
+     return;
+  }
+
   fprintf(stderr,"%s::stop() Killing child process pid(%d)\n",PROGRAMID,pid);
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
   waitpid(pid, &status, 0);
   fprintf(stderr,"%s::stop() Successfully terminated\n",PROGRAMID);
-
+  running=false;
 }

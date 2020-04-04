@@ -62,7 +62,7 @@ experimenters, in particular for this project the following combination:
 * Very powerful yet affordable high performance embedded boards able to execute Linux, see the Raspberry Pi site  [here](https://www.raspberrypi.org/). 
 * Direct frequency synthesis libraries enabling the Raspberry Pi to act as a RF generator on frequencies from 0 to 1000 MHz and beyond, see the librpitx site [here](https://github.com/F5OEO/librpitx).
 
-The Orange Thunder project is an technology implementation looking to act as a proof of concept of merging the above technologies, glue them together with many
+The Orange Thunder project is a technology implementation looking to act as a proof of concept of merging the above technologies, glue them together with many
 public domain libraries and developing some structure code to glue all together into implementing a ham radio transceiver with the following general
 spec.
 
@@ -70,15 +70,15 @@ spec.
 * Able to operate in most ham usual modes such as CW, SSB, PSK31, FM, SSTV, RTTY and, specially, in FT8.
 * Low consumption, able to be feed with a single +5V cc@2A power supply.
 * Relatively simple to implement, simple additional circuitry with common parts needed.
-* A platform for learning and further experimenting thru its release as Open Software.
+* A platform for learning and further experimenting thru its release under a  Open Source.
 * Headless operation (minimum hardware controls) thru software such as FLRig or rigctl.
 * Can operate stand-alone or paired with another computer acting like a standard transceiver.
 * Support CAT operations with a limited emulation of a Yaesu FT817 protocol.
 * External soundcard support for voice modes (Phone, SSB) or externally generated modes.
-* Forgiving and tolerant implementation, avoiding novice catastrophic mistakes turning them into learning mistakes.
-* Hopefully, a platform to achieve fun.
+* Forgiving and tolerant implementation, avoiding novice catastrophic mistakes turning them into learning experiences.
+* Hopefully, a platform to get some well deserved fun.
 
-This statement of specs will be implemented slowly over time, progress will be checked at this forum.
+This statement of specs will be implemented slowly over time, progress will be checked at this repository.
 
 ## PixiePi, Sister project
 
@@ -89,8 +89,8 @@ hardware used to implement the transceiver.
 Main features and differences of PixiePi compared with OrangeThunder
 
 * The receiver chain is a double conversion receiver and the transmitter chain a CW (class C) amplifier, based on the DIY kit Pixie.
-* Is based on a Raspberry Pi Zero board which is substancially less powerful than a Raspberry Pi 3 or 4 board.
-* Is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
+* It is based on a Raspberry Pi Zero board which is substancially less powerful than a Raspberry Pi 3 or 4 board.
+* It is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
 * Requires a 12V power supply
 * Mostly headed toward CW usage although other modes are supported.
 * Allows a local control with LCD display, tuniing know and other hardware.  
@@ -134,6 +134,7 @@ Most scripts arguments can be obtained using either -h o --h as argument, or jus
 
 
 ## Installation / update:
+
 Download and compile code:
   *  sudo apt-get install git
   *  git clone https://github.com/lu7did/OrangeThunder
@@ -224,6 +225,16 @@ Download and compile code:
   --ppm option on the comman line. You can verify that the ppm value has been
   set correction by specifying --test-tone 780000 --ppm <ppm> on the command
   line and confirming that the Pi is still zero beating the AM station.
+
+## Prototype
+
+![Alt Text](docs/OrangeThunder_Prototype.jpeg?raw=true "Hardware Prototype")
+
+
+## Configuring and using WSJTX (FT8)
+
+![Alt Text](OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
+
 
 ### PWM Peripheral:
   The code uses the RPi PWM peripheral to time the frequency transitions

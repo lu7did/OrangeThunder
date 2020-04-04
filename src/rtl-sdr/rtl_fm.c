@@ -1,4 +1,5 @@
 /*
+
  * rtl-sdr, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
  * Copyright (C) 2012 by Hoernchen <la@tfc-server.de>
@@ -50,13 +51,17 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include<fcntl.h>
+#include<sys/wait.h>
+#include<sys/prctl.h>
+
 //#define _USE_MATH_DEFINES
 
 #include <math.h>
 #include <pthread.h>
 #include "/usr/include/libusb-1.0/libusb.h"
 #include "/home/pi/rtl-sdr/include/rtl-sdr.h"
-#include "/home/pi/OrangeThunder/src/lib/convenience.h"
+#include "/home/pi/OrangeThunder/src/rtl-sdr/convenience.h"
 
 #define DEFAULT_SAMPLE_RATE		24000
 #define DEFAULT_BUF_LENGTH		(1 * 16384)
@@ -1687,9 +1692,43 @@ int main(int argc, char **argv)
 		pthread_create(&demod2.thread, NULL, demod_thread_fn, (void *)(&demod2));
 	}
 	pthread_create(&dongle.thread, NULL, dongle_thread_fn, (void *)(&dongle));
+// *-----------
+// *----------- Patch to process commands received thru standard input
+// *----------- 
+    int fdin = open("/dev/stdin", O_RDWR, S_IRUSR | S_IWUSR);
+// read the current settings first
+    int flags = fcntl(fdin, F_GETFL, 0);
+// then, set the O_NONBLOCK flag
+        fcntl(fdin, F_SETFL, flags | O_NONBLOCK);
 
+  char* buffin;
+  char* cmdin;
+  int   p=0;
+        buffin=(char*)malloc(129);
+        cmdin=(char*)malloc(129);
+        fprintf(stderr,"*** Starting command mode\n");
 	while (!do_exit) {
-		usleep(100000);
+        int nreadin=read(fdin,buffin,128);
+            if (nreadin!=-1) {
+               for(int j=0; j<nreadin; j++) {
+                  cmdin[p]=buffin[j];
+                  p++;
+                  if (buffin[j]==0x00) {
+		     controller.freq_len=0;
+                     controller.freqs[controller.freq_len] = (uint32_t)atofs((char*)cmdin);
+		     fprintf(stderr,"*** rtl-sdr center frequency set to (%ld)\n",controller.freqs[controller.freq_len]);
+		     controller.freq_len++;
+                     p=0;
+                  }
+                  if (p>=128) {
+                     p=0;
+                  }
+               }
+            }
+//*----------
+//*---------- End of patch
+//*----------
+	    usleep(100000);
 	}
 
 	if (do_exit) {
