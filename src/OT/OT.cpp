@@ -1,18 +1,20 @@
 /*
  * OT.cpp
  * Raspberry Pi based USB experimental SSB Generator for digital modes (mainly WSPR and FT8)
- * Experimental version largely modelled after Generator.java by Takafumi INOUE (JI3GAB) and librpitx by Evariste  (F5OEO)
- * This program tries to mimic the behaviour of simple DSB transceivers used to operate low signal digital modes such as
- * WSPR or FT8, however, when paired with the PixiePi hardware it does receive with a double conversion receiver put it does
- * transmit using SSB (USB).
+ * Experimental version largely modelled after rtl_fm  and librpitx
+ * This program tries to mimic the behaviour of simple QRP SSB transceivers
+ * SSB generation by the librpitx library isn´t linear but not much different from 
+ * highly compressed HF SSB voice signals, the TAPR amplifier isn´t much linear either.
+ * So the transceiver is specially suited to PSK and FSK modulated modes such as WSPR,FT8, SSTV, CW or PSK31.
  *---------------------------------------------------------------------
- * This program operates as a controller for a Raspberry Pi to control
+ * This program is a sister project from a Raspberry Pi used to control
  * a Pixie transceiver hardware.
  * Project at http://www.github.com/lu7did/PixiePi
  *---------------------------------------------------------------------
  *
  * Created by Pedro E. Colla (lu7did@gmail.com)
  * Code excerpts from several packages:
+ *    rtl_fm.c from Steve Markgraf <steve@steve-m.de> and others 
  *    Adafruit's python code for CharLCDPlate
  *    tune.cpp from rpitx package by Evariste Courjaud F5OEO
  *    sendiq.cpp from rpitx package (also) by Evariste Coujaud (F5EOE)
@@ -41,11 +43,15 @@
  * MA 02110-1301, USA.
  */
 
-//#define PROGRAM_VERSION "1.0"
 #define MAX_SAMPLERATE 200000
 #define BUFFERSIZE      96000
 #define IQBURST          4000
 #define VOX_TIMER        20
+
+#define GPIO_PTT         12
+#define GPIO_KEYER       16
+#define GPIO_PULSE       20
+#define GPIO_PA          21
 
 #include <unistd.h>
 #include "stdio.h"
@@ -77,7 +83,7 @@
 #include "/home/pi/PixiePi/src/pixie/pixie.h" 
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
-#include "/home/pi/PixiePi/src/lib/DDS.h"
+// #include "/home/pi/PixiePi/src/lib/DDS.h"
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 #include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
 
@@ -92,6 +98,7 @@
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
 
 //-------------------- GLOBAL VARIABLES ----------------------------
+
 const char   *PROGRAMID="OT";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
@@ -102,28 +109,14 @@ const char   *CFGFILE="OT.cfg";
 typedef unsigned char byte;
 typedef bool boolean;
 
-
 // ****************************************************************************************************
 // --- DDS & I/Q Generator
 // ****************************************************************************************************
-DDS*        dds=nullptr;
 iqdmasync*  iqtest=nullptr;
-rtlfm*      r=nullptr;
+rtlfm*      rtl=nullptr;
 
-float       SampleRate=6000;
 float       SetFrequency=14074000;
-// ---------------------------------------------------------------------------------------------------
-// rtlfm
-// ---------------------------------------------------------------------------------------------------
-//extern "C" {
-//bool running=true;
-//bool ready=false;
-
-//#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
-//
-//}
-
-
+float       SampleRate=6000;
 
 // --- Define minIni related parameters
 
@@ -168,8 +161,7 @@ int   m=1;
 int   SR=48000;
 int   FifoSize=IQBURST*4;
 
-
-// --- SSB generation objects
+// --- SSB voice generation objects
 
 float  agc_rate=0.25;
 float  agc_reference=1.0;
@@ -187,6 +179,9 @@ int    numSamplesLow=0;
 int    exitrecurse=0;
 int    bufferLengthInBytes;
 short  *buffer_i16;
+
+// --- IQ Buffer
+
 std::complex<float> CIQBuffer[IQBURST];	
 
 //--------------------------[System Word Handler]---------------------------------------------------
@@ -297,15 +292,13 @@ long int getGPIO(int pin) {
 // --- Clear pin definition and then set as output
 
   INP_GPIO(pin);
-  //OUT_GPIO(pin);
   int v=GPIO_READ(pin);
+
 // --- release resources
 
   unmap_peripheral(&gpio);
   return (long int) v;
 }
-//--------------------------------------------------------------------------------------------------
-//--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------
 // set_PTT
 // Manage the PTT of the transceiver (can be used from the keyer or elsewhere
@@ -317,68 +310,49 @@ void setPTT(bool statePTT) {
 //---------------------------------*
     if (statePTT==true) {
 
-//--- if SPLIT swap VFO AND if also CW shift the carrier by vfoshift[current VFO]
+//--- Turn PTT on
 
-       if (getWord(MSW,TUNE) == false) {
-          setWord(&cat->FT817,PTT,true);
-          setWord(&MSW,PTT,true);
+        setWord(&cat->FT817,PTT,true);
+        setWord(&MSW,PTT,true);
+        setGPIO(GPIO_PTT,true);
 
-          //if (dds != nullptr) {
-          //   dds->close();
-   	  //   delete(dds);
-          //   dds=nullptr;
-          //   usleep(100000);
-          //}
-          //fprintf(stderr,"%s:setPTT() PTT On PTT(%s) USB mode\n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
+        if (iqtest == nullptr) {
+           iqtest=new iqdmasync(SetFrequency,SampleRate,14,FifoSize,MODE_IQ);
+           iqtest->SetPLLMasterLoop(3,4,0);
+           cat->SetFrequency=SetFrequency;
+           usleep(10000);
+           fprintf(stderr,"%s:setPTT(false) removing I/Q processor\n",PROGRAMID);
+        }
+        fprintf(stderr,"%s:setPTT(true) set\n",PROGRAMID);
+        return;
 
-       } else {
-          fprintf(stderr,"%s:setPTT() PTT On PTT(%s) TUNE  mode\n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
-       }
-
-       //setGPIO(COOLER_GPIO,true);
-       //setGPIO(KEYER_OUT_GPIO,true);
-
-       //if (getWord(MSW,TUNE) == false) {
-       //   iqtest=new iqdmasync(SetFrequency,SampleRate,14,FifoSize,MODE_IQ);
-       //   iqtest->SetPLLMasterLoop(3,4,0);
-       //   cat->SetFrequency=SetFrequency;
-       //   usleep(10000);
-       //}
-       return;
     } 
 
 //---------------------------------*
 //          PTT Inactivated        *
 //---------------------------------*
+
+    if (iqtest != nullptr) {
+       iqtest->stop();
+       delete(iqtest);
+       iqtest=nullptr;
+       usleep(10000);
+       fprintf(stderr,"%s:setPTT(false) removing I/Q processor\n",PROGRAMID);
+    }
+
     setWord(&cat->FT817,PTT,false);
     setWord(&MSW,PTT,false);
+    setGPIO(GPIO_PTT,false);
 
-    //if (getWord(MSW,TUNE) == false) {
-    //   if (iqtest != nullptr) {
-    //      iqtest->stop();
-    //      delete(iqtest);
-    //      iqtest=nullptr;
-    //      usleep(10000);
-    //   }
-    //   fprintf(stderr,"%s:setPTT() PTT released PTT(%s) USB mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
-//
-  //  } else {
-  //     fprintf(stderr,"%s:setPTT() PTT released PTT(%s) TUNE mode \n",PROGRAMID,(getWord(MSW,PTT) ? "true" : "false"));
-  //  }
-
-    //setGPIO(KEYER_OUT_GPIO,false);
-
-// --- Create a DDS object
-
-   // if (getWord(MSW,TUNE)==false) {
-   //    dds=new DDS(NULL);
-   //    dds->gpio=byte(GPIO04);
-   //    dds->power=7;
-   //    dds->open(SetFrequency); 
-   //    cat->SetFrequency=SetFrequency;
-   //    setWord(&MSW,TUNE,false);
-   // }
-
+    if (rtl == nullptr) {
+       rtl=new rtlfm();
+       rtl->setFrequency(SetFrequency);
+       rtl->setMode(MUSB);
+       rtl->start();
+       fprintf(stderr,"%s:setPTT(false) starting rtl-sdr initialized\n",PROGRAMID);
+    }
+    fprintf(stderr,"%s:setPTT(false) set\n",PROGRAMID);
+    return;
 
 }
 //--------------------------------------------------------------------------------------------------
@@ -416,7 +390,7 @@ void CATchangeFreq() {
 
   //fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) SetFrequency(%d)\n",PROGRAMID,(int)cat->SetFrequency,(int)SetFrequency);
   if ((cat->SetFrequency<VFO_START) || (cat->SetFrequency>VFO_END)) {
-     //fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) out of band is rejected\n",PROGRAMID,(int)cat->SetFrequency);
+     fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) out of band is rejected\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
      return;
   }
@@ -426,6 +400,8 @@ void CATchangeFreq() {
      //fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
      return;
+
+// ---
      if (iqtest != nullptr) {
         iqtest->clkgpio::disableclk(GPIO04);
         iqtest->clkgpio::SetAdvancedPllMode(true);
@@ -433,11 +409,14 @@ void CATchangeFreq() {
         iqtest->clkgpio::SetFrequency(0);
         iqtest->clkgpio::enableclk(GPIO04);
      }
+// ---
   }
 
 
   SetFrequency=cat->SetFrequency;
-  dds->set(SetFrequency);
+  if (rtl != nullptr) {
+     rtl->setFrequency(SetFrequency);
+  }
   fprintf(stderr,"%s::CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -769,13 +748,6 @@ float   gain=1.0;
         arg_parse(argc,argv);
 
 //--------------------------------------------------------------------------------------------------
-// Initialize rtl-sdr execution parameters
-//--------------------------------------------------------------------------------------------------
-        //fprintf(stderr,"%s:main(): Start rtlfm_reset()\n",PROGRAMID); 
-        //rtlfm_reset();
-        //fprintf(stderr,"%s:main(): Completed rtlfm_reset()\n",PROGRAMID); 
-
-//--------------------------------------------------------------------------------------------------
 // Setup trap handling
 //--------------------------------------------------------------------------------------------------
         fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID);
@@ -844,26 +816,12 @@ float   gain=1.0;
 
         setPTT(false);
 
-// ===========================================================================
-// start rtl-sdr loop
-// ===========================================================================
-
-//        fprintf(stderr,"%s: rtlfm_start() starting f(%f)\n",PROGRAMID,SetFrequency);   
-//        rtlfm_setFrequency(SetFrequency);
-//        rtlfm_start();
-//        fprintf(stderr,"%s: rtlfm_start() completed\n",PROGRAMID);   
-
-
         fprintf(stderr,"%s: Starting operations\n",PROGRAMID);
         setWord(&MSW,RUN,true);
 
         float voxmin=usb->agc.max_gain;
         float voxmax=0.0;
         float voxlvl=voxmin;
-
-
-
-
 
 // ==================================================================================================================================
 //                                               MAIN LOOP
@@ -908,6 +866,7 @@ float   gain=1.0;
 // VOX controller (only if enabled)
 // ---
           if (usb->agc.active==true) {
+
                 if (gain>voxmax) {
 		   voxmax=gain;
 		   voxlvl=voxmax*0.90;
@@ -938,12 +897,6 @@ float   gain=1.0;
 	}
 
 
-// ==========================================================================================================
-// terminate rtl-sdr receiver
-// ==========================================================================================================
-//        int rc_rtl_sdr=rtlfm_close();
-//        fprintf(stderr,"%s rtl-sdr threads terminated rc(%d)\n",PROGRAMID,rc_rtl_sdr);
-
 // ==================================================================================================================================
 // end of loop  
 // ==================================================================================================================================
@@ -954,19 +907,15 @@ float   gain=1.0;
 // Deactivating 
 // ---
         fprintf(stderr,"%s: Removing RF I/O object\n",PROGRAMID);
-
         if (iqtest!=nullptr) {  
    	   iqtest->stop();
            delete(iqtest);
 	}
 
-	if (dds!=nullptr) {
-           dds->close();
-	   delete(dds);
-        }
-
         iqtest=nullptr;
-        dds=nullptr;
+
+        rtl->stop();
+        fprintf(stderr,"%s: RTL-SDR receiver stopped\n",PROGRAMID);
 
         setGPIO(KEYER_OUT_GPIO,false);
         setGPIO(COOLER_GPIO,false);
@@ -975,29 +924,28 @@ float   gain=1.0;
 // --- Save configuration file upon exit
 
         sprintf(iniStr,"%f",SetFrequency);
-        nIni = ini_puts("Pi4D","FREQUENCY",iniStr,inifile);
+        nIni = ini_puts("OT","FREQUENCY",iniStr,inifile);
 
         sprintf(iniStr,"%f",SampleRate);
-        nIni = ini_puts("Pi4D","SAMPLERATE",iniStr,inifile);
+        nIni = ini_puts("OT","SAMPLERATE",iniStr,inifile);
 
         sprintf(iniStr,"%f",agc_rate*100.0);
-        nIni = ini_puts("Pi4D","AGC_RATE",iniStr,inifile);
+        nIni = ini_puts("OT","AGC_RATE",iniStr,inifile);
 
         sprintf(iniStr,"%f",agc_reference*100.0);
-        nIni = ini_puts("Pi4D","AGC_REF",iniStr,inifile);
+        nIni = ini_puts("OT","AGC_REF",iniStr,inifile);
 
         sprintf(iniStr,"%f",agc_max_gain*100.0);
-        nIni = ini_puts("Pi4D","AGC_MAX_GAIN",iniStr,inifile);
+        nIni = ini_puts("OT","AGC_MAX_GAIN",iniStr,inifile);
 
         sprintf(iniStr,"%s",port);
-        nIni = ini_puts("Pi4D","PORT",iniStr,inifile);
+        nIni = ini_puts("OT","PORT",iniStr,inifile);
 
         sprintf(iniStr,"%s",FileName);
-        nIni = ini_puts("Pi4D","INPUT",iniStr,inifile);
+        nIni = ini_puts("OT","INPUT",iniStr,inifile);
 
         sprintf(iniStr,"%ld",catbaud);
-        nIni = ini_puts("Pi4D","BAUD",iniStr,inifile);
-
+        nIni = ini_puts("OT","BAUD",iniStr,inifile);
 
 }
 
