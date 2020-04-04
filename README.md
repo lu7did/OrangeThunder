@@ -229,6 +229,7 @@ Download and compile code:
 ## Prototype
 
 ![Alt Text](docs/OrangeThunder_Prototype.jpeg?raw=true "Hardware Prototype")
+![Alt Text](docs/OrangeThunder.jpg?raw=true "Hardware Prototype Schematic")
 
 
 ## Configuring and using WSJTX (FT8)
