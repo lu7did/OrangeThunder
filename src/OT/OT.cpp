@@ -1,5 +1,5 @@
 /*
- * Pi4D.cpp
+ * OT.cpp
  * Raspberry Pi based USB experimental SSB Generator for digital modes (mainly WSPR and FT8)
  * Experimental version largely modelled after Generator.java by Takafumi INOUE (JI3GAB) and librpitx by Evariste  (F5OEO)
  * This program tries to mimic the behaviour of simple DSB transceivers used to operate low signal digital modes such as
@@ -79,8 +79,7 @@
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "/home/pi/PixiePi/src/lib/DDS.h"
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
-
-
+#include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
 
 
 // GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x)
@@ -93,13 +92,13 @@
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
 
 //-------------------- GLOBAL VARIABLES ----------------------------
-const char   *PROGRAMID="Pi4D";
+const char   *PROGRAMID="OT";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 enum  {typeiq_i16,typeiq_u8,typeiq_float,typeiq_double,typeiq_carrier};
 
-const char   *CFGFILE="Pi4D.cfg";
+const char   *CFGFILE="OT.cfg";
 typedef unsigned char byte;
 typedef bool boolean;
 
@@ -109,22 +108,20 @@ typedef bool boolean;
 // ****************************************************************************************************
 DDS*        dds=nullptr;
 iqdmasync*  iqtest=nullptr;
-
+rtlfm*      r=nullptr;
 
 float       SampleRate=6000;
 float       SetFrequency=14074000;
-
-
 // ---------------------------------------------------------------------------------------------------
 // rtlfm
 // ---------------------------------------------------------------------------------------------------
-extern "C" {
+//extern "C" {
 //bool running=true;
 //bool ready=false;
 
-#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
-
-}
+//#include "/home/pi/OrangeThunder/src/lib/rtlfm.c"
+//
+//}
 
 
 
@@ -571,8 +568,8 @@ static void terminate(int num)
 
 // --- Terminate rtl-sdr dongle
 
-    fprintf(stderr, "%s: Terminating rtl-sdr dongle!\n",PROGRAMID);
-    do_exit = 1;
+    //fprintf(stderr, "%s: Terminating rtl-sdr dongle!\n",PROGRAMID);
+    //do_exit = 1;
     //rtlsdr_cancel_async(dongle.dev);
 
 
@@ -774,11 +771,9 @@ float   gain=1.0;
 //--------------------------------------------------------------------------------------------------
 // Initialize rtl-sdr execution parameters
 //--------------------------------------------------------------------------------------------------
-        fprintf(stderr,"%s:main(): Start rtlfm_reset()\n",PROGRAMID); 
-
-        rtlfm_reset();
-
-        fprintf(stderr,"%s:main(): Completed rtlfm_reset()\n",PROGRAMID); 
+        //fprintf(stderr,"%s:main(): Start rtlfm_reset()\n",PROGRAMID); 
+        //rtlfm_reset();
+        //fprintf(stderr,"%s:main(): Completed rtlfm_reset()\n",PROGRAMID); 
 
 //--------------------------------------------------------------------------------------------------
 // Setup trap handling
@@ -853,11 +848,10 @@ float   gain=1.0;
 // start rtl-sdr loop
 // ===========================================================================
 
-        fprintf(stderr,"%s: rtlfm_start() starting f(%f)\n",PROGRAMID,SetFrequency);   
-
-        rtlfm_setFrequency(SetFrequency);
-        rtlfm_start();
-        fprintf(stderr,"%s: rtlfm_start() completed\n",PROGRAMID);   
+//        fprintf(stderr,"%s: rtlfm_start() starting f(%f)\n",PROGRAMID,SetFrequency);   
+//        rtlfm_setFrequency(SetFrequency);
+//        rtlfm_start();
+//        fprintf(stderr,"%s: rtlfm_start() completed\n",PROGRAMID);   
 
 
         fprintf(stderr,"%s: Starting operations\n",PROGRAMID);
@@ -947,8 +941,8 @@ float   gain=1.0;
 // ==========================================================================================================
 // terminate rtl-sdr receiver
 // ==========================================================================================================
-        int rc_rtl_sdr=rtlfm_close();
-        fprintf(stderr,"%s rtl-sdr threads terminated rc(%d)\n",PROGRAMID,rc_rtl_sdr);
+//        int rc_rtl_sdr=rtlfm_close();
+//        fprintf(stderr,"%s rtl-sdr threads terminated rc(%d)\n",PROGRAMID,rc_rtl_sdr);
 
 // ==================================================================================================================================
 // end of loop  
