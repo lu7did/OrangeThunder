@@ -153,6 +153,7 @@ Most pre-requisites are described on the excellent tutorial "Setting up a low co
 
 ### snd-aloop configuration
 
+### socat
 
 ## Installation / update:
 
@@ -163,14 +164,55 @@ Download and compile code:
   *  sudo make
   *  sudo make install
 
-## Software installation
+## Utility software
 
 ### WSJT-X
 
 ### FLRig
 
-### rigctl
+### FLDIGI
 
+### HamLib/rigctl
+
+# Program usage
+
+
+ #!/bin/sh
+
+#*-----------------------------------------------------------------------
+#* OT.sh
+#* Script to implement a SSB transceiver using the OrangeThunder program
+#* A remote pipe is implemented to carry CAT commands
+#* Sound is feed thru the arecord command (PulseAudio ALSA), proper hardware
+#* interface needs to be established. (-a parameter enables VOX)
+#* the script needs to be called with the frequency in Hz as a parameter
+#*            ./OT.sh [frequency in Hz]
+#*-----------------------------------------------------------------------
+clear
+echo "Orange Thunder based SSB transceiver ($date)"
+echo "Frequency defined: $1"
+
+socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
+PID=$!
+echo "Pipe for /tmp/ttyv0 PID($PID)"
+
+
+#*----------------------------------------*
+#* Transceiver execution using loopback   *
+#*----------------------------------------*
+arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv1 -f "$1" -a
+
+
+echo "Removing /tmp/ttyv0 PI($PID)"
+sudo pkill socat
+#*----------------------------------------*
+#*           End of Script                * 
+#*----------------------------------------*
+
+
+
+
+# General information
 
 ## Radio licensing / RF:
 

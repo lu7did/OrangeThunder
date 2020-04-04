@@ -10,11 +10,13 @@
 #*-----------------------------------------------------------------------
 echo "Orange Thunder based SSB transceiver ($date)"
 echo "Frequency defined: $1"
-
-socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 TCP-LISTEN:8080 &
+socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
 PID=$!
+
+
+
 echo "Pipe for /tmp/ttyv0 PID($PID)"
-arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1" -a
+arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv1 -f "$1" -a
 
 echo "Removing /tmp/ttyv0 PI($PID)"
 sudo pkill socat

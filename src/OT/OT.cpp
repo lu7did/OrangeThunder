@@ -11,7 +11,7 @@
  * a Pixie transceiver hardware.
  * Project at http://www.github.com/lu7did/PixiePi
  *---------------------------------------------------------------------
- *
+ * 
  * Created by Pedro E. Colla (lu7did@gmail.com)
  * Code excerpts from several packages:
  *    rtl_fm.c from Steve Markgraf <steve@steve-m.de> and others 
@@ -52,6 +52,7 @@
 #define GPIO_KEYER       16
 #define GPIO_PULSE       20
 #define GPIO_PA          21
+
 
 #include <unistd.h>
 #include "stdio.h"
@@ -388,7 +389,7 @@ void checkAux() {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
-  //fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) SetFrequency(%d)\n",PROGRAMID,(int)cat->SetFrequency,(int)SetFrequency);
+  fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) SetFrequency(%d)\n",PROGRAMID,(int)cat->SetFrequency,(int)SetFrequency);
   if ((cat->SetFrequency<VFO_START) || (cat->SetFrequency>VFO_END)) {
      fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) out of band is rejected\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
@@ -397,7 +398,7 @@ void CATchangeFreq() {
 
 
   if (getWord(MSW,PTT) == true) {
-     //fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
+     fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
      return;
 
@@ -426,7 +427,7 @@ void CATchangeFreq() {
 //-----------------------------------------------------------------------------------------------------------
 void CATchangeMode() {
 
-  //fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d)\n",PROGRAMID,cat->MODE);
+  fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d)\n",PROGRAMID,cat->MODE);
 
   if (cat->MODE == MUSB) {
      //fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d) accepted\n",PROGRAMID,cat->MODE);
@@ -445,10 +446,10 @@ void CATchangeMode() {
 //------------------------------------------------------------------------------------------------------------
 void CATchangeStatus() {
 
-  //fprintf(stderr,"%s::CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
+  fprintf(stderr,"%s::CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
 
   if (getWord(cat->FT817,PTT) != getWord(FT817,PTT)) {        // PTT Changed
-     //fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) PTT changed to %s\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
+     fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) PTT changed to %s\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
      setPTT(getWord(cat->FT817,PTT));
   }
 
@@ -675,7 +676,7 @@ int main(int argc, char* argv[])
         fprintf(stderr,"%s %s [%s]\n",PROGRAMID,PROG_VERSION,PROG_BUILD);
 
         InputType=typeiq_float;
-        sprintf(port,"/tmp/ttyv0");
+        sprintf(port,"/tmp/ttyv1");
         sprintf(FileName,"-");
         timer_start(timer_exec,100);
 
@@ -685,12 +686,7 @@ int main(int argc, char* argv[])
         setWord(&MSW,VOX,false);
 
         fprintf(stderr,"%s:main(): GPIO low level controller\n",PROGRAMID); 
-
-// ---
-// Set cooler and shut off PTT
-// ---
-        setGPIO(COOLER_GPIO,true);
-        setGPIO(KEYER_OUT_GPIO,false);
+        setGPIO(GPIO_PTT,false);
 
 
 float  agc_rate=0.25;
@@ -728,18 +724,20 @@ float   gain=1.0;
         //SetFrequency=(float)ini_getl("Pi4D","FREQUENCY",(long int)SetFrequency,inifile);
         //cat->SetFrequency=SetFrequency;
 
-        SampleRate=(float)ini_getl("Pi4D","SAMPLERATE",(long int)SampleRate,inifile);
+        SampleRate=(float)ini_getl("OT","SAMPLERATE",(long int)SampleRate,inifile);
 
-        agc_rate=(float)(ini_getl("Pi4D","AGC_RATE",(long int)(agc_rate*100),inifile))/100.0;
-        agc_reference=(float)(ini_getl("Pi4D","AGC_REF",(long int)(agc_reference*100),inifile))/100.0;
-        agc_max_gain=(float)(ini_getl("Pi4D","AGC_MAX_GAIN",(long int)(agc_max_gain*100),inifile))/100.0;
+        agc_rate=(float)(ini_getl("OT","AGC_RATE",(long int)(agc_rate*100),inifile))/100.0;
+        agc_reference=(float)(ini_getl("OT","AGC_REF",(long int)(agc_reference*100),inifile))/100.0;
+        agc_max_gain=(float)(ini_getl("OT","AGC_MAX_GAIN",(long int)(agc_max_gain*100),inifile))/100.0;
 
 
-        nIni=ini_gets("Pi4D", "PORT", "/tmp/ttyv1", port, sizearray(port), inifile);
-        nIni=ini_gets("Pi4D", "INPUT", "/dev/stdin", FileName, sizearray(FileName), inifile);
-        catbaud=(long int)ini_getl("Pi4D","BAUD",CATBAUD,inifile);
+        nIni=ini_gets("OT", "PORT", "/tmp/ttyv1", port, sizearray(port), inifile);
+        nIni=ini_gets("OT", "INPUT", "/dev/stdin", FileName, sizearray(FileName), inifile);
+        catbaud=(long int)ini_getl("OT","BAUD",CATBAUD,inifile);
 
         fprintf(stderr,"%s:main(): INI file processed\n",PROGRAMID); 
+        fprintf(stderr,"%s:main(): INI SR(%g) AGCRate(%g) AGCRef(%g) AGCMax(%g)\n",PROGRAMID,SampleRate,agc_rate,agc_reference,agc_max_gain);
+        fprintf(stderr,"%s:main(): INI Port(%s) Baud(%li) Input(%s)\n",PROGRAMID,port,catbaud,FileName);
 
 //--------------------------------------------------------------------------------------------------
 //      Argument parsting
@@ -772,7 +770,7 @@ float   gain=1.0;
         cat->POWER=7;
         cat->SetFrequency=SetFrequency;
         cat->MODE=MUSB;
-        cat->TRACE=0x00;
+        cat->TRACE=0x02;
 
         cat->open(port,catbaud);
         setWord(&cat->FT817,AGC,false);
