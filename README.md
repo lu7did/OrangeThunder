@@ -158,11 +158,15 @@ Most pre-requisites are described on the excellent tutorial "Setting up a low co
 ## Installation / update:
 
 Download and compile code:
-  *  sudo apt-get install git
-  *  git clone https://github.com/lu7did/OrangeThunder
-  *  cd OrangeThunder/src
-  *  sudo make
-  *  sudo make install
+```
+sudo rm -r /home/pi/OrangeThunder
+cd /home/pi
+git clone https://github.com/lu7did/OrangeThunder
+cd OrangeThunder/src
+sudo make
+sudo make install
+```
+
 
 ## Utility software
 
