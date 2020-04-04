@@ -233,7 +233,7 @@ Download and compile code:
 
 ## Configuring and using WSJTX (FT8)
 
-![Alt Text](OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
+![Alt Text](docs/OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
 
 
 ### PWM Peripheral:
