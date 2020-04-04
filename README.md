@@ -177,8 +177,8 @@ Download and compile code:
 # Program usage
 
 
- #!/bin/sh
-
+```
+#!/bin/sh
 #*-----------------------------------------------------------------------
 #* OT.sh
 #* Script to implement a SSB transceiver using the OrangeThunder program
@@ -191,24 +191,19 @@ Download and compile code:
 clear
 echo "Orange Thunder based SSB transceiver ($date)"
 echo "Frequency defined: $1"
-
 socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
 PID=$!
 echo "Pipe for /tmp/ttyv0 PID($PID)"
-
-
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
 arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv1 -f "$1" -a
-
-
 echo "Removing /tmp/ttyv0 PI($PID)"
 sudo pkill socat
 #*----------------------------------------*
 #*           End of Script                * 
 #*----------------------------------------*
-
+```
 
 
 
