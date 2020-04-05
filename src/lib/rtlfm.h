@@ -118,7 +118,7 @@ void rtlfm::setFrequency(float f) {
    }
 
   
-   fprintf(stderr,"%s::setFrequency <FREQ=%s> len(%d)\n",PROGRAMID,FREQ,(unsigned)strlen(FREQ));
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency <FREQ=%s> len(%d)\n",PROGRAMID,FREQ,(unsigned)strlen(FREQ)) : _NOP);
    write(outpipefd[1], FREQ,(unsigned)strlen(FREQ)+1);
 
 }
@@ -193,7 +193,7 @@ switch(m) {
       return;
    }
 
-   fprintf(stderr,"%s::setMode(%s)\n",PROGRAMID,MODE);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%s)\n",PROGRAMID,MODE) : _NOP);
    this->stop();
    this->start();
    return;
@@ -233,7 +233,7 @@ char   command[256];
 // --- format command
 
    sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",MODE,FREQ,sr,so,vol,so); 
-   fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command);
+   (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
 
@@ -252,7 +252,7 @@ char   command[256];
 // can be handled (e.g. you can respawn the child process).
 //**************************************************************************
   running=true;
-  fprintf(stderr,"%s::start() receiver process started\n",PROGRAMID);
+  (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() receiver process started\n",PROGRAMID) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -281,6 +281,6 @@ void rtlfm::stop() {
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
   waitpid(pid, &status, 0);
   running=false;
-  fprintf(stderr,"%s::stop() process terminated\n",PROGRAMID);
+  (this->TRACE >=0x01 ? fprintf(stderr,"%s::stop() process terminated\n",PROGRAMID) : _NOP);
 
 }

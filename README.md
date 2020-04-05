@@ -280,6 +280,17 @@ pulseaudio -k
 
 ### socat
 
+### PixiePi
+
+Sister project PixiePi sources are needed to build OrangeThunder, therefore it needs to be installed as pre-requisite
+```
+cd /home/pi
+git clone https://github.com/lu7did/PixiePi
+cd PixiePi/src
+sudo make
+sudo make install
+```
+
 # Program usage
 
 ## Installation / update:
@@ -310,13 +321,28 @@ sudo make install
 clear
 echo "Orange Thunder based SSB transceiver ($date)"
 echo "Frequency defined: $1"
-socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
+if [ "$1" -eq "" ]; then
+   echo "Operation frequency must be informed, try:"
+   echo "./OT.sh [frequency in Hz]
+   exit 16
+fi
+#*----------------------------------------*
+#* Install ALSA loopback on Kernel        *
+#*----------------------------------------*
+sudo modprobe snd-aloop
+#*----------------------------------------*
+#* Launching socat server                 *
+#*----------------------------------------*
+sudo socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
 PID=$!
-echo "Pipe for /tmp/ttyv0 PID($PID)"
+echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
-arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv1 -f "$1" -a
+arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1" -a
+#*----------------------------------------*
+#* Transceiver execution using loopback   *
+#*----------------------------------------*
 echo "Removing /tmp/ttyv0 PI($PID)"
 sudo pkill socat
 #*----------------------------------------*
@@ -335,7 +361,10 @@ sudo pkill socat
 
 ![Alt Text](docs/OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
 
-
+in order to be allowed to properly operate with pipes created with socat executed under root privileges (sudo)
+```
+sudo wsjtx
+```
 
 ## FLRig
 

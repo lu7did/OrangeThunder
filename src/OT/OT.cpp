@@ -11,7 +11,8 @@
  * a Pixie transceiver hardware.
  * Project at http://www.github.com/lu7did/PixiePi
  *---------------------------------------------------------------------
- * 
+ *  
+ *
  * Created by Pedro E. Colla (lu7did@gmail.com)
  * Code excerpts from several packages:
  *    rtl_fm.c from Steve Markgraf <steve@steve-m.de> and others 
@@ -81,6 +82,7 @@
 #include <limits.h>
 #include "/home/pi/PixiePi/src/lib/SSB.h" 
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
+#include "/home/pi/PixiePi/src/lib/VFOSystem.h" 
 #include "/home/pi/PixiePi/src/pixie/pixie.h" 
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
@@ -116,6 +118,9 @@ typedef bool boolean;
 iqdmasync*  iqtest=nullptr;
 rtlfm*      rtl=nullptr;
 
+#define     VFO_LOWER_LIMIT   14000000
+#define     VFO_HIGHER_LIMIT  14299000
+
 float       SetFrequency=14074000;
 float       SampleRate=6000;
 
@@ -130,9 +135,10 @@ char        iniSection[50];
 
 // --- Transceiver control structure
 long int TVOX=0;
-
 byte MSW=0;
-byte trace=0x00;
+
+//byte trace=0x00;
+byte TRACE=0x00;
 
 // --- CAT object
 
@@ -140,6 +146,7 @@ void CATchangeMode();
 void CATchangeFreq();
 void CATchangeStatus();
 
+VFOSystem *vfo;
 CAT817* cat;
 byte FT817;
 long int  bButtonAnt=0;
@@ -389,20 +396,22 @@ void checkAux() {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
-  fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) SetFrequency(%d)\n",PROGRAMID,(int)cat->SetFrequency,(int)SetFrequency);
-  if ((cat->SetFrequency<VFO_START) || (cat->SetFrequency>VFO_END)) {
+  //fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) SetFrequency(%d)\n",PROGRAMID,(int)cat->SetFrequency,(int)SetFrequency);
+  if ((cat->SetFrequency<VFO_LOWER_LIMIT) || (cat->SetFrequency>VFO_HIGHER_LIMIT)) {
      fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) out of band is rejected\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
+     vfo->set(vfo->vfoAB,(long int)SetFrequency);
      return;
   }
 
 
   if (getWord(MSW,PTT) == true) {
-     fprintf(stderr,"%s::CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
+     fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
      cat->SetFrequency=SetFrequency;
+     vfo->set(vfo->vfoAB,(long int)SetFrequency);
      return;
 
-// ---
+// --- DEAD CODE
      if (iqtest != nullptr) {
         iqtest->clkgpio::disableclk(GPIO04);
         iqtest->clkgpio::SetAdvancedPllMode(true);
@@ -415,10 +424,11 @@ void CATchangeFreq() {
 
 
   SetFrequency=cat->SetFrequency;
+  vfo->set(vfo->vfoAB,(long int) SetFrequency);
   if (rtl != nullptr) {
      rtl->setFrequency(SetFrequency);
   }
-  fprintf(stderr,"%s::CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
+  fprintf(stderr,"%s:CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
 }
 //-----------------------------------------------------------------------------------------------------------
 // CATchangeMode
@@ -427,14 +437,13 @@ void CATchangeFreq() {
 //-----------------------------------------------------------------------------------------------------------
 void CATchangeMode() {
 
-  fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d)\n",PROGRAMID,cat->MODE);
-
-  if (cat->MODE == MUSB) {
-     //fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d) accepted\n",PROGRAMID,cat->MODE);
+  if (cat->MODE == MUSB || cat->MODE == MLSB || cat->MODE == MAM || cat->MODE == MFM || cat->MODE == MWFM) {
+     rtl->setMode(cat->MODE);
+     fprintf(stderr,"%s:CATchangeMode() mode change to MODE(%d) accepted\n",PROGRAMID,cat->MODE);
      return;
   }
 
-  fprintf(stderr,"%s::CATchangeMode() cat.MODE(%d) invalid only USB supported\n",PROGRAMID,cat->MODE);
+  fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE);
   cat->MODE=MUSB;
   return;
 
@@ -446,28 +455,30 @@ void CATchangeMode() {
 //------------------------------------------------------------------------------------------------------------
 void CATchangeStatus() {
 
-  fprintf(stderr,"%s::CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
+  fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
 
   if (getWord(cat->FT817,PTT) != getWord(FT817,PTT)) {        // PTT Changed
-     fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) PTT changed to %s\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
+     fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
      setPTT(getWord(cat->FT817,PTT));
   }
 
   if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
-     fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false");
+     fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false");
   }
 
   if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed
-     fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false");
+     fprintf(stderr,"%s:CATchangeStatus() LOCK change request cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false");
   }
 
   if (getWord(cat->FT817,SPLIT) != getWord(FT817,SPLIT)) {    // SPLIT mode Changed
-     fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false");
+     fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false");
   }
 
   if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
      setWord(&FT817,VFO,getWord(cat->FT817,VFO));
-     //fprintf(stderr,"%s::CATchangeStatus() cat.FT817(%d) VFO changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,VFO) ? "VFO A" : "VFO B");
+     (getWord(cat->FT817,VFO)==false ? vfo->vfoAB = VFOA : vfo->vfoAB = VFOB);
+     cat->SetFrequency = (float) vfo->get(vfo->vfoAB);
+     fprintf(stderr,"%s:CATchangeStatus() VFO change request cat.FT817(%d) VFO changed to (%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,VFO) ? "VFO A" : "VFO B");
   }
 
   FT817=cat->FT817;
@@ -539,9 +550,9 @@ Usage: [-i File Input][-s Samplerate][-l] [-f Frequency] [-h Harmonic number] \n
 static void terminate(int num)
 {
     setWord(&MSW,RUN,false);
-    fprintf(stderr,"%s: Caught TERM signal(%x) - Terminating \n",PROGRAMID,num);
+    fprintf(stderr,"%s:terminate() Caught TERM signal(%x) - Terminating \n",PROGRAMID,num);
     if (exitrecurse > 0) {
-       fprintf(stderr,"%s: Recursive trap - Force termination \n",PROGRAMID);
+       fprintf(stderr,"%s:terminate() Recursive trap - Force termination \n",PROGRAMID);
        exit(16);
     }
     exitrecurse++;
@@ -552,29 +563,6 @@ static void terminate(int num)
     //do_exit = 1;
     //rtlsdr_cancel_async(dongle.dev);
 
-
-
-}
-//---------------------------------------------------------------------------------
-// ISRAuxPTTOn
-// ISR handler for AUX button 
-//---------------------------------------------------------------------------------
-void ISRAuxPTTOn (void) {
-
-   fprintf(stderr,"%s::ISRAuxPTTOn digitalRead(%d)\n",PROGRAMID,digitalRead(AUX_GPIO));
-   setPTT(true);
-   return;
-
-}
-//---------------------------------------------------------------------------------
-// ISRAuxPTTOff
-// ISR handler for AUX button 
-//---------------------------------------------------------------------------------
-void ISRAuxPTTOff (void) {
-
-   fprintf(stderr,"%s::ISRAuxPTTOff digitalRead(%d)\n",PROGRAMID,digitalRead(AUX_GPIO));
-   setPTT(false);
-   return;
 
 
 }
@@ -598,28 +586,28 @@ void arg_parse(int argc, char* argv[]) {
 		case 'i': // File name
                         sprintf(FileName,optarg);
 			//FileName = optarg;
-			fprintf(stderr,"%s: Filename(%s)\n",PROGRAMID,FileName);
+			fprintf(stderr,"%s:arg_parse() Filename(%s)\n",PROGRAMID,FileName);
 			break;
 		case 'c': // INI file
                         strcpy(inifile,optarg);
-			fprintf(stderr,"%s: Configuration file (%s)\n",PROGRAMID,inifile);
+			fprintf(stderr,"%s:arg_parse() Configuration file (%s)\n",PROGRAMID,inifile);
 			break;
 		case 'a': // loop mode
 			usb->agc.active=true;
-			fprintf(stderr,"%s: AGC activated\n",PROGRAMID);
+			fprintf(stderr,"%s:arg_parse() AGC activated\n",PROGRAMID);
 			break;
 		case 'f': // Frequency
 			SetFrequency = atof(optarg);
 			//cat->SetFrequency=SetFrequency;
-			fprintf(stderr,"%s: Frequency(%10f)\n",PROGRAMID,SetFrequency);
+			fprintf(stderr,"%s:arg_parse() Frequency(%10f)\n",PROGRAMID,SetFrequency);
 			break;
                 case 'p': //serial port
                         sprintf(port,optarg);
-                        fprintf(stderr,"%s: Serial Port(%s)\n",PROGRAMID, port);
+                        fprintf(stderr,"%s:arg_parse() Serial Port(%s)\n",PROGRAMID, port);
                         break;
 		case 's': // SampleRate (Only needeed in IQ mode)
 			SampleRate = atoi(optarg);
-			fprintf(stderr,"%s: SampleRate(%10f)\n",PROGRAMID,SampleRate);
+			fprintf(stderr,"%s:arg_parse() SampleRate(%10f)\n",PROGRAMID,SampleRate);
 			if(SampleRate>MAX_SAMPLERATE) 
 			{
 				for(int i=2;i<12;i++) //Max 10 times samplerate
@@ -633,12 +621,12 @@ void arg_parse(int argc, char* argv[]) {
 				}
 				if(Decimation==1)
 				{
-					 fprintf(stderr,"%s: SampleRate too high : >%d sample/s",PROGRAMID,10*MAX_SAMPLERATE);
+					 fprintf(stderr,"%s:arg_parse() SampleRate too high : >%d sample/s",PROGRAMID,10*MAX_SAMPLERATE);
 					 exit(1);
 				} 
 				else
 				{
-					fprintf(stderr,"%s: Warning samplerate too high, decimation by %d will be performed",PROGRAMID,Decimation);	 
+					fprintf(stderr,"%s:arg_parse() Warning samplerate too high, decimation by %d will be performed",PROGRAMID,Decimation);	 
 				}
 			};
 			break;
@@ -650,11 +638,11 @@ void arg_parse(int argc, char* argv[]) {
 		case '?':
 			if (isprint(optopt) )
  			{
- 			   fprintf(stderr, "%s: unknown option `-%c'.\n",PROGRAMID,optopt);
+ 			   fprintf(stderr, "%s:arg_parse() unknown option `-%c'.\n",PROGRAMID,optopt);
  			}
 			else
 			{
-				fprintf(stderr, "%s: unknown option character `\\x%x'.\n",PROGRAMID,optopt);
+				fprintf(stderr, "%s:arg_parse() unknown option character `\\x%x'.\n",PROGRAMID,optopt);
 			}
 			print_usage();
 			exit(1);
@@ -676,7 +664,7 @@ int main(int argc, char* argv[])
         fprintf(stderr,"%s %s [%s]\n",PROGRAMID,PROG_VERSION,PROG_BUILD);
 
         InputType=typeiq_float;
-        sprintf(port,"/tmp/ttyv1");
+        sprintf(port,"/tmp/ttyv0");
         sprintf(FileName,"-");
         timer_start(timer_exec,100);
 
@@ -731,13 +719,13 @@ float   gain=1.0;
         agc_max_gain=(float)(ini_getl("OT","AGC_MAX_GAIN",(long int)(agc_max_gain*100),inifile))/100.0;
 
 
-        nIni=ini_gets("OT", "PORT", "/tmp/ttyv1", port, sizearray(port), inifile);
+        nIni=ini_gets("OT", "PORT", "/tmp/ttyv0", port, sizearray(port), inifile);
         nIni=ini_gets("OT", "INPUT", "/dev/stdin", FileName, sizearray(FileName), inifile);
         catbaud=(long int)ini_getl("OT","BAUD",CATBAUD,inifile);
 
-        fprintf(stderr,"%s:main(): INI file processed\n",PROGRAMID); 
-        fprintf(stderr,"%s:main(): INI SR(%g) AGCRate(%g) AGCRef(%g) AGCMax(%g)\n",PROGRAMID,SampleRate,agc_rate,agc_reference,agc_max_gain);
-        fprintf(stderr,"%s:main(): INI Port(%s) Baud(%li) Input(%s)\n",PROGRAMID,port,catbaud,FileName);
+        fprintf(stderr,"%s:main():main() INI file processed\n",PROGRAMID); 
+        fprintf(stderr,"%s:main():main() INI SR(%g) AGCRate(%g) AGCRef(%g) AGCMax(%g)\n",PROGRAMID,SampleRate,agc_rate,agc_reference,agc_max_gain);
+        fprintf(stderr,"%s:main():main() INI Port(%s) Baud(%li) Input(%s)\n",PROGRAMID,port,catbaud,FileName);
 
 //--------------------------------------------------------------------------------------------------
 //      Argument parsting
@@ -757,6 +745,19 @@ float   gain=1.0;
            sigaction(i, &sa, NULL);
         }
 
+
+//--------------------------------------------------------------------------------------------------
+// Setup VFO Object
+//--------------------------------------------------------------------------------------------------
+        fprintf(stderr,"%s:main() Creating VFO objecdt\n",PROGRAMID);
+        vfo=new VFOSystem(NULL,NULL,NULL,NULL);
+
+        vfo->set(VFOA,(long int)SetFrequency);
+        vfo->set(VFOB,(long int)SetFrequency);
+        vfo->setVFO(VFOA);
+        vfo->setVFOLimit(VFOA,(long int)VFO_LOWER_LIMIT,(long int)VFO_HIGHER_LIMIT);
+        vfo->setVFOLimit(VFOB,(long int)VFO_LOWER_LIMIT,(long int)VFO_HIGHER_LIMIT);
+
 //--------------------------------------------------------------------------------------------------
 // Setup CAT object
 //--------------------------------------------------------------------------------------------------
@@ -770,7 +771,7 @@ float   gain=1.0;
         cat->POWER=7;
         cat->SetFrequency=SetFrequency;
         cat->MODE=MUSB;
-        cat->TRACE=0x02;
+        cat->TRACE=TRACE;
 
         cat->open(port,catbaud);
         setWord(&cat->FT817,AGC,false);
@@ -814,7 +815,7 @@ float   gain=1.0;
 
         setPTT(false);
 
-        fprintf(stderr,"%s: Starting operations\n",PROGRAMID);
+        fprintf(stderr,"%s:main() Starting operations\n",PROGRAMID);
         setWord(&MSW,RUN,true);
 
         float voxmin=usb->agc.max_gain;
