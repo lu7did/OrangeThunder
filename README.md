@@ -138,18 +138,134 @@ Most scripts arguments can be obtained using either -h o --h as argument, or jus
 Most pre-requisites are described on the excellent tutorial "Setting up a low cost QRP monitoring station with an RTL-SDR V3 and Raspberry Pi 3" [here](https://www.rtl-sdr.com/tutorial-setting-up-a-low-cost-qrp-ft8-jt9-wspr-etc-monitoring-station-with-an-rtl-sdr-v3-and-raspberry-pi-3/)
 
 ### RTL-SDR Drivers
+```
+sudo apt-get update
+sudo apt-get install libusb-1.0-0-dev git cmake -y
+git clone https://github.com/keenerd/rtl-sdr
+cd rtl-sdr/
+mkdir build
+cd build
+cmake ../ -DINSTALL_UDEV_RULES=ON
+make
+sudo make install
+sudo cp ../rtl-sdr.rules /etc/udev/rules.d/
+sudo ldconfig
+echo 'blacklist dvb_usb_rtl28xxu' | sudo tee --append /etc/modprobe.d/blacklist-dvb_usb_rtl28xxu.conf
+```
 
 ### PulseAudio and MPlayer
 
+```
+sudo apt-get install pulseaudio pavucontrol mplayer -y
+```
+
 ### CSDR
+
+```
+sudo apt-get install libfftw3-dev -y
+cd ~
+git clone https://github.com/simonyiszk/csdr
+cd csdr
+```
+
+
+The Makefile can be opened with "sudo leafpad Makefile"
+
+```
+-march=armv8-a
+-mtune=cortex-a53
+-mfpu=neon-fp-armv8.
+```
+
+Also under PARAMS_RASPI set:
+
+```
+-mcpu=cortex-a53
+-mfpu=neon-fp-armv8.
+```
+
+```
+make
+sudo make install
+```
 
 ### ncat
 
+```
+sudo apt-get install nmap -y
+```
+
 ### ntp Daemon
 
-### WSJT-X
+```
+sudo apt-get install ntp
+```
 
 ### Audio Piping Setup
+
+
+Install ALSA
+
+```
+cd /usr/src
+mkdir alsa
+cd alsa
+cp /downloads/alsa-* .
+```
+
+
+unzip and install ALSA driver
+
+```
+bunzip2 alsa-driver-xxx
+tar -xf alsa-driver-xxx
+cd alsa-driver-xxx
+./configure --with-cards=aloop --with-sequencer=yes ; make ; make install
+```
+
+unzip and install ALSA firmware
+
+```
+cd ..
+bunzip2 alsa-firmware-xxx
+tar -xf alsa-firmware-xxx
+cd alsa-firmware-xxx
+./configure ; make ; make install
+```
+
+unzip and install ALSA utils
+
+```
+cd ..
+bunzip2 alsa-utils-xxx
+tar -xf alsa-utils-xxx
+cd alsa-utils-xxx
+./configure ; make ; make install
+```
+
+
+Install modules into kernel
+
+```
+modprobe snd-aloop ; modprobe snd-pcm-oss ; modprobe snd-mixer-oss ; modprobe snd-seq-oss
+```
+
+We need to initially create virtual audio sinks for each frequency. The example below will set up a two virtual audio sinks that load on boot. To set up another, simply add more lines from Virtual 2 and and so on. First open the pulseaudio default.pa file:
+
+sudo leafpad /etc/pulse/default.pa
+Add the following lines to the end of the file:
+
+load-module module-null-sink sink_name=Virtual0 sink_properties=device.description="Virtual0"
+load-module module-null-sink sink_name=Virtual1 sink_properties=device.description="Virtual1"
+We also recommend disabling PulseAudio logging, as this seems to be a large user of CPU cycles.
+
+sudo leafpad /etc/pulse/daemon.conf
+Now find "log-level" and change it to "log-level = error". Remove the semi-colon on the log-level line too. Save and exit.
+
+; log-target = auto
+log-level = error
+; log-meta = no
+You can now reload pulseaudio either by rebooting, or running "pulseaudio -k" at a command line.
 
 ### snd-aloop configuration
 
