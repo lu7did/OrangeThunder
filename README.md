@@ -113,7 +113,7 @@ Raspberry Pi is a marvel.
 
 Hamradio is the best thing ever invented.
 
-¡So don't ruin either by connecting GPIO04 directly to an antenna!
+¡So don't ruin either by connecting GPIO4 directly to an antenna!
 
 You'll make life of others in your neighboor unsormountable, and even
 could get your Raspberry Pi fried in the process.
@@ -280,6 +280,8 @@ pulseaudio -k
 
 ### socat
 
+# Program usage
+
 ## Installation / update:
 
 Download and compile code:
@@ -292,19 +294,7 @@ sudo make
 sudo make install
 ```
 
-
-## Utility software
-
-### WSJT-X
-
-### FLRig
-
-### FLDIGI
-
-### HamLib/rigctl
-
-# Program usage
-
+## Executing (Runtime)
 
 ```
 #!/bin/sh
@@ -333,6 +323,21 @@ sudo pkill socat
 #*           End of Script                * 
 #*----------------------------------------*
 ```
+
+
+
+
+# Configuring ham software
+
+## WSJT-X
+
+## FLRig
+
+## FLDIGI
+
+## HamLib/rigctl
+
+
 
 
 
