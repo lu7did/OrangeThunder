@@ -331,6 +331,12 @@ sudo pkill socat
 
 ## WSJT-X
 
+### Configuring and using WSJTX (FT8)
+
+![Alt Text](docs/OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
+
+
+
 ## FLRig
 
 ## FLDIGI
@@ -433,9 +439,6 @@ sudo pkill socat
 ![Alt Text](docs/OrangeThunder.jpg?raw=true "Hardware Prototype Schematic")
 
 
-## Configuring and using WSJTX (FT8)
-
-![Alt Text](docs/OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
 
 
 ### PWM Peripheral:
