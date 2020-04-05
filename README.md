@@ -252,22 +252,31 @@ modprobe snd-aloop ; modprobe snd-pcm-oss ; modprobe snd-mixer-oss ; modprobe sn
 
 We need to initially create virtual audio sinks for each frequency. The example below will set up a two virtual audio sinks that load on boot. To set up another, simply add more lines from Virtual 2 and and so on. First open the pulseaudio default.pa file:
 
-sudo leafpad /etc/pulse/default.pa
-Add the following lines to the end of the file:
+sudo nano /etc/pulse/default.pa
 
+and add the following lines to the end of the file:
+
+```
 load-module module-null-sink sink_name=Virtual0 sink_properties=device.description="Virtual0"
 load-module module-null-sink sink_name=Virtual1 sink_properties=device.description="Virtual1"
+```
+
 We also recommend disabling PulseAudio logging, as this seems to be a large user of CPU cycles.
 
-sudo leafpad /etc/pulse/daemon.conf
+sudo nano /etc/pulse/daemon.conf
 Now find "log-level" and change it to "log-level = error". Remove the semi-colon on the log-level line too. Save and exit.
 
+```
 ; log-target = auto
 log-level = error
 ; log-meta = no
-You can now reload pulseaudio either by rebooting, or running "pulseaudio -k" at a command line.
+```
 
-### snd-aloop configuration
+You  can now reload pulseaudio either by rebooting, or running at command line
+
+```
+pulseaudio -k
+```
 
 ### socat
 
