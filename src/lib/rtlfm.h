@@ -232,7 +232,7 @@ char   command[256];
 
 // --- format command
 
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",MODE,FREQ,sr,so,vol,so); 
+   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct 2>/dev/null | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null",MODE,FREQ,sr,so,vol,so); 
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization

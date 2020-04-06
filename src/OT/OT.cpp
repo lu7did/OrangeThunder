@@ -1,4 +1,4 @@
-/*
+/* 
  * OT.cpp
  * Raspberry Pi based USB experimental SSB Generator for digital modes (mainly WSPR and FT8)
  * Experimental version largely modelled after rtl_fm  and librpitx
@@ -370,18 +370,17 @@ void setPTT(bool statePTT) {
 //--------------------------------------------------------------------------------------------------
 void checkAux() {
 
-   int GPIO27=27;
-   long int bButton=getGPIO(GPIO27);
+   long int bButton=getGPIO(GPIO_PULSE);
 
    if (bButton!=bButtonAnt) {
       bButtonAnt=bButton;
       if (getWord(MSW,PTT)==false) {
          if (bButton == 0) {
-            //fprintf(stderr,"%s AUX Pin Pressed (%ld)\n",PROGRAMID,bButtonAnt);
+            fprintf(stderr,"%s:checkAux() AUX Pin Pressed (%ld)->(%ld)\n",PROGRAMID,bButtonAnt,bButton);
             setWord(&MSW,TUNE,true);
             setPTT(true);
         } else {
-            //fprintf(stderr,"%s AUX Pin Released (%ld)\n",PROGRAMID,bButtonAnt);
+            fprintf(stderr,"%s:checkAux() AUX Pin Released (%ld)->(%ld)\n",PROGRAMID,bButtonAnt,bButton);
             setPTT(false);
         }
      } else {
@@ -822,6 +821,8 @@ float   gain=1.0;
         float voxmin=usb->agc.max_gain;
         float voxmax=0.0;
         float voxlvl=voxmin;
+        char* bufferr;
+        bufferr=(char*)malloc(2048*sizeof(unsigned char));
 
 // ==================================================================================================================================
 //                                               MAIN LOOP
@@ -829,8 +830,13 @@ float   gain=1.0;
 	while(getWord(MSW,RUN)==true)
 	{
 			int CplxSampleNumber=0;
-  			//cat->get();
-			//checkAux();
+                        if (rtl!=nullptr) {
+                           int rerr=rtl->readpipe(bufferr,1024);
+                           bufferr[rerr]=0x00;
+                           fprintf(stderr,"%s:STDERR->%s",PROGRAMID,(char*)bufferr);
+                        }
+  			cat->get();
+			checkAux();
 			switch(InputType)
 			{
 				case typeiq_float:
