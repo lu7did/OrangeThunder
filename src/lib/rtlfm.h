@@ -99,7 +99,7 @@ rtlfm::rtlfm(){
    so=4000;
    vol=0;
    running=false;
-   fprintf(stderr,"%s::rtlfm() Initialization completed\n",PROGRAMID);
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::rtlfm() Initialization completed\n",PROGRAMID) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------

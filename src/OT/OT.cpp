@@ -138,7 +138,7 @@ long int TVOX=0;
 byte MSW=0;
 
 //byte trace=0x00;
-byte TRACE=0x00;
+byte TRACE=0x02;
 
 // --- CAT object
 
@@ -356,6 +356,7 @@ void setPTT(bool statePTT) {
        rtl=new rtlfm();
        rtl->setFrequency(SetFrequency);
        rtl->setMode(MUSB);
+       rtl->TRACE=TRACE;
        rtl->start();
        fprintf(stderr,"%s:setPTT(false) starting rtl-sdr initialized\n",PROGRAMID);
     }
@@ -815,7 +816,7 @@ float   gain=1.0;
 
         setPTT(false);
 
-        fprintf(stderr,"%s:main() Starting operations\n",PROGRAMID);
+        fprintf(stderr,"%s:main() Starting operations TRACE[%d] CAT[%s]\n",PROGRAMID,TRACE,(cat->active==true ? "True" : "False"));
         setWord(&MSW,RUN,true);
 
         float voxmin=usb->agc.max_gain;
@@ -828,8 +829,8 @@ float   gain=1.0;
 	while(getWord(MSW,RUN)==true)
 	{
 			int CplxSampleNumber=0;
-  			cat->get();
-			checkAux();
+  			//cat->get();
+			//checkAux();
 			switch(InputType)
 			{
 				case typeiq_float:
@@ -837,6 +838,7 @@ float   gain=1.0;
 					int nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
 					if(nbread>0)
 					{
+					  //fprintf(stderr,"%s:loop() PTT(%d) read(%d) frames\n",PROGRAMID,getWord(MSW,PTT),nbread);
 					  int numSamplesLow=usb->generate(buffer_i16,nbread,Ibuffer,Qbuffer);
 					  if (getWord(MSW,PTT)==true) {
 					     for(int i=0;i<numSamplesLow;i++)
@@ -859,6 +861,8 @@ float   gain=1.0;
 		}
 		if (getWord(MSW,PTT)==true) {
 		   iqtest->SetIQSamples(CIQBuffer,CplxSampleNumber,Harmonic);
+                } else {
+                   usleep(100000);
                 }
 
 // ---
@@ -880,6 +884,7 @@ float   gain=1.0;
 		   setWord(&MSW,VOX,false);
 
 		   if (getWord(MSW,PTT)==false) {
+                      fprintf(stderr,"%s:loop() VOX is activated\n",PROGRAMID);
 		      setPTT(true);
 		      setWord(&MSW,PTT,true);
 
@@ -888,6 +893,7 @@ float   gain=1.0;
 
 		if (getWord(MSW,VOX)==true) {
 		   setWord(&MSW,VOX,false);
+                   fprintf(stderr,"%s:loop() VOX is turned off\n",PROGRAMID);
 		   setPTT(false);
 		   setWord(&MSW,PTT,false);
 
