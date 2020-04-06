@@ -1692,8 +1692,9 @@ int main(int argc, char **argv)
 		pthread_create(&demod2.thread, NULL, demod_thread_fn, (void *)(&demod2));
 	}
 	pthread_create(&dongle.thread, NULL, dongle_thread_fn, (void *)(&dongle));
+//*****************************************************************************************************************************
 // *-----------
-// *----------- Patch to process commands received thru standard input
+// *----------- Patch to process commands received thru standard input, change frequency at this point
 // *----------- 
     int fdin = open("/dev/stdin", O_RDWR, S_IRUSR | S_IWUSR);
 // read the current settings first
@@ -1728,6 +1729,8 @@ int main(int argc, char **argv)
 //*----------
 //*---------- End of patch
 //*----------
+//*****************************************************************************************************************************
+
 	    usleep(100000);
 	}
 
