@@ -27,7 +27,6 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/tune : rpitx/tune.cpp $(LIBRPITX)/src/librpitx.a
 	$(CCP) $(CXXFLAGS) -o ../bin/tune rpitx/tune.cpp  $(LDFLAGS)
 
-
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 

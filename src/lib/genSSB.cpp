@@ -86,7 +86,7 @@
 #define AGC_LEVEL 0.80
 #define IQBURST   4000
 #define AFRATE   48000
-
+#define ONESEC       1
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
@@ -104,7 +104,7 @@ int      Decimation=1;
 long int TVOX=0;
 int      ax;
 byte     MSW=0;
-
+byte     fVOX=0;
 
 float    agc_reference=1.0;
 float    agc_max=5.0;
@@ -112,7 +112,7 @@ float    agc_alpha=0.25;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=1.0;
 
-int      vox_timeout=0;
+int      vox_timeout=2;
 int      gpio_ptt=12;
 
 short    *buffer_i16;
@@ -150,10 +150,13 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 //--------------------------------------------------------------------------------------------------
 void timer_exec()
 {
+  //fprintf(stderr,"%s Timer ticker(%ld)\n",PROGRAMID,TVOX);
   if (TVOX!=0) {
      TVOX--;
+     //fprintf(stderr,"%s Timer countdown(%ld)\n",PROGRAMID,TVOX);
      if(TVOX==0) {
-       fprintf(stderr,"VOX turned off\n");
+       fVOX=1;
+       //fprintf(stderr,"%s VOX turned off\n",PROGRAMID);
      }
   }
 }
@@ -173,7 +176,18 @@ void timer_start(std::function<void(void)> func, unsigned int interval)
     }
   }).detach();
 }
+// *---------------------------------------------------
+// * alarm handler
+// *---------------------------------------------------
+void sigalarm_handler(int sig)
+{
 
+   timer_exec();
+   alarm(ONESEC);
+   return;
+
+
+}
 //---------------------------------------------------------------------------------
 // Print usage
 //---------------------------------------------------------------------------------
@@ -320,14 +334,46 @@ float   gain=1.0;
         fprintf(stderr,"%s:main(): Program execution starting\n",PROGRAMID);
 
     int k=0;
+  float maxgain=0.0;
+  float mingain=usb->agc.max_gain;
+  float thrgain=usb->agc.max_gain*0.50;
+
+        signal(SIGALRM, &sigalarm_handler);  // set a signal handler
+        alarm(1);
 //*---------------- executin loop
 	while(running==true)
 	{
            nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
            k=k+nbread;;
-           if(k%10000 == 0) {
-             fprintf(stderr,"%s Buffer read (%d) gain(%g)\n",PROGRAMID,k,gain);
+
+           if (gain<mingain) {
+              mingain=gain;
+              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+
            }
+           if (gain>maxgain) {
+              maxgain=gain;
+              thrgain=maxgain*0.50;
+              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+           }
+
+           if (gain<thrgain) {
+              if (TVOX==0) {
+                 fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)** VOX activated **\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+              }
+              //TVOX=vox_timeout;
+              TVOX=2;
+
+           }
+
+           if (fVOX==1) {
+              fVOX=0;
+              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld) ** VOX cancelled **\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+           }
+
+           //if(k%10000 == 0) {
+           //  fprintf(stderr,"%s Buffer read (%d) gain(%g)\n",PROGRAMID,k,gain);
+           //}
 	   if(nbread>0) {
 	      numSamplesLow=usb->generate(buffer_i16,nbread,Ibuffer,Qbuffer);
               for (int i=0;i<numSamplesLow;i++) {
