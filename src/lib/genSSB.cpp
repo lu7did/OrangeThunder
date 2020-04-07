@@ -127,7 +127,7 @@ byte     fVOX=0;
 
 float    agc_reference=1.0;
 float    agc_max=5.0;
-float    agc_alpha=0.25;
+float    agc_alpha=0.5;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=1.0;
 
@@ -399,7 +399,8 @@ float   gain=1.0;
 
            if (gain<thrgain) {
               if (TVOX==0) {
-                 fprintf(stderr,"%s gain(%g) ** VOX activated **\n",PROGRAMID,gain);
+                 //setPTT(true);
+                 fprintf(stderr,"%s gain(%2f) ** VOX activated **\n",PROGRAMID,gain);
               }
               TVOX=2;
 
@@ -408,7 +409,7 @@ float   gain=1.0;
            if (fVOX==1) {
               fVOX=0;
               //setPTT(false);
-              fprintf(stderr,"%s gain(%g) ** VOX released **\n",PROGRAMID,gain);
+              fprintf(stderr,"%s gain(%2f) ** VOX released **\n",PROGRAMID,gain);
            }
 
 	   if(nbread>0) {

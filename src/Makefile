@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB
+all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -42,6 +42,9 @@ LSDR = /usr/local/lib/librtlsdr.a
 
 ../bin/demo_rtlfm : lib/demo_rtlfm.c 
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_rtlfm ./lib/demo_rtlfm.c  $(LDFLAGS)
+
+../bin/demo_genSSB : lib/demo_genSSB.c 
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c  $(LDFLAGS)
 
 #---- Staffing crypt
 #../bin/test_rtlfm2 : lib/test_rtlfm2.c 
