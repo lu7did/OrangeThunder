@@ -39,13 +39,14 @@
 
 
 #define PROGRAM_VERSION "1.0"
-#define PTT 0B00000001
+//#define PTT 0B00000001
 #define VOX 0B00000010
 #define RUN 0B00000100
 #define MAX_SAMPLERATE 200000
 #define BUFFERSIZE      96000
 #define IQBURST          4000
-
+#define GPIO_PTT	   12
+#define OUR_INPUT_FIFO_NAME "/tmp/cat_fifo"
 
 #include <unistd.h>
 #include "stdio.h"
@@ -76,12 +77,23 @@
 #include <limits.h>
 #include <functional>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
 #include "/home/pi/PixiePi/src/lib/SSB.h"
-//#include "/home/pi/PixiePi/src/lib/Decimator.h" 
-//#include "/home/pi/PixiePi/src/lib/Interpolator.h" 
-//#include "/home/pi/PixiePi/src/lib/FIRFilter.h" 
-//#include "/home/pi/PixiePi/src/lib/AGControl.h" 
 #include "/home/pi/librpitx/src/librpitx.h"
+#include "/home/pi/PixiePi/src/lib/RPI.h" 
+
+// GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x)
+
+#define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
+#define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
+#define SET_GPIO_ALT(g,a) *(gpio.addr + (((g)/10))) |= (((a)<=3?(a) + 4:(a)==4?3:2)<<(((g)%10)*3))
+#define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
+#define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
+#define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
+
 
 #define AGC_LEVEL 0.80
 #define IQBURST   4000
@@ -95,6 +107,13 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 typedef unsigned char byte;
 typedef bool boolean;
+
+
+//unsigned char rx_buffer [ 256 ];
+char*    cmd_buffer;
+int      cmd_length;
+int      cmd_FD = -1;
+int      cmd_result;
 
 bool     running=true;
 float    SetFrequency=14074000;
@@ -143,7 +162,6 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
-
 //--------------------------------------------------------------------------------------------------
 // timer_exec 
 // timer management
@@ -314,6 +332,7 @@ FILE *outfile=NULL;
         Ibuffer =(float*)malloc(IQBURST*sizeof(short)*2);
         Qbuffer =(float*)malloc(IQBURST*sizeof(short)*2);
         Fout    =(float*)malloc(IQBURST*sizeof(short)*4);
+        cmd_buffer=(char*)malloc(1024);
 
 float   gain=1.0;
 
@@ -329,8 +348,6 @@ float   gain=1.0;
            usb->agc.active=false;
         }
         fprintf(stderr,"%s:main(): SSB controller generation completed\n",PROGRAMID); 
-
-
         fprintf(stderr,"%s:main(): Program execution starting\n",PROGRAMID);
 
     int k=0;
@@ -340,40 +357,60 @@ float   gain=1.0;
 
         signal(SIGALRM, &sigalarm_handler);  // set a signal handler
         alarm(1);
+
+
+        fprintf (stderr,"%s Making FIFO...n",PROGRAMID);
+        cmd_result = mkfifo ( OUR_INPUT_FIFO_NAME, 0777 );
+        cmd_FD = open ( OUR_INPUT_FIFO_NAME, ( O_RDONLY | O_NONBLOCK ) );
+
 //*---------------- executin loop
 	while(running==true)
 	{
+
+// --- process commands thru pipe
+
+           cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
+           if ( cmd_length > 0 ) {
+              cmd_buffer[cmd_length] = 0x00;
+              fprintf (stderr,"%s FIFO Command %i bytes read : %s\n", PROGRAMID,cmd_length, cmd_buffer );
+              if (strcmp(cmd_buffer, "PTTON\n") == 0) {
+                 fprintf (stderr,"%s PTT(on) command received\n",PROGRAMID);
+                 //setPTT(true);
+               }
+              if (strcmp(cmd_buffer, "PTTOFF\n") == 0) {
+                 fprintf (stderr,"%s PTT(off) command received\n",PROGRAMID);
+                 //setPTT(false);
+               }
+           }else;
+
+// --- end of command processing
+
            nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
            k=k+nbread;;
 
            if (gain<mingain) {
               mingain=gain;
-              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
 
            }
            if (gain>maxgain) {
               maxgain=gain;
               thrgain=maxgain*0.50;
-              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
            }
 
            if (gain<thrgain) {
               if (TVOX==0) {
-                 fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld)** VOX activated **\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+                 fprintf(stderr,"%s gain(%g) ** VOX activated **\n",PROGRAMID,gain);
               }
-              //TVOX=vox_timeout;
               TVOX=2;
 
            }
 
            if (fVOX==1) {
               fVOX=0;
-              fprintf(stderr,"%s k(%d) gain(%g) min(%g) max(%g) thr(%g) TVOX(%ld) ** VOX cancelled **\n",PROGRAMID,k,gain,mingain,maxgain,thrgain,TVOX);
+              //setPTT(false);
+              fprintf(stderr,"%s gain(%g) ** VOX released **\n",PROGRAMID,gain);
            }
 
-           //if(k%10000 == 0) {
-           //  fprintf(stderr,"%s Buffer read (%d) gain(%g)\n",PROGRAMID,k,gain);
-           //}
 	   if(nbread>0) {
 	      numSamplesLow=usb->generate(buffer_i16,nbread,Ibuffer,Qbuffer);
               for (int i=0;i<numSamplesLow;i++) {
