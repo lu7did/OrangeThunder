@@ -30,7 +30,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
-../bin/genSSB : lib/genSSB.cpp /home/pi/librpitx/src/librpitx.a  $(PP)/lib/RPI.h $(PP)/minIni/minIni.c 
+../bin/genSSB : lib/genSSB.cpp /home/pi/librpitx/src/librpitx.a  $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/genSSB ./lib/genSSB.cpp $(LDFLAGS)
 
 #../bin/genSSB : lib/genSSB.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
@@ -43,8 +43,8 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_rtlfm : lib/demo_rtlfm.c 
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_rtlfm ./lib/demo_rtlfm.c  $(LDFLAGS)
 
-../bin/demo_genSSB : lib/demo_genSSB.c 
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c  $(LDFLAGS)
+../bin/demo_genSSB : lib/demo_genSSB.c  lib/genSSB.h
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c ./lib/genSSB.h  $(LDFLAGS)
 
 #---- Staffing crypt
 #../bin/test_rtlfm2 : lib/test_rtlfm2.c 

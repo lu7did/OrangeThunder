@@ -26,6 +26,10 @@
 #include <fstream>
 using namespace std;
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
 #define MLSB   0x00
 #define MUSB   0x01
 #define MCW    0x02
@@ -43,6 +47,12 @@ typedef bool boolean;
 typedef void (*CALLBACK)();
 
 
+#define PTT_FIFO "/tmp/ptt_fifo"
+
+
+
+
+
 //---------------------------------------------------------------------------------------------------
 // SSB CLASS
 //---------------------------------------------------------------------------------------------------
@@ -50,12 +60,19 @@ class genSSB
 {
   public: 
   
-      genSSB();
- void start();
- void stop();
-  int readpipe(char* buffer,int len);
- void setFrequency(float f);
- void setMode(byte m);
+         genSSB(CALLBACK vox);
+
+CALLBACK changeVOX=NULL;
+    void start();
+    void stop();
+     int readpipe(char* buffer,int len);
+    void setFrequency(float f);
+    void setSoundChannel(int c);
+    void setSoundSR(int sr);
+    void setSoundHW(char* hw);
+    void setPTT(bool v);
+
+    void setMode(byte m);
      
       byte                TRACE=0x00;
       boolean             running;
@@ -65,42 +82,92 @@ class genSSB
       int                 outpipefd[2];
       float               f;
       int                 sr;
-      int                 so;
       int                 vol;
       int		  mode;
+      int                 soundChannel;
+      int                 soundSR;
+      char*               soundHW;
+      int                 ptt_fifo = -1;
+      int		  result;
+      bool                stateVOX;
+      bool                statePTT;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
+      char   PTTON[16];
+      char   PTTOFF[16];
 
 const char   *mUSB="usb";
 const char   *mAM="am";
 const char   *mFM="fm";
 const char   *mLSB="lsb";
+
 private:
 
      char MODE[128];
      char FREQ[16];
-   
 
 };
 
 #endif
 //---------------------------------------------------------------------------------------------------
-// rtlfm CLASS Implementation
+// genSSB CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-genSSB::genSSB(){
+genSSB::genSSB(CALLBACK vox){
 
+   if (vox!=NULL) {changeVOX=vox;}
+
+   stateVOX=false;
+   statePTT=false;
    pid=0;
+   soundSR=48000;
+   soundHW=(char*)malloc(16*sizeof(int));
    setMode(MUSB);
    setFrequency(14074000);
-   sr=4000;
-   so=4000;
+   setSoundChannel(1);
+   setSoundSR(48000);
+   strcpy(soundHW,"Loopback");
+   sr=6000;
    vol=0;
    running=false;
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::genSSB() Initialization completed\n",PROGRAMID) : _NOP);
 
+   sprintf(PTTON,"PTT=1\n");
+   sprintf(PTTOFF,"PTT=0\n");
+
+   fprintf(stderr,"Making FIFO...\n");
+   result = mkfifo(PTT_FIFO, 0777);		//(This will fail if the fifo already exists in the system from the app previously running, this is fine)
+   if (result == 0) {		//FIFO CREATED
+      fprintf(stderr,"New FIFO created: %s\n", PTT_FIFO);
+      (this->TRACE>=0x01 ? fprintf(stderr,"%s::genSSB() Initialization completed\n",PROGRAMID) : _NOP);
+   } else {
+      fprintf(stderr,"Failed to create FIFO %s\n",PTT_FIFO);
+   }
+
+
+}
+
+//---------------------------------------------------------------------------------------------------
+// setSoundChannel CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void genSSB::setSoundChannel(int c) {
+   this->soundChannel=c;
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundChannel() Soundchannel defined (%d)\n",PROGRAMID,this->soundChannel) : _NOP);
+}
+//---------------------------------------------------------------------------------------------------
+// setSoundSR CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void genSSB::setSoundSR(int sr) {
+   this->soundSR=sr;
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundSR() Sound card sample rate(%d)\n",PROGRAMID,this->soundSR) : _NOP);
+}
+//---------------------------------------------------------------------------------------------------
+// setSoundHW CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void genSSB::setSoundHW(char* hw) {
+   strcpy(this->soundHW,hw);
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundHW() Sound card Hardware(%s)\n",PROGRAMID,this->soundHW) : _NOP);
 }
 //---------------------------------------------------------------------------------------------------
 // setFrequency CLASS Implementation
@@ -110,16 +177,8 @@ void genSSB::setFrequency(float f) {
    if (f==this->f) {
       return;
    }
-   this->f=f;
-   if (this->f >= 1000000) {
-      sprintf(FREQ,"%gM",this->f/1000000);
-   } else {
-      sprintf(FREQ,"%gK",this->f/1000);
-   }
-
-  
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency <FREQ=%s> len(%d)\n",PROGRAMID,FREQ,(unsigned)strlen(FREQ)) : _NOP);
-   write(outpipefd[1], FREQ,(unsigned)strlen(FREQ)+1);
+   this->f=f; 
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency <FREQ=%s> len(%d)\n",PROGRAMID,FREQ,(int)this->f) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -134,61 +193,30 @@ if ( m == this->mode) {
 switch(m) {
            case MCW:
            case MCWR: 
+	   case MAM:
+	   case MDIG:
+	   case MPKT:
            case MUSB:
                    {
   	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
+		     sr=6000;
                      break;
                    }
            case MLSB:
                    {
-		     sr=4000;
-		     so=4000;
+		     sr=6000;
   	             sprintf(MODE,"%s",mLSB);
                      break;
                    }
-	   case MAM:
-                   { 
-		     sr=4000;
-		     so=4000;
-
-  	             sprintf(MODE,"%s",mAM);
-     		     break;
-		   }
  	   case MWFM:
-		   {
-  	             sprintf(MODE,"%s","fm -o 4 -A fast -l 0 -E deemp ");
-		     sr=170000;
-	  	     so=32000;
-	  	     break;
-		   }
 	   case MFM:
-		   {
-  	             sprintf(MODE,"%s",mFM);
-		     sr=4000;
-		     so=4000;
-	  	     break;
-		   }
-	   case MDIG:
-		   {
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
-	  	     break;
-		   }
-	   case MPKT:
-		   {
-
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
+                   {
 	  	     break;
 		   }
 
-       }
+   }
 
-   if ( running == false) {
+   if (running == false) {
       this->mode=m;
       return;
    }
@@ -205,6 +233,8 @@ void genSSB::start() {
 
 char   command[256];
 // --- create pipes
+
+
 
   pipe(inpipefd);
   fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
@@ -231,8 +261,9 @@ char   command[256];
 
 
 // --- format command
+   //sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct 2>/dev/null | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null",MODE,FREQ,sr,so,vol,so); 
 
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct 2>/dev/null | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null",MODE,FREQ,sr,so,vol,so); 
+   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null | /home/pi/OrangeThunder/bin/genSSB -f %d -s %d | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float 2>/dev/null",this->soundChannel,this->soundSR,this->soundHW,(int)f,this->sr,this->sr,(int)f);
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
@@ -241,6 +272,7 @@ char   command[256];
 
 // --- Nothing below this line should be executed by child process. If so, 
 // --- it means that the execl function wasn't successfull, so lets exit:
+
     exit(1);
   }
 
@@ -251,8 +283,17 @@ char   command[256];
 // exit unexpectedly, the parent process will obtain SIGCHLD signal that
 // can be handled (e.g. you can respawn the child process).
 //**************************************************************************
-  running=true;
-  (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() receiver process started\n",PROGRAMID) : _NOP);
+
+  ptt_fifo = open(PTT_FIFO, (O_WRONLY));
+  if (ptt_fifo != -1) {
+     fprintf(stderr,"%s::start() opened ptt fifo\n",PROGRAMID);
+     running=true;
+     (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() transmitter process started\n",PROGRAMID) : _NOP);
+
+  } else {
+     fprintf(stderr,"%s::start() error while opening ptt fifo\n",PROGRAMID);
+  }
+
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -261,11 +302,37 @@ char   command[256];
 int genSSB::readpipe(char* buffer,int len) {
 
  if (running == true) {
-    return read(inpipefd[0],buffer,len);
+    int rc=read(inpipefd[0],buffer,len);
+
+    if (strcmp(buffer,"<<<VOX=1\n")==0) {
+       stateVOX=true;
+       if(changeVOX!=NULL) {changeVOX();}
+       fprintf(stderr,"***PTT=1\n");
+    }
+
+    if (strcmp(buffer,"<<<VOX=0\n")==0) {
+       stateVOX=false;
+       if(changeVOX!=NULL) {changeVOX();}
+       fprintf(stderr,"***PTT=0\n");
+    }
+
+    return rc;
  } else {
     return 0;
  }
 
+}
+//---------------------------------------------------------------------------------------------------
+// setPTT CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void genSSB::setPTT(bool v) {
+
+  if (v==true) {
+     write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
+  } else {
+     write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
+  }
+  this->statePTT=v;
 }
 //---------------------------------------------------------------------------------------------------
 // stop CLASS Implementation
@@ -278,6 +345,7 @@ void genSSB::stop() {
      return;
   }
 
+  close(ptt_fifo);
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
   waitpid(pid, &status, 0);
   running=false;

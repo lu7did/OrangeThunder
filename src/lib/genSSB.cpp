@@ -46,7 +46,7 @@
 #define BUFFERSIZE      96000
 #define IQBURST          4000
 #define GPIO_PTT	   12
-#define OUR_INPUT_FIFO_NAME "/tmp/cat_fifo"
+#define PTT_FIFO       "/tmp/ptt_fifo"
 
 #include <unistd.h>
 #include "stdio.h"
@@ -142,7 +142,7 @@ float*   Fout;
 
 int      nbread=0;
 int      numSamplesLow=0;
-
+int      result=0;
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
@@ -230,7 +230,7 @@ Usage: [-i File Input][-s Samplerate][-l] [-f Frequency] [-h Harmonic number] \n
 static void terminate(int num)
 {
     running=false;
-    fprintf(stderr,"%s: Caught TERM signal(%x) - Terminating \n",PROGRAMID,num);
+    //fprintf(stderr,"%s: Caught TERM signal(%x) - Terminating \n",PROGRAMID,num);
 }
 //---------------------------------------------------------------------------------
 // main 
@@ -359,9 +359,9 @@ float   gain=1.0;
         alarm(1);
 
 
-        fprintf (stderr,"%s Making FIFO...n",PROGRAMID);
-        cmd_result = mkfifo ( OUR_INPUT_FIFO_NAME, 0777 );
-        cmd_FD = open ( OUR_INPUT_FIFO_NAME, ( O_RDONLY | O_NONBLOCK ) );
+        fprintf (stderr,"%s Making FIFO...\n",PROGRAMID);
+        cmd_result = mkfifo ( PTT_FIFO, 0777 );
+        cmd_FD = open ( PTT_FIFO, ( O_RDONLY | O_NONBLOCK ) );
 
 //*---------------- executin loop
 	while(running==true)
@@ -372,13 +372,13 @@ float   gain=1.0;
            cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
-              fprintf (stderr,"%s FIFO Command %i bytes read : %s\n", PROGRAMID,cmd_length, cmd_buffer );
-              if (strcmp(cmd_buffer, "PTTON\n") == 0) {
-                 fprintf (stderr,"%s PTT(on) command received\n",PROGRAMID);
+              //fprintf (stderr,"%s FIFO Command %i bytes read : %s\n", PROGRAMID,cmd_length, cmd_buffer );
+              if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
+                 fprintf (stderr,">>>PTT=1\n");
                  //setPTT(true);
-               }
-              if (strcmp(cmd_buffer, "PTTOFF\n") == 0) {
-                 fprintf (stderr,"%s PTT(off) command received\n",PROGRAMID);
+              }
+              if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
+                 fprintf (stderr,">>>PTT=0\n");
                  //setPTT(false);
                }
            }else;
@@ -400,7 +400,7 @@ float   gain=1.0;
            if (gain<thrgain) {
               if (TVOX==0) {
                  //setPTT(true);
-                 fprintf(stderr,"%s gain(%2f) ** VOX activated **\n",PROGRAMID,gain);
+                 fprintf(stderr,"<<<VOX=1\n");
               }
               TVOX=2;
 
@@ -409,7 +409,7 @@ float   gain=1.0;
            if (fVOX==1) {
               fVOX=0;
               //setPTT(false);
-              fprintf(stderr,"%s gain(%2f) ** VOX released **\n",PROGRAMID,gain);
+              fprintf(stderr,"<<<VOX=0\n");
            }
 
 	   if(nbread>0) {
@@ -420,13 +420,13 @@ float   gain=1.0;
               }
               fwrite(Fout, sizeof(float), numSamplesLow*2, outfile);
            } else {
-   	      fprintf(stderr,"%s: End of file\n",PROGRAMID);
+   	      fprintf(stderr,"<<<EOF=1\n");
               running=false;
  	   }
 	}
 //*---------------- program finalization cleanup
         delete(usb);
- 	fprintf(stderr,"%s: USB generation object terminated\n",PROGRAMID);
+ 	fprintf(stderr,"<<<CLOSE=1\n");
 
 }
 
