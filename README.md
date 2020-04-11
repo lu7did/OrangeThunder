@@ -169,7 +169,7 @@ cd csdr
 ```
 
 
-The Makefile can be opened with "sudo leafpad Makefile"
+The Makefile can be opened with "sudo nano Makefile"
 
 ```
 -march=armv8-a
@@ -249,6 +249,7 @@ Install modules into kernel
 ```
 modprobe snd-aloop ; modprobe snd-pcm-oss ; modprobe snd-mixer-oss ; modprobe snd-seq-oss
 ```
+You might want to introduce such line into the /etc/rc.local file for automatic loading during startup.
 
 We need to initially create virtual audio sinks for each frequency. The example below will set up a two virtual audio sinks that load on boot. To set up another, simply add more lines from Virtual 2 and and so on. First open the pulseaudio default.pa file:
 

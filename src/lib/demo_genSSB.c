@@ -1,5 +1,5 @@
 /*
- * demo_genSSB
+ * demo_genSSB 
  *-----------------------------------------------------------------------------
  * demo program for the genSSB program component
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
@@ -41,7 +41,10 @@
 #include <pigpio.h>
 #include "/home/pi/OrangeThunder/src/lib/genSSB.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
+#include "/home/pi/PixiePi/src/lib/CAT817.h" 
 
+
+#define BOOL2CHAR(g)  (g==true ? "True" : "False")
 #define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
 #define SET_GPIO_ALT(g,a) *(gpio.addr + (((g)/10))) |= (((a)<=3?(a) + 4:(a)==4?3:2)<<(((g)%10)*3))
@@ -59,6 +62,23 @@ genSSB* g=nullptr;
 struct sigaction sigact;
 char   *buffer;
 char   *HW;
+float  SetFrequency=14074000;
+byte   TRACE=0x02;
+
+// --- CAT object
+
+void CATchangeMode();
+void CATchangeFreq();
+void CATchangeStatus();
+
+CAT817* cat;
+byte FT817;
+
+char  port[80];
+long  catbaud=4800;
+
+
+
 
 const char   *PROGRAMID="demo_genSSB";
 const char   *PROG_VERSION="1.0";
@@ -73,101 +93,101 @@ static void sighandler(int signum)
 	fprintf(stderr, "\nSignal caught(%d), exiting!\n",signum);
 	bRun = 1;
 }
-//--------------------------------------------------------------------------------------------------
-// map_peripheral
-// Exposes the physical address defined in the passed structure using mmap on /dev/mem
-//--------------------------------------------------------------------------------------------------
-int map_peripheral(struct bcm2835_peripheral *p)
-{
-   // Open /dev/mem
-   if ((p->mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0) {
-      printf("Failed to open /dev/mem, try checking permissions.\n");
-      return -1;
-   }
- 
-   p->map = mmap(
-      NULL,
-      BLOCK_SIZE,
-      PROT_READ|PROT_WRITE,
-      MAP_SHARED,
-      p->mem_fd,      // File descriptor to physical memory virtual file '/dev/mem'
-      p->addr_p       // Address in physical map that we want this memory block to expose
-   );
- 
-   if (p->map == MAP_FAILED) {
-        perror("mmap");
-        return -1;
-   }
- 
-   p->addr = (volatile unsigned int *)p->map;
- 
-   return 0;
+// ======================================================================================================================
+// handle PTT variations
+// ======================================================================================================================
+void setPTT(bool ptt) {
+
+    if (ptt==true) {
+       gpioWrite(12,1);
+
+    } else {
+       gpioWrite(12,0);
+    }
+    g->setPTT(ptt);
+
+    fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(ptt==true ? "True" : "False"));
+    usleep(10000);
+    return;
 }
-//--------------------------------------------------------------------------------------------------
-// unmap_peripheral
-// release resources
-//--------------------------------------------------------------------------------------------------
-void unmap_peripheral(struct bcm2835_peripheral *p) {
- 
-    munmap(p->map, BLOCK_SIZE);
-    close(p->mem_fd);
-}
+//---------------------------------------------------------------------------
+// CATchangeFreq()
+// CAT Callback when frequency changes
+//---------------------------------------------------------------------------
+void CATchangeFreq() {
 
-//--------------------------------------------------------------------------------------------------
-// setGPIO
-// output status of a given GPIO pin
-//--------------------------------------------------------------------------------------------------
-void setGPIO(int pin,bool v) {
-
-// ---  acquire resources
- return;
-
- if(map_peripheral(&gpio) == -1) 
-  {
-    fprintf(stderr,"Failed to map the physical GPIO registers into the virtual memory space.\n");
-    return ;
-  }
-// --- Clear pin definition and then set as output
-
-  INP_GPIO(pin);
-  OUT_GPIO(pin);
-
-// --- Map result to pin
- 
-  if (v==true) {
-    GPIO_SET = 1 << pin;  // Set as high
-  } else {
-    GPIO_CLR = 1 << pin;  // Set as low
+  if (g->statePTT == true) {
+     fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
+     cat->SetFrequency=SetFrequency;
+     return;
   }
 
-// --- release resources
+  fprintf(stderr,"%s:CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
 
-  unmap_peripheral(&gpio);
-  return; 
+}
+//-----------------------------------------------------------------------------------------------------------
+// CATchangeMode
+// Validate the new mode is a supported one
+// At this point only CW,CWR,USB and LSB are supported
+//-----------------------------------------------------------------------------------------------------------
+void CATchangeMode() {
+
+  fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE);
+  cat->MODE=MUSB;
+  return;
+
+}
+
+//------------------------------------------------------------------------------------------------------------
+// CATchangeStatus
+// Detect which change has been produced and operate accordingly
+//------------------------------------------------------------------------------------------------------------
+void CATchangeStatus() {
+
+  fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
+  if (getWord(cat->FT817,PTT) != g->statePTT) {
+     fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
+     setPTT(getWord(cat->FT817,PTT));
+  }
+
+  if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
+     fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false");
+  }
+
+  if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed
+     fprintf(stderr,"%s:CATchangeStatus() LOCK change request cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false");
+  }
+
+  if (getWord(cat->FT817,SPLIT) != getWord(FT817,SPLIT)) {    // SPLIT mode Changed
+     fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false");
+  }
+
+  if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
+     //setWord(&FT817,VFO,getWord(cat->FT817,VFO));
+     //(getWord(cat->FT817,VFO)==false ? vfo->vfoAB = VFOA : vfo->vfoAB = VFOB);
+     //cat->SetFrequency = (float) vfo->get(vfo->vfoAB);
+     fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID);
+  }
+
+  FT817=cat->FT817;
+  return;
+
+}
+//--------------------------------------------------------------------------------------------------
+// Stubs for callback not implemented yed
+//--------------------------------------------------------------------------------------------------
+
+void CATgetRX() {
+}
+void CATgetTX() {
 }
 // ======================================================================================================================
-// PTT change
+// VOX upcall signal
 // ======================================================================================================================
 void SSBchangeVOX() {
 
-  char command[256];
-  fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,(g->stateVOX==true ? "True" : "False"));
-  g->setPTT(g->stateVOX);
-
-  if (g->stateVOX==true) {  
-     gpioWrite(12, 1);
-     usleep(10000);
-
-  } else {
-     gpioWrite(12,0);
-     usleep(10000);
-
-  }
-  //setGPIO(12,g->stateVOX);
-  fprintf(stderr,"%s:SSBchangeVOX() set PTT as(%s)\n",PROGRAMID,(g->statePTT==true ? "True" : "False"));
-
-
-// --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
+  fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(g->stateVOX));
+  setPTT(g->stateVOX);
 
 
 }
@@ -177,16 +197,29 @@ void SSBchangeVOX() {
 // ======================================================================================================================
 int main(int argc, char** argv)
 {
+
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags = 0;
 
+//*--- Define the rest of the signal handlers, basically as termination exceptions
+
+  for (int i = 0; i < 64; i++) {
+
+      if (i != SIGALRM && i != 17 && i != 28) {
+         signal(i,sighandler);
+      }
+  }
 
   sigaction(SIGINT, &sigact, NULL);
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGQUIT, &sigact, NULL);
   sigaction(SIGPIPE, &sigact, NULL);
-  signal(SIGPIPE, SIG_IGN);
+ 
+ signal(SIGPIPE, SIG_IGN);
+
+
+
 
   if(gpioInitialise()<0) {
     fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
@@ -204,28 +237,56 @@ int main(int argc, char** argv)
 
 
 
+  FT817=0x00;
+  sprintf(port,"/tmp/ttyv0");
+
+
+// --- memory areas
+
   buffer=(char*)malloc(2048*sizeof(unsigned char));
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
 
+// --- USB generator 
+
   g=new genSSB(SSBchangeVOX);  
-  g->TRACE=0x02;
+  g->TRACE=TRACE;
   g->setFrequency(7074000);
-  g->setFrequency(14074000);
-  g->setSoundChannel(1);
-  g->setSoundSR(48000);
+  g->setFrequency(SetFrequency);
+  g->setSoundChannel(CHANNEL);
+  g->setSoundSR(AFRATE);
   g->setSoundHW(HW);
 
   g->start();
+
+// --- creation of CAT object
+
+  cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
+
+  cat->FT817=FT817;
+  cat->POWER=7;
+  cat->SetFrequency=SetFrequency;
+  cat->MODE=MUSB;
+  cat->TRACE=TRACE;
+
+  cat->open(port,catbaud);
+  setWord(&cat->FT817,AGC,false);
+  setWord(&cat->FT817,PTT,false);
+
+
+
+
 
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
   while(bRun==0)
   
   {
-   
+    cat->get(); 
     int nread=g->readpipe(buffer,1024);
-    buffer[nread]=0x00;
-    fprintf(stderr,"%s",(char*)buffer);
+    if (nread>0) {
+       buffer[nread]=0x00;
+       fprintf(stderr,"%s",(char*)buffer);
+    }
   }
 
 // --- Normal termination kills the child first and wait for its termination

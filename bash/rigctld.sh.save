@@ -1,0 +1,12 @@
+#*----------------------------------------*
+#* Launching socat server                 *
+#*----------------------------------------*
+sudo socat -d -d pty,raw,echo=0,mode=0666,link=/tmp/ttyv0 pty,raw,echo=0,mode=0666,link=/tmp/ttyv1 &
+PID=$!
+echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
+
+#echo "Launchiing rigctld"
+#rigctld --model=$(rigctl -l | grep "FT-817" | awk '{print $1}') -r /tmp/ttyv1 -t 4532 -s 4800  &
+sudo rigctld -m 351 -r /tmp/ttyv1 -T 127.0.0.1 -t 4532 -s 4800 --model=$(rigctl -l | grep "FT-817" | awk '{print $1}') -v 
+RIGCTL=$!
+echo "rigctld PID($RIGCTL)"

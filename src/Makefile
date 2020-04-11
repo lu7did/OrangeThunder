@@ -44,7 +44,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_rtlfm ./lib/demo_rtlfm.c  $(LDFLAGS)
 
 ../bin/demo_genSSB : lib/demo_genSSB.c  lib/genSSB.h
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c ./lib/genSSB.h  $(LDFLAGS)
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c ./lib/genSSB.h $(LDFLAGS)
 
 #---- Staffing crypt
 #../bin/test_rtlfm2 : lib/test_rtlfm2.c 
