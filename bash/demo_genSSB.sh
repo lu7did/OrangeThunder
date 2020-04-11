@@ -24,15 +24,25 @@ echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
 #echo "rigctld PID($RIGCTL)"
 
 #*----------------------------------------*
-#* Transceiver execution using loopback   *
+#* Process clean up                       *
 #*----------------------------------------*
 sudo rm -r /tmp/ptt_fifo
-sudo /home/pi/OrangeThunder/bin/demo_genSSB -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
-sudo rm -r /tmp/ptt_fifo
 
+sudo pkill -9 -f sendiq
+sudo pkill -9 -f wsjtx
+sudo pkill -9 -f flrig
+sudo pkill -9 -f genSSB
+sudo pkill -9 -f arecord
+
+#*----------------------------------------*
+#* Transceiver execution using loopback   *
+#*----------------------------------------*
+sudo /home/pi/OrangeThunder/bin/demo_genSSB -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
 #*----------------------------------------*
 #* terminating                            *
 #*----------------------------------------*
+sudo rm -r /tmp/ptt_fifo
+
 echo "Killing rigtcl PID($RIGCTL)"
 sudo pkill rigctld
 

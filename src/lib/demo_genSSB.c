@@ -52,18 +52,15 @@
 #define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
 
-
-
 // --- IPC structures
 
-
-int    bRun=0;
 genSSB* g=nullptr;
 struct sigaction sigact;
 char   *buffer;
 char   *HW;
 float  SetFrequency=14074000;
-byte   TRACE=0x02;
+byte   TRACE=0x00;
+byte   MSW=0x00;
 
 // --- CAT object
 
@@ -77,9 +74,6 @@ byte FT817;
 char  port[80];
 long  catbaud=4800;
 
-
-
-
 const char   *PROGRAMID="demo_genSSB";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
@@ -90,8 +84,8 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 // ======================================================================================================================
 static void sighandler(int signum)
 {
-	fprintf(stderr, "\nSignal caught(%d), exiting!\n",signum);
-	bRun = 1;
+	fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum);
+        setWord(&MSW,RUN,false);
 }
 // ======================================================================================================================
 // handle PTT variations
@@ -99,14 +93,14 @@ static void sighandler(int signum)
 void setPTT(bool ptt) {
 
     if (ptt==true) {
-       gpioWrite(12,1);
+       gpioWrite(GPIO_PTT,1);
 
     } else {
-       gpioWrite(12,0);
+       gpioWrite(GPIO_PTT,0);
     }
     g->setPTT(ptt);
-
-    fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(ptt==true ? "True" : "False"));
+    setWord(&MSW,PTT,ptt);
+    fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
     usleep(10000);
     return;
 }
@@ -145,9 +139,11 @@ void CATchangeMode() {
 void CATchangeStatus() {
 
   fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
+
   if (getWord(cat->FT817,PTT) != g->statePTT) {
      fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
      setPTT(getWord(cat->FT817,PTT));
+     setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
 
   if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
@@ -163,9 +159,6 @@ void CATchangeStatus() {
   }
 
   if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
-     //setWord(&FT817,VFO,getWord(cat->FT817,VFO));
-     //(getWord(cat->FT817,VFO)==false ? vfo->vfoAB = VFOA : vfo->vfoAB = VFOB);
-     //cat->SetFrequency = (float) vfo->get(vfo->vfoAB);
      fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID);
   }
 
@@ -198,12 +191,15 @@ void SSBchangeVOX() {
 int main(int argc, char** argv)
 {
 
+  fprintf(stderr,"%s version %s build(%s) %s\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT);
+
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags = 0;
 
 //*--- Define the rest of the signal handlers, basically as termination exceptions
 
+  fprintf(stderr,"%s:main() initialize interrupt handling system\n",PROGRAMID);
   for (int i = 0; i < 64; i++) {
 
       if (i != SIGALRM && i != 17 && i != 28) {
@@ -216,38 +212,37 @@ int main(int argc, char** argv)
   sigaction(SIGQUIT, &sigact, NULL);
   sigaction(SIGPIPE, &sigact, NULL);
  
- signal(SIGPIPE, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
 
+// --- define control interface
 
-
-
+  fprintf(stderr,"%s:main() initialize GPIO control interface\n",PROGRAMID);
   if(gpioInitialise()<0) {
     fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
-    return -1;
+    exit(16);
   }
 
-  gpioSetMode(12, PI_OUTPUT);
+  gpioSetMode(GPIO_PTT, PI_OUTPUT);
   usleep(100000);
 
-  gpioSetPullUpDown(12,PI_PUD_UP);
+  gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
   usleep(100000);
 
-  gpioWrite(12, 0);
+  gpioWrite(GPIO_PTT, 0);
   usleep(100000);
-
-
-
-  FT817=0x00;
-  sprintf(port,"/tmp/ttyv0");
 
 
 // --- memory areas
+
+  fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
 
   buffer=(char*)malloc(2048*sizeof(unsigned char));
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
 
 // --- USB generator 
+
+  fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID);
 
   g=new genSSB(SSBchangeVOX);  
   g->TRACE=TRACE;
@@ -261,25 +256,30 @@ int main(int argc, char** argv)
 
 // --- creation of CAT object
 
+  fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID);
+
+  FT817=0x00;
+  sprintf(port,"/tmp/ttyv0");
+
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
 
   cat->FT817=FT817;
   cat->POWER=7;
   cat->SetFrequency=SetFrequency;
   cat->MODE=MUSB;
-  //cat->TRACE=TRACE;
-  cat->TRACE=0x00;
+  cat->TRACE=TRACE;
 
   cat->open(port,catbaud);
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,false);
 
-
-
-
+// -- establish loop condition
+  
+  setWord(&MSW,RUN,true);
+  fprintf(stderr,"%s:main() start operation\n",PROGRAMID);
 
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
-  while(bRun==0)
+  while(getWord(MSW,RUN)==true)
   
   {
     cat->get(); 
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
   }
 
 // --- Normal termination kills the child first and wait for its termination
-
+  fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
   g->stop();
 
 }

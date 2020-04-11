@@ -84,7 +84,7 @@ const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 
-byte     TRACE=0x01;
+byte     TRACE=0x00;
 typedef unsigned char byte;
 typedef bool boolean;
 
@@ -130,10 +130,10 @@ void timer_exec()
 {
   if (TVOX!=0) {
      TVOX--;
-     (TRACE>=DEBUG ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
+     (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
      if(TVOX==0) {
        fVOX=1;
-       (TRACE>=DEBUG ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
      }
   }
 }
@@ -189,7 +189,7 @@ void setPTT(bool ptt) {
 
   
      setWord(&MSW,PTT,ptt);
-    (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
 }
 //---------------------------------------------------------------------------------
@@ -209,17 +209,17 @@ int main(int argc, char* argv[])
         timer_start(timer_exec,100);
         (TRACE>=0x00 ? fprintf(stderr,"%s %s [%s] tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE) : _NOP);;
         cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-        (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
+        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
 
         cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
         if (cmd_FD != -1) {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
+           (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
            setWord(&MSW,RUN,true);
         } else {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
+           (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
            exit(16);
         }
-        (TRACE >= 0x00 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
+        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:f:s:v:p:d:t:");
@@ -257,9 +257,9 @@ int main(int argc, char* argv[])
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
 		        if (vox_timeout > VOX_MIN && vox_timeout <= VOX_MAX) {
-   		           (TRACE>=1 ? fprintf(stderr,"%s: VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
+   		           (TRACE>=0x01 ? fprintf(stderr,"%s: VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
 		        } else {
-	    		   (TRACE>=1 ? fprintf(stderr,"%s: invalid VOX timeout\n",PROGRAMID) : _NOP);
+	    		   (TRACE>=0x01 ? fprintf(stderr,"%s: invalid VOX timeout\n",PROGRAMID) : _NOP);
                         }
 			break;
 		case 'p': //GPIO PTT
@@ -347,13 +347,13 @@ float   gain=1.0;
            (TRACE >= 0x03 ? fprintf(stderr,"%s:main() read command buffer len(%d)\n",PROGRAMID,cmd_length) : _NOP);
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
-              (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
+              (TRACE >= 0x03 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
                  (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received command(PTT=1) thru command pipe\n",PROGRAMID) : _NOP);
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-                 (TRACE>=0x00 ? fprintf (stderr,"%s:main() Received command(PTT=0) thru command pipe\n",PROGRAMID) : _NOP);
+                 (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received command(PTT=0) thru command pipe\n",PROGRAMID) : _NOP);
                  setPTT(false);
                }
            }else;

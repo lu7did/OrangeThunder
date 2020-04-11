@@ -128,12 +128,13 @@ genSSB::genSSB(CALLBACK vox){
    sprintf(PTTON,"PTT=1\n");
    sprintf(PTTOFF,"PTT=0\n");
 
-   (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Making FIFO...\n",PROGRAMID) : _NOP);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::genSSB() Making FIFO...\n",PROGRAMID) : _NOP);
    result = mkfifo("/tmp/ptt_fifo", 0666);		//(This will fail if the fifo already exists in the system from the app previously running, this is fine)
    if (result == 0) {	    	                        //FIFO CREATED
-      (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Initialization completed new FIFO (%s) created\n",PROGRAMID,PTT_FIFO) : _NOP);
+      (this->TRACE>=0x02 ? fprintf(stderr,"%s::genSSB() Initialization completed new FIFO (%s) created\n",PROGRAMID,PTT_FIFO) : _NOP);
    } else {
-      (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Initialization completed failed to create FIFO %s\n",PROGRAMID,PTT_FIFO) : _NOP);
+      (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Error during of command FIFO(%s), aborting\n",PROGRAMID,PTT_FIFO) : _NOP);
+      exit(16);
    }
 
 }
@@ -263,7 +264,6 @@ char   command[256];
 // --- format command
 
 char cmd_DEBUG[16];
-   //this->TRACE=0x00;
    switch(this->TRACE) {
 
      case 0x00 : sprintf(cmd_DEBUG," "); break;
@@ -273,7 +273,7 @@ char cmd_DEBUG[16];
    }
 
    sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float 2>/dev/null",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-   (this->TRACE >= 0x00 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
 
@@ -293,34 +293,15 @@ char cmd_DEBUG[16];
 // can be handled (e.g. you can respawn the child process).
 // *******************************************************************************************************
 
-  (TRACE>=0x00 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
   ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
   if (ptt_fifo != -1) {
-     (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
+     (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
   } else {
     (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
      exit(16);
   }
 
-  //int rc=-1;
-  //int len=1024;
-  //char* buffer=(char*)malloc(128);
-  //char* chkbuf=(char*)malloc(128);
-  //while (rc<=0) {
-  //   rc=read(inpipefd[0],buffer,len);
-  //   //fprintf(stderr,"%s::start() read file rc(%d)\n",PROGRAMID,rc);
-  //   if (rc>0) {
-  //      buffer[len]=0x00;
-  //      //fprintf(stderr,"%s::start() waiting received (%s) len(%d)\n",PROGRAMID,buffer,len);
-  //      strncpy(chkbuf,buffer,6);
-  //      if (strcmp(chkbuf,"genSSB")==0) {
-  //         //fprintf(stderr,"%s::start() hit starting of thread\n",PROGRAMID);
-  //         break;
-  //      }
-  //   }
-  // }
-
-  //sleep(1);;
   setWord(&MSW,RUN,true);
 
 
@@ -353,7 +334,6 @@ void genSSB::setPTT(bool v) {
 //--------------------------------------------------------------------------------------------------
 int genSSB::readpipe(char* buffer,int len) {
 
- //if (getWord(MSW,RUN) == true) {
    
     int rc=read(inpipefd[0],buffer,len);
 
@@ -382,9 +362,6 @@ int genSSB::readpipe(char* buffer,int len) {
     }
 
     return rc;
- //} else {
- //   return 0;
- //}
 
 }
 //---------------------------------------------------------------------------------------------------
