@@ -267,7 +267,8 @@ int main(int argc, char** argv)
   cat->POWER=7;
   cat->SetFrequency=SetFrequency;
   cat->MODE=MUSB;
-  cat->TRACE=TRACE;
+  //cat->TRACE=TRACE;
+  cat->TRACE=0x00;
 
   cat->open(port,catbaud);
   setWord(&cat->FT817,AGC,false);

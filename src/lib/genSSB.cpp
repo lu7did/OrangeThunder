@@ -187,7 +187,9 @@ Usage:  \n\
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
+  
      setWord(&MSW,PTT,ptt);
+    (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
 }
 //---------------------------------------------------------------------------------
@@ -217,10 +219,10 @@ int main(int argc, char* argv[])
            (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
            exit(16);
         }
-
+        (TRACE >= 0x00 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
 	while(1)
 	{
-		ax = getopt(argc, argv, "a:f:s:v:p:d:t");
+		ax = getopt(argc, argv, "a:f:s:v:p:d:t:");
                 if(ax == -1) 
 		{
 			if(ax) break;
@@ -287,7 +289,6 @@ int main(int argc, char* argv[])
 	}/* end while getopt() */
 
         (TRACE>=0x00 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
-
 	for (int i = 0; i < 64; i++) {
            struct sigaction sa;
            std::memset(&sa, 0, sizeof(sa));
@@ -343,12 +344,12 @@ float   gain=1.0;
 
            cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
            j++;
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() read command buffer len(%d)\n",PROGRAMID,cmd_length) : _NOP);
+           (TRACE >= 0x03 ? fprintf(stderr,"%s:main() read command buffer len(%d)\n",PROGRAMID,cmd_length) : _NOP);
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
-              (TRACE >= 0x00 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
+              (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-                 (TRACE >= 0x00 ? fprintf (stderr,"%s:main() Received command(PTT=1) thru command pipe\n",PROGRAMID) : _NOP);
+                 (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received command(PTT=1) thru command pipe\n",PROGRAMID) : _NOP);
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {

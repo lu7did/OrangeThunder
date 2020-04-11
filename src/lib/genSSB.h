@@ -263,6 +263,7 @@ char   command[256];
 // --- format command
 
 char cmd_DEBUG[16];
+   //this->TRACE=0x00;
    switch(this->TRACE) {
 
      case 0x00 : sprintf(cmd_DEBUG," "); break;
@@ -295,9 +296,9 @@ char cmd_DEBUG[16];
   (TRACE>=0x00 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
   ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
   if (ptt_fifo != -1) {
-     (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() opened ptt fifo(%s) transmission process started\n",PROGRAMID,PTT_FIFO) : _NOP);
+     (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
   } else {
-    (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d)\n",PROGRAMID,ptt_fifo) : _NOP);;
+    (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
      exit(16);
   }
 
@@ -352,7 +353,7 @@ void genSSB::setPTT(bool v) {
 //--------------------------------------------------------------------------------------------------
 int genSSB::readpipe(char* buffer,int len) {
 
- if (getWord(MSW,RUN) == true) {
+ //if (getWord(MSW,RUN) == true) {
    
     int rc=read(inpipefd[0],buffer,len);
 
@@ -381,9 +382,9 @@ int genSSB::readpipe(char* buffer,int len) {
     }
 
     return rc;
- } else {
-    return 0;
- }
+ //} else {
+ //   return 0;
+ //}
 
 }
 //---------------------------------------------------------------------------------------------------
