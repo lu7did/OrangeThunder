@@ -52,7 +52,7 @@ specific for your country.
 
 ## Ham radio transceiver controlled by a Raspberry Pi board
 
-Digital signal processing [here]([here](https://dspguru.com/dsp/tutorials/) techniques applied to radio communications are normally named
+Digital signal processing [here](https://dspguru.com/dsp/tutorials/) techniques applied to radio communications are normally named
 software defined radio, further information [here](https://www.ndsu.edu/fileadmin/conferences/cybersecurity/Slides/saunders_presentation.pdf).
 
 Some recent technology breakthrus has been made quite recently that enables very sophisticated projects to be made by individual 
