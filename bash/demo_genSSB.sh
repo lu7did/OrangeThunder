@@ -31,7 +31,6 @@ sudo rm -r /tmp/ptt_fifo
 sudo pkill -9 -f sendiq
 sudo pkill -9 -f wsjtx
 sudo pkill -9 -f flrig
-sudo pkill -9 -f genSSB
 sudo pkill -9 -f arecord
 
 #*----------------------------------------*
