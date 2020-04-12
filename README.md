@@ -93,7 +93,7 @@ Main features and differences of PixiePi compared with OrangeThunder
 * It is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
 * Requires a 12V power supply
 * Mostly headed toward CW usage although other modes are supported.
-* Allows a local control with LCD display, tuniing know and other hardware.  
+* Allows a local control with LCD display, tuning knob and other hardware.  
 
 ## DISCLAIMER
 
