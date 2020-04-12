@@ -358,13 +358,26 @@ sudo pkill socat
 
 ## WSJT-X
 
-### Configuring and using WSJTX (FT8)
 
 ![Alt Text](docs/OrangeThunder_Prototype_Receiver_20200402.jpg?raw=true "WSJT-X Screenshoot operating FT8 at 20m")
 
-in order to be allowed to properly operate with pipes created with socat executed under root privileges (sudo)
+### Configuring and using WSJTX (FT8)
+
+The radio configuration is similar of using a Yaesu FT-817 rig whose CAT interface this program partially emulates, however no real serial port is used
+and a pipe needs to be used instead, the execution script creates a pipe using the **socat** program, one end being connected to the program and the
+other to an application such as WSJTX (/tmp/ttyv1).
+
+The PTT can be activated either using CAT commands or the built in VOX command which needs to be activated in the transceiver.
+![Alt Text](docs/WSJTX_RadioPanel.jpg?raw=true "WSJT-X Screenshoot of File/Settings/Radio")
+
+The audio end uses an ALSA loopback, one end connected to the transceiver program and the other to WSJTX.
+![Alt Text](docs/WSJTX_AudioPanel.jpg?raw=true "WSJT-X Screenshoot of File/Settings/Audio")
+
+### Execute the program
+
+in order to execute WSJTX either select from the menue or open a LXTerminal and type:
 ```
-sudo wsjtx
+wsjtx
 ```
 
 ## FLRig
