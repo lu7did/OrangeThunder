@@ -50,7 +50,7 @@ assignment is made at the global level each administration usually introduces a 
 As an example ham radio frequency assignments or "band plan" for USA can be seen [here](http://www.arrl.org/band-plan) but remember to check the ones
 specific for your country.
 
-## Ham radio Pixie Transceiver controlled by a Raspberry Pi board
+## Ham radio transceiver controlled by a Raspberry Pi board
 
 Digital signal processing [here]([here](https://dspguru.com/dsp/tutorials/) techniques applied to radio communications are normally named
 software defined radio, further information [here](https://www.ndsu.edu/fileadmin/conferences/cybersecurity/Slides/saunders_presentation.pdf).
