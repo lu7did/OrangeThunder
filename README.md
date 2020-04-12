@@ -88,7 +88,7 @@ hardware used to implement the transceiver.
 
 Main features and differences of PixiePi compared with OrangeThunder
 
-* The receiver chain is a double conversion receiver and the transmitter chain a CW (class C) amplifier, based on the DIY kit Pixie.
+* The receiver chain is a direct conversion receiver and the transmitter chain a CW (class C) amplifier, based on the DIY kit Pixie.
 * It is based on a Raspberry Pi Zero board which is substancially less powerful than a Raspberry Pi 3 or 4 board.
 * It is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
 * Requires a 12V power supply
