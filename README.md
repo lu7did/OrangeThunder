@@ -305,53 +305,29 @@ cd OrangeThunder/src
 sudo make
 sudo make install
 ```
+## OT4D Simple USB transceiver
 
-## Executing (Runtime)
+A simple USB transceiver has been included in the package, it's able to operate on a single frequency within the 14 MHz band (or other bands
+with suitable changes in the PA & filter hardware) operating as a single frequency, headless, CAT controlled USB transceiver. It's a proof of
+concept but also a simple transceiver able to operate on digital modes such as FT8, FT4 or WSPR.
 
+A simple script is included
 ```
-#!/bin/sh
-#*-----------------------------------------------------------------------
-#* OT.sh
-#* Script to implement a SSB transceiver using the OrangeThunder program
-#* A remote pipe is implemented to carry CAT commands
-#* Sound is feed thru the arecord command (PulseAudio ALSA), proper hardware
-#* interface needs to be established. (-a parameter enables VOX)
-#* the script needs to be called with the frequency in Hz as a parameter
-#*            ./OT.sh [frequency in Hz]
-#*-----------------------------------------------------------------------
-clear
-echo "Orange Thunder based SSB transceiver ($date)"
-echo "Frequency defined: $1"
-if [ "$1" -eq "" ]; then
-   echo "Operation frequency must be informed, try:"
-   echo "./OT.sh [frequency in Hz]
-   exit 16
-fi
-#*----------------------------------------*
-#* Install ALSA loopback on Kernel        *
-#*----------------------------------------*
-sudo modprobe snd-aloop
-#*----------------------------------------*
-#* Launching socat server                 *
-#*----------------------------------------*
-sudo socat -d -d pty,raw,echo=0,link=/tmp/ttyv0 pty,raw,echo=0,link=/tmp/ttyv1 &
-PID=$!
-echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
-#*----------------------------------------*
-#* Transceiver execution using loopback   *
-#*----------------------------------------*
-arecord -c1 -r48000 -D hw:Loopback -fS16_LE - | sudo /home/pi/OrangeThunder/bin/OT -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1" -a
-#*----------------------------------------*
-#* Transceiver execution using loopback   *
-#*----------------------------------------*
-echo "Removing /tmp/ttyv0 PI($PID)"
-sudo pkill socat
-#*----------------------------------------*
-#*           End of Script                * 
-#*----------------------------------------*
+cd /home/pi/OrangeThunder
+cd bash
+./OT4D.sh [f in Hz, defautls to 14074000]
 ```
 
+## OT Executing (Runtime)
 
+
+A simple script is included
+```
+cd /home/pi/OrangeThunder
+cd bash
+./OT.sh [f in Hz, defautls to 14074000]
+
+```
 
 
 # Configuring ham software

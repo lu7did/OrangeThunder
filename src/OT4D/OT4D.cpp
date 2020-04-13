@@ -124,44 +124,14 @@ static void sighandler(int signum)
 void setPTT(bool ptt) {
 
     if (ptt==true) {  //currently receiving now transmitting
-       //if(getWord(rtl->MSW,RUN)==true) {
-       //  rtl->stop();
-       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object stopped\n",PROGRAMID,BOOL2CHAR(ptt));
-       //} else {
-       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object found stopped, nothing done\n",PROGRAMID,BOOL2CHAR(ptt));
-       //}
        fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt));
        int z = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnon.py");
        usleep(10000);
        usb->setPTT(ptt);
-       //if(getWord(usb->MSW,RUN)==false) {
-       //  usb->start();
-       //  fprintf(stderr,"%s:setPTT(%s) genSSB object started\n",PROGRAMID,BOOL2CHAR(ptt));
-       //  usb->setPTT(ptt);
-       //  usleep(10000);
-       //} else {
-       //  fprintf(stderr,"%s:setPTT(%s) genSSB object found started, nothing done BUT CHECK\n",PROGRAMID,BOOL2CHAR(ptt));
-       //}
-
     } else {          //currently transmitting, now receiving
-
-       //if(getWord(usb->MSW,RUN)==true) {
        usb->setPTT(ptt);
-       //  usb->stop();
-       //  fprintf(stderr,"%s:setPTT(%s) genSSB object stopped\n",PROGRAMID,BOOL2CHAR(ptt));
        usleep(10000);
-       //} else {
-       //  fprintf(stderr,"%s:setPTT(%s) genSSB object found stopped, nothing done\n",PROGRAMID,BOOL2CHAR(ptt));
-       //}
-       //fprintf(stderr,"%s:setPTT(%s) operating relay to RX position\n",PROGRAMID,BOOL2CHAR(ptt));
        int x = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnoff.py");
-       //if(getWord(rtl->MSW,RUN)==false) {
-       //  rtl->start();
-       //  usleep(10000);
-       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object started\n",PROGRAMID,BOOL2CHAR(ptt));
-       //} else {
-       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object found started, nothing done BUT CHECK\n",PROGRAMID,BOOL2CHAR(ptt));
-       //}
     }
     setWord(&MSW,PTT,ptt);
     fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
@@ -254,21 +224,12 @@ void SSBchangeVOX() {
 int main(int argc, char** argv)
 {
 
-  fprintf(stderr,"%s version %s build(%s) %s\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT);
+  fprintf(stderr,"%s version %s build(%s) %s tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT,TRACE);
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags = 0;
 
-//*--- Define the rest of the signal handlers, basically as termination exceptions
-
-//  fprintf(stderr,"%s:main() initialize interrupt handling system\n",PROGRAMID);
-//  for (int i = 0; i < 64; i++) {
-
-//      if (i != SIGALRM && i != 17 && i != 28) {
-//         signal(i,sighandler);
-//      }
-//  }
 
   sigaction(SIGINT, &sigact, NULL);
   sigaction(SIGTERM, &sigact, NULL);
@@ -280,6 +241,7 @@ int main(int argc, char** argv)
 // --- define control interface
 
   fprintf(stderr,"%s:main() initialize GPIO control interface\n",PROGRAMID);
+
   //if(gpioInitialise()<0) {
   //  fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
   //  exit(16);
@@ -360,7 +322,7 @@ int main(int argc, char** argv)
   setPTT(true);
   sleep(1);
   setPTT(false);
-  rtl->setFrequency(14074000);
+  //rtl->setFrequency(14074000);
   
   while(getWord(MSW,RUN)==true)
  
@@ -387,6 +349,7 @@ int main(int argc, char** argv)
 
 // --- Normal termination kills the child first and wait for its termination
   fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
+  cat->close();
   usb->stop();
   rtl->stop();
 }
