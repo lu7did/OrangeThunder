@@ -39,12 +39,17 @@
 #include<string.h>
 #include<stdio.h>
 #include<fcntl.h> 
-#include <pigpio.h>
 #include "/home/pi/OrangeThunder/src/lib/genSSB.h"
 #include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
+
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 
 // --- Program initialization
 
@@ -63,11 +68,13 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 struct sigaction sigact;
 char   *HW;
 float  f=14074000;
+int    anyargs=1;
 
 // --- System control objects
 
 byte   TRACE=0x00;
 byte   MSW=0x00;
+int    vol=10;
 
 // -- - genSSB object
 genSSB* usb=nullptr;
@@ -83,10 +90,11 @@ void CATchangeMode();      // Callback when CAT receives a mode change
 void CATchangeFreq();      // Callback when CAT receives a freq change
 void CATchangeStatus();    // Callback when CAT receives a freq change
 
-CAT817* cat;
+CAT817* cat=nullptr;
 byte FT817;
 char  port[80];
 long  catbaud=4800;
+int   SNR;
 
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
@@ -107,9 +115,6 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
-
-
-
 // ======================================================================================================================
 // sighandler
 // ======================================================================================================================
@@ -132,6 +137,7 @@ void setPTT(bool ptt) {
        usb->setPTT(ptt);
        usleep(10000);
        int x = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnoff.py");
+       usleep(10000);
     }
     setWord(&MSW,PTT,ptt);
     fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
@@ -149,7 +155,8 @@ void CATchangeFreq() {
      return;
   }
 
-  fprintf(stderr,"%s:CATchangeFreq() Frequency set(%d)\n",PROGRAMID,(int)f);
+  cat->SetFrequency=f;
+  fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f);
 
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -194,7 +201,6 @@ void CATchangeStatus() {
   if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
      fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID);
   }
-
   FT817=cat->FT817;
   return;
 
@@ -202,10 +208,22 @@ void CATchangeStatus() {
 //--------------------------------------------------------------------------------------------------
 // Stubs for callback not implemented yed
 //--------------------------------------------------------------------------------------------------
-
 void CATgetRX() {
+
+    cat->RX=cat->snr2code(SNR);
+    //fprintf(stderr,"%s:CATgetRX() SNR(%d)->RX(%d)\n",PROGRAMID,SNR,cat->RX);
+
 }
 void CATgetTX() {
+}
+// ======================================================================================================================
+// SNR upcall change
+// ======================================================================================================================
+void changeSNR() {
+
+     SNR=rtl->SNR;
+     //fprintf(stderr,"%s:CATgetRX() update SNR(%d)\n",PROGRAMID,SNR);
+
 }
 // ======================================================================================================================
 // VOX upcall signal
@@ -217,6 +235,24 @@ void SSBchangeVOX() {
 
 
 }
+//---------------------------------------------------------------------------------
+// Print usage
+//---------------------------------------------------------------------------------
+void print_usage(void)
+{
+fprintf(stderr,"%s %s [%s]\n\
+Usage: [-f Frequency] [-v volume] [-p portname] [-t tracelevel] \n\
+-p            portname (default /tmp/ttyv0)\n\
+-f float      central frequency Hz(50 kHz to 1500 MHz),\n\
+-t            tracelevel (0 to 3)\n\
+-v            sound card volume (-10 to 30)\n\
+-?            help (this help).\n\
+\n",PROGRAMID,PROG_VERSION,PROG_BUILD);
+
+} /* end function print_usage */
+
+
+
 // ======================================================================================================================
 // MAIN
 // Create IPC pipes, launch child process and keep communicating with it
@@ -238,37 +274,69 @@ int main(int argc, char** argv)
  
   signal(SIGPIPE, SIG_IGN);
 
-// --- define control interface
-
-  fprintf(stderr,"%s:main() initialize GPIO control interface\n",PROGRAMID);
-
-  //if(gpioInitialise()<0) {
-  //  fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
-  //  exit(16);
-  //}
-
-  //gpioSetMode(GPIO_PTT, PI_OUTPUT);
-  //usleep(100000);
-
-  //gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
-  //usleep(100000);
-
-  //gpioWrite(GPIO_PTT, 0);
-  //usleep(100000);
-
 // --- memory areas
 
   fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
+  sprintf(port,"/tmp/ttyv0");
+
+//---------------------------------------------------------------------------------
+// arg_parse
+//---------------------------------------------------------------------------------
+   while(1)
+	{
+	int ax = getopt(argc, argv, "p:f:t:v:h");
+	if(ax == -1) 
+	{
+	  if(anyargs) break;
+	  else ax='h'; //print usage and exit
+        }
+	anyargs = 1;
+
+	switch(ax)
+	{
+	case 'p': // File name
+             sprintf(port,optarg);
+	     fprintf(stderr,"%s: argument port(%s)\n",PROGRAMID,port);
+	     break;
+	case 'f': // Frequency
+	     f = atof(optarg);
+  	     fprintf(stderr,"%s: argument frequency(%10f)\n",PROGRAMID,f);
+	     break;
+	case 'v': // SampleRate (Only needeed in IQ mode)
+	     vol = atoi(optarg);
+	     fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol);
+             break;
+	case 't': // SampleRate (Only needeed in IQ mode)
+	     TRACE = atoi(optarg);
+	     fprintf(stderr,"%s: argument tracelevel(%d)\n",PROGRAMID,TRACE);
+             break;
+	case -1:
+             break;
+	case '?':
+	     if (isprint(optopt) )
+ 	     {
+ 	        fprintf(stderr, "%s:arg_parse() unknown option `-%c'.\n",PROGRAMID,optopt);
+ 	     } 	else {
+		fprintf(stderr, "%s:arg_parse() unknown option character `\\x%x'.\n",PROGRAMID,optopt);
+  	     }
+	     print_usage();
+	     exit(1);
+	     break;
+	default:
+   	     print_usage();
+	     exit(1);
+	     break;
+	}/* end switch a */
+	}/* end while getopt() */
+
 
 // --- ALSA loopback support 
 
   fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID);
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
-
-
 
 // --- define rtl-sdr handling objects
 
@@ -277,8 +345,9 @@ int main(int argc, char** argv)
   rtl=new rtlfm();  
   rtl->TRACE=TRACE;
   rtl->setMode(MUSB);
-  rtl->setVol(10);  
-  rtl->setFrequency(14074000);
+  rtl->setVol(vol);  
+  rtl->setFrequency(f);
+  rtl->changeSNR=changeSNR;
   rtl->start();
 
 
@@ -298,7 +367,6 @@ int main(int argc, char** argv)
 
   fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID);
   FT817=0x00;
-  sprintf(port,"/tmp/ttyv0");
 
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
   cat->FT817=FT817;
@@ -307,6 +375,7 @@ int main(int argc, char** argv)
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
   cat->open(port,catbaud);
+  cat->getRX=CATgetRX;
 
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
@@ -317,20 +386,23 @@ int main(int argc, char** argv)
   setWord(&MSW,RUN,true);
   fprintf(stderr,"%s:main() start operation\n",PROGRAMID);
 
-// --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
+// --- Cycle the PTT to check the interface  
 
   setPTT(true);
   sleep(1);
   setPTT(false);
-  //rtl->setFrequency(14074000);
   
+
+//*-------------------------------------------------------------------------------------------*
+//*                                 MAIN PROGRAM LOOP                                         *
+//*-------------------------------------------------------------------------------------------*
   while(getWord(MSW,RUN)==true)
  
   {
     cat->get();
 
     if (getWord(rtl->MSW,RUN)==true) {
-    int rtl_read=rtl->readpipe(rtl_buffer,1024);
+    int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
         if (rtl_read>0) {
            rtl_buffer[rtl_read]=0x00;
            fprintf(stderr,"%s",(char*)rtl_buffer);
@@ -338,7 +410,7 @@ int main(int argc, char** argv)
     }
  
     if (getWord(usb->MSW,RUN)==true) {
-    int usb_read=usb->readpipe(usb_buffer,1024);
+    int usb_read=usb->readpipe(usb_buffer,BUFSIZE);
         if (usb_read>0) {
            usb_buffer[usb_read]=0x00;
            fprintf(stderr,"%s",(char*)usb_buffer);
@@ -348,6 +420,7 @@ int main(int argc, char** argv)
   }
 
 // --- Normal termination kills the child first and wait for its termination
+
   fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
   cat->close();
   usb->stop();

@@ -50,6 +50,9 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val);
 class rtlfm
 {
   public: 
+
+
+CALLBACK changeSNR=NULL;
   
       rtlfm();
  void start();
@@ -58,6 +61,7 @@ class rtlfm
  void setFrequency(float f);
  void setMode(byte m);
 void  setVol(int v);
+void  setchangeSNR(CALLBACK c);
      
       pid_t               pid = 0;
       int                 status;
@@ -68,7 +72,7 @@ void  setVol(int v);
       int                 so;
       int                 vol;
       int		  mode;
-
+      int                 SNR=0;
       byte                MSW=0x00;
       byte                TRACE=0x00;
 //-------------------- GLOBAL VARIABLES ----------------------------
@@ -95,7 +99,6 @@ private:
 //--------------------------------------------------------------------------------------------------
 rtlfm::rtlfm(){
 
-
    pid=0;
    setMode(MUSB);
    setFrequency(14074000);
@@ -105,6 +108,14 @@ rtlfm::rtlfm(){
    TRACE=0x02;
    //running=false;
    (this->TRACE>=0x01 ? fprintf(stderr,"%s::rtlfm() Initialization completed tracelevel(%d)\n",PROGRAMID,this->TRACE) : _NOP);
+
+}
+//---------------------------------------------------------------------------------------------------
+// setchangeSNR CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void rtlfm::setchangeSNR(CALLBACK c) {
+
+   changeSNR=c;
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -273,7 +284,7 @@ char   command[256];
 
 // --- format command
 
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14.074M -s %d  -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null >/dev/null",so,vol,so); 
+   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14.074M -s %d  -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",so,vol,so); 
    //sprintf(command,"sudo /home/pi/OrangeThunder/bin/demo_rtlfm"); 
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
@@ -302,13 +313,23 @@ char   command[256];
 //--------------------------------------------------------------------------------------------------
 int rtlfm::readpipe(char* buffer,int len) {
 
+ char b[8];
+
  if (getWord(MSW,RUN) == true) {
     int rc=read(inpipefd[0],buffer,len);
     if (rc<=0) {
        return 0;
     }
     buffer[rc]=0x00;
-    return rc;
+    if (strncmp(buffer, "SNR=", 4) == 0) {
+        strncpy(b,&buffer[4],strlen(buffer)-5);
+        this->SNR=atoi(b);
+        if(changeSNR!=NULL) {changeSNR();}
+        //fprintf(stderr,"%s::readPipe() SNR= token detected{%s}\n",PROGRAMID,b);
+        return 0;
+    } else {
+      return rc;
+    }
  } else {
     return 0;
  }

@@ -56,6 +56,7 @@
 
 #define GPIO_PTT    12
 
+#define BUFSIZE     1024
 #define RTLSIZE     2048
 #define GENSIZE     2048
 

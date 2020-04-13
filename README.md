@@ -358,6 +358,11 @@ wsjtx
 
 ## FLRig
 
+The rig can be configured at FLRig in a way to control it using the CAT interface thru the virtual serial port /tmp/ttyv1 defined using
+the **socat** program at the execution script.
+
+![Alt Text](docs/FLRIG_config.jpg?raw=true "FLRig Screenshoot transceiver configuration")
+
 ## FLDIGI
 
 ## HamLib/rigctl

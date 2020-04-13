@@ -1705,10 +1705,20 @@ int main(int argc, char **argv)
   char* buffin;
   char* cmdin;
   int   p=0;
+  int   j=0;
+
         buffin=(char*)malloc(129);
         cmdin=(char*)malloc(129);
         fprintf(stderr,"*** Starting command mode\n");
 	while (!do_exit) {
+        j++;
+        if(j%1000000) {
+          int snr=rms(demod.lowpassed,demod.lp_len,1);
+          int sig=squelch_to_rms(snr,&dongle,&demod);
+          fprintf(stderr,"SNR=%d\n",snr-157);
+          j=0;
+        }
+
         int nreadin=read(fdin,buffin,128);
             if (nreadin!=-1) {
                for(int j=0; j<nreadin; j++) {
