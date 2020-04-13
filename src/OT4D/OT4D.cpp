@@ -1,7 +1,7 @@
 /*
- * demo_genSSB 
+ * OT4D 
  *-----------------------------------------------------------------------------
- * demo program for the genSSB program component
+ * simple USB transceiver for the OrangeThunder project
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
  * ----------------------------------------------------------------------------
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -25,9 +25,10 @@
  */
 
 /*
- This is a proof of concept test platform to evaluate the best strategy
- to start and stop rtl_fm running in the background and to pass 
- parameters to it during run-time.
+ This is an entry level USB transceiver to evaluate the best strategy
+ to have rtl_fm and genSSB running at the same time.
+ This program should be suitable to operate digital modes on a sigle
+ frequency vaguely replicating the famous D4D transceiver by Adam Rong
 */
 
 #include<unistd.h>
@@ -40,44 +41,52 @@
 #include<fcntl.h> 
 #include <pigpio.h>
 #include "/home/pi/OrangeThunder/src/lib/genSSB.h"
+#include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
+#include "/home/pi/OrangeThunder/src/OT/OT.h"
 
+// --- Program initialization
 
-#define BOOL2CHAR(g)  (g==true ? "True" : "False")
-#define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
-#define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
-#define SET_GPIO_ALT(g,a) *(gpio.addr + (((g)/10))) |= (((a)<=3?(a) + 4:(a)==4?3:2)<<(((g)%10)*3))
-#define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
-#define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
-#define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
-
-// --- IPC structures
-
-genSSB* g=nullptr;
-struct sigaction sigact;
-char   *buffer;
-char   *HW;
-float  SetFrequency=14074000;
-byte   TRACE=0x02;
-byte   MSW=0x00;
-
-// --- CAT object
-
-void CATchangeMode();
-void CATchangeFreq();
-void CATchangeStatus();
-
-CAT817* cat;
-byte FT817;
-
-char  port[80];
-long  catbaud=4800;
-
-const char   *PROGRAMID="demo_genSSB";
+const char   *PROGRAMID="OT4D";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
+
+
+// *************************************************************************************************
+// *                           Common Memory definitions                                           *
+// *************************************************************************************************
+
+// --- IPC structures
+
+struct sigaction sigact;
+char   *HW;
+float  f=14074000;
+
+// --- System control objects
+
+byte   TRACE=0x00;
+byte   MSW=0x00;
+
+// -- - genSSB object
+genSSB* usb=nullptr;
+char   *usb_buffer;
+
+// --- rtlfm object
+
+rtlfm*  rtl=nullptr;
+char    *rtl_buffer;
+// --- CAT object
+
+void CATchangeMode();      // Callback when CAT receives a mode change
+void CATchangeFreq();      // Callback when CAT receives a freq change
+void CATchangeStatus();    // Callback when CAT receives a freq change
+
+CAT817* cat;
+byte FT817;
+char  port[80];
+long  catbaud=4800;
 
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
@@ -99,6 +108,8 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 
 }
 
+
+
 // ======================================================================================================================
 // sighandler
 // ======================================================================================================================
@@ -112,16 +123,48 @@ static void sighandler(int signum)
 // ======================================================================================================================
 void setPTT(bool ptt) {
 
-    if (ptt==true) {
-       gpioWrite(GPIO_PTT,1);
+    if (ptt==true) {  //currently receiving now transmitting
+       //if(getWord(rtl->MSW,RUN)==true) {
+       //  rtl->stop();
+       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object stopped\n",PROGRAMID,BOOL2CHAR(ptt));
+       //} else {
+       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object found stopped, nothing done\n",PROGRAMID,BOOL2CHAR(ptt));
+       //}
+       fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt));
+       int z = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnon.py");
+       usleep(10000);
+       usb->setPTT(ptt);
+       //if(getWord(usb->MSW,RUN)==false) {
+       //  usb->start();
+       //  fprintf(stderr,"%s:setPTT(%s) genSSB object started\n",PROGRAMID,BOOL2CHAR(ptt));
+       //  usb->setPTT(ptt);
+       //  usleep(10000);
+       //} else {
+       //  fprintf(stderr,"%s:setPTT(%s) genSSB object found started, nothing done BUT CHECK\n",PROGRAMID,BOOL2CHAR(ptt));
+       //}
 
-    } else {
-       gpioWrite(GPIO_PTT,0);
+    } else {          //currently transmitting, now receiving
+
+       //if(getWord(usb->MSW,RUN)==true) {
+       usb->setPTT(ptt);
+       //  usb->stop();
+       //  fprintf(stderr,"%s:setPTT(%s) genSSB object stopped\n",PROGRAMID,BOOL2CHAR(ptt));
+       usleep(10000);
+       //} else {
+       //  fprintf(stderr,"%s:setPTT(%s) genSSB object found stopped, nothing done\n",PROGRAMID,BOOL2CHAR(ptt));
+       //}
+       //fprintf(stderr,"%s:setPTT(%s) operating relay to RX position\n",PROGRAMID,BOOL2CHAR(ptt));
+       int x = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnoff.py");
+       //if(getWord(rtl->MSW,RUN)==false) {
+       //  rtl->start();
+       //  usleep(10000);
+       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object started\n",PROGRAMID,BOOL2CHAR(ptt));
+       //} else {
+       //  fprintf(stderr,"%s:setPTT(%s) rtl-sdr object found started, nothing done BUT CHECK\n",PROGRAMID,BOOL2CHAR(ptt));
+       //}
     }
-    g->setPTT(ptt);
     setWord(&MSW,PTT,ptt);
     fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
-    usleep(10000);
     return;
 }
 //---------------------------------------------------------------------------
@@ -130,13 +173,13 @@ void setPTT(bool ptt) {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
-  if (g->statePTT == true) {
+  if (usb->statePTT == true) {
      fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
-     cat->SetFrequency=SetFrequency;
+     cat->SetFrequency=f;
      return;
   }
 
-  fprintf(stderr,"%s:CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
+  fprintf(stderr,"%s:CATchangeFreq() Frequency set(%d)\n",PROGRAMID,(int)f);
 
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -160,7 +203,7 @@ void CATchangeStatus() {
 
   fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
 
-  if (getWord(cat->FT817,PTT) != g->statePTT) {
+  if (getWord(cat->FT817,PTT) != usb->statePTT) {
      fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
      setPTT(getWord(cat->FT817,PTT));
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
@@ -199,8 +242,8 @@ void CATgetTX() {
 // ======================================================================================================================
 void SSBchangeVOX() {
 
-  fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(g->stateVOX));
-  setPTT(g->stateVOX);
+  fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX));
+  setPTT(usb->stateVOX);
 
 
 }
@@ -211,7 +254,7 @@ void SSBchangeVOX() {
 int main(int argc, char** argv)
 {
 
-  fprintf(stderr,"%s version %s build(%s) %s tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT,TRACE);
+  fprintf(stderr,"%s version %s build(%s) %s\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT);
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
@@ -219,13 +262,13 @@ int main(int argc, char** argv)
 
 //*--- Define the rest of the signal handlers, basically as termination exceptions
 
-  fprintf(stderr,"%s:main() initialize interrupt handling system\n",PROGRAMID);
-  for (int i = 0; i < 64; i++) {
+//  fprintf(stderr,"%s:main() initialize interrupt handling system\n",PROGRAMID);
+//  for (int i = 0; i < 64; i++) {
 
-      if (i != SIGALRM && i != 17 && i != 28) {
-         signal(i,sighandler);
-      }
-  }
+//      if (i != SIGALRM && i != 17 && i != 28) {
+//         signal(i,sighandler);
+//      }
+//  }
 
   sigaction(SIGINT, &sigact, NULL);
   sigaction(SIGTERM, &sigact, NULL);
@@ -237,81 +280,113 @@ int main(int argc, char** argv)
 // --- define control interface
 
   fprintf(stderr,"%s:main() initialize GPIO control interface\n",PROGRAMID);
-  if(gpioInitialise()<0) {
-    fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
-    exit(16);
-  }
+  //if(gpioInitialise()<0) {
+  //  fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
+  //  exit(16);
+  //}
 
-  gpioSetMode(GPIO_PTT, PI_OUTPUT);
-  usleep(100000);
+  //gpioSetMode(GPIO_PTT, PI_OUTPUT);
+  //usleep(100000);
 
-  gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
-  usleep(100000);
+  //gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
+  //usleep(100000);
 
-  gpioWrite(GPIO_PTT, 0);
-  usleep(100000);
-
+  //gpioWrite(GPIO_PTT, 0);
+  //usleep(100000);
 
 // --- memory areas
 
   fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
+  usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
+  rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 
-  buffer=(char*)malloc(2048*sizeof(unsigned char));
+// --- ALSA loopback support 
+
+  fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID);
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
+
+
+
+// --- define rtl-sdr handling objects
+
+  fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID);
+
+  rtl=new rtlfm();  
+  rtl->TRACE=TRACE;
+  rtl->setMode(MUSB);
+  rtl->setVol(10);  
+  rtl->setFrequency(14074000);
+  rtl->start();
+
 
 // --- USB generator 
 
   fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID);
 
-  g=new genSSB(SSBchangeVOX);  
-  g->TRACE=TRACE;
-  g->setFrequency(7074000);
-  g->setFrequency(SetFrequency);
-  g->setSoundChannel(CHANNEL);
-  g->setSoundSR(AFRATE);
-  g->setSoundHW(HW);
-
-  g->start();
+  usb=new genSSB(SSBchangeVOX);  
+  usb->TRACE=TRACE;
+  usb->setFrequency(f);
+  usb->setSoundChannel(CHANNEL);
+  usb->setSoundSR(AFRATE);
+  usb->setSoundHW(HW);
+  usb->start();
 
 // --- creation of CAT object
 
   fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID);
-
   FT817=0x00;
   sprintf(port,"/tmp/ttyv0");
 
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
-
   cat->FT817=FT817;
   cat->POWER=7;
-  cat->SetFrequency=SetFrequency;
+  cat->SetFrequency=f;
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
-
   cat->open(port,catbaud);
+
   setWord(&cat->FT817,AGC,false);
-  setWord(&cat->FT817,PTT,false);
+  setWord(&cat->FT817,PTT,getWord(MSW,PTT));
 
 // -- establish loop condition
+  
   
   setWord(&MSW,RUN,true);
   fprintf(stderr,"%s:main() start operation\n",PROGRAMID);
 
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
-  while(getWord(MSW,RUN)==true)
+
+  setPTT(true);
+  sleep(1);
+  setPTT(false);
+  rtl->setFrequency(14074000);
   
+  while(getWord(MSW,RUN)==true)
+ 
   {
-    cat->get(); 
-    int nread=g->readpipe(buffer,1024);
-    if (nread>0) {
-       buffer[nread]=0x00;
-       fprintf(stderr,"%s",(char*)buffer);
+    cat->get();
+
+    if (getWord(rtl->MSW,RUN)==true) {
+    int rtl_read=rtl->readpipe(rtl_buffer,1024);
+        if (rtl_read>0) {
+           rtl_buffer[rtl_read]=0x00;
+           fprintf(stderr,"%s",(char*)rtl_buffer);
+        }
     }
+ 
+    if (getWord(usb->MSW,RUN)==true) {
+    int usb_read=usb->readpipe(usb_buffer,1024);
+        if (usb_read>0) {
+           usb_buffer[usb_read]=0x00;
+           fprintf(stderr,"%s",(char*)usb_buffer);
+        }
+    }
+
   }
 
 // --- Normal termination kills the child first and wait for its termination
   fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
-  g->stop();
-
+  usb->stop();
+  rtl->stop();
 }

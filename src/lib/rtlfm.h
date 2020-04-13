@@ -26,6 +26,7 @@
 #include <fstream>
 using namespace std;
 
+#include "/home/pi/OrangeThunder/src/OT/OT.h"
 #define MLSB   0x00
 #define MUSB   0x01
 #define MCW    0x02
@@ -41,8 +42,8 @@ using namespace std;
 typedef unsigned char byte;
 typedef bool boolean;
 typedef void (*CALLBACK)();
-
-
+bool getWord (unsigned char SysWord, unsigned char v);
+void setWord(unsigned char* SysWord,unsigned char v, bool val);
 //---------------------------------------------------------------------------------------------------
 // SSB CLASS
 //---------------------------------------------------------------------------------------------------
@@ -56,9 +57,8 @@ class rtlfm
   int readpipe(char* buffer,int len);
  void setFrequency(float f);
  void setMode(byte m);
+void  setVol(int v);
      
-      byte                TRACE=0x00;
-      boolean             running;
       pid_t               pid = 0;
       int                 status;
       int                 inpipefd[2];
@@ -68,6 +68,9 @@ class rtlfm
       int                 so;
       int                 vol;
       int		  mode;
+
+      byte                MSW=0x00;
+      byte                TRACE=0x00;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="rtlfm";
 const char   *PROG_VERSION="1.0";
@@ -80,7 +83,7 @@ const char   *mFM="fm";
 const char   *mLSB="lsb";
 private:
 
-     char MODE[128];
+     char MODE[32];
      char FREQ[16];
    
 
@@ -92,24 +95,28 @@ private:
 //--------------------------------------------------------------------------------------------------
 rtlfm::rtlfm(){
 
+
    pid=0;
    setMode(MUSB);
    setFrequency(14074000);
    sr=4000;
    so=4000;
    vol=0;
-   running=false;
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::rtlfm() Initialization completed\n",PROGRAMID) : _NOP);
+   TRACE=0x02;
+   //running=false;
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::rtlfm() Initialization completed tracelevel(%d)\n",PROGRAMID,this->TRACE) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
 // setFrequency CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 void rtlfm::setFrequency(float f) {
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency setting f(%f)\n",PROGRAMID,f) : _NOP);
 
-   if (f==this->f) {
-      return;
-   }
+   //if (f==this->f) {
+   //   return;
+   //}
+
    this->f=f;
    if (this->f >= 1000000) {
       sprintf(FREQ,"%gM",this->f/1000000);
@@ -125,78 +132,44 @@ void rtlfm::setFrequency(float f) {
 //---------------------------------------------------------------------------------------------------
 // setMode CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-void rtlfm::setMode(byte m) {
+void rtlfm::setVol(int v) {
 
-if ( m == this->mode) {
-   return;
-}
-
-switch(m) {
-           case MCW:
-           case MCWR: 
-           case MUSB:
-                   {
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
-                     break;
-                   }
-           case MLSB:
-                   {
-		     sr=4000;
-		     so=4000;
-  	             sprintf(MODE,"%s",mLSB);
-                     break;
-                   }
-	   case MAM:
-                   { 
-		     sr=4000;
-		     so=4000;
-
-  	             sprintf(MODE,"%s",mAM);
-     		     break;
-		   }
- 	   case MWFM:
-		   {
-  	             sprintf(MODE,"%s","fm -o 4 -A fast -l 0 -E deemp ");
-		     sr=170000;
-	  	     so=32000;
-	  	     break;
-		   }
-	   case MFM:
-		   {
-  	             sprintf(MODE,"%s",mFM);
-		     sr=4000;
-		     so=4000;
-	  	     break;
-		   }
-	   case MDIG:
-		   {
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
-	  	     break;
-		   }
-	   case MPKT:
-		   {
-
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=4000;
-		     so=4000;
-	  	     break;
-		   }
-
-       }
-
-   if ( running == false) {
-      this->mode=m;
+   if ( v == this->vol) {
       return;
    }
 
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%s)\n",PROGRAMID,MODE) : _NOP);
+   this->vol=v;
+   if ( getWord(MSW,RUN)==false) {
+      (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setVol(%d) changed volume\n",PROGRAMID,this->vol) : _NOP);
+      return;
+   }
+
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%d) reset rtl-sdr\n",PROGRAMID,this->vol) : _NOP);
    this->stop();
    this->start();
    return;
+
+
+}
+//---------------------------------------------------------------------------------------------------
+// setMode CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void rtlfm::setMode(byte m) {
+   if ( m == this->mode) {
+      return;
+   }
+
+   this->mode=m;
+   if ( getWord(MSW,RUN)==false) {
+      (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%d) changed mode\n",PROGRAMID,this->mode) : _NOP);
+      return;
+   }
+
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%d) reset rtl-sdr\n",PROGRAMID,this->mode) : _NOP);
+   this->stop();
+   this->start();
+   return;
+
 }
 //---------------------------------------------------------------------------------------------------
 // start operations (fork processes) Implementation
@@ -206,33 +179,102 @@ void rtlfm::start() {
 char   command[256];
 // --- create pipes
 
+  (TRACE>=0x02 ? fprintf(stderr,"%s::start() starting thread requested\n",PROGRAMID) : _NOP);;
+
   pipe(inpipefd);
+  //fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
+
   fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
+  fcntl(inpipefd[0],F_SETFL,O_NONBLOCK);
 
   pipe(outpipefd);
+  //fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
+
   fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
 
 // --- launch pipe
 
   pid = fork();
 
+  (TRACE>=0x02 ? fprintf(stderr,"%s::start() starting pid(%d)\n",PROGRAMID,pid) : _NOP);;
   if (pid == 0)
   {
 
 // --- This is executed by the child only, output is being redirected
 
+    (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid) : _NOP);;
+
     dup2(outpipefd[0], STDIN_FILENO);
-    dup2(inpipefd[1], STDOUT_FILENO);
+    //dup2(inpipefd[1], STDOUT_FILENO);
     dup2(inpipefd[1], STDERR_FILENO);
 
 // --- ask kernel to deliver SIGTERM in case the parent dies
 
     prctl(PR_SET_PDEATHSIG, SIGTERM);
 
+// --- update current mode to a string representation
+
+    //switch(this->mode) {
+    //       case MCW:
+    //       case MCWR: 
+    //       case MUSB:
+    //               {
+ // 	             sprintf(MODE,"%s",mUSB);
+//		     sr=4000;
+//		     so=4000;
+  //                   break;
+    //               }
+      //     case MLSB:
+        //           {
+//		     sr=4000;
+//		     so=4000;
+  //	             sprintf(MODE,"%s",mLSB);
+    //                 break;
+      //             }
+//	   case MAM:
+  //                 { 
+//		     sr=4000;
+//		     so=4000;
+//
+  //	             sprintf(MODE,"%s",mAM);
+    // 		     break;
+//		   }
+ //	   case MWFM:
+//		   {
+  //	             sprintf(MODE,"%s","fm -o 4 -A fast -l 0 -E deemp ");
+//		     sr=170000;
+//	  	     so=32000;
+//	  	     break;
+//		   }
+//	   case MFM:
+//		   {
+  //	             sprintf(MODE,"%s",mFM);
+//		     sr=4000;
+//		     so=4000;
+//	  	     break;
+//		   }
+//	   case MDIG:
+//		   {
+ // 	             sprintf(MODE,"%s",mUSB);
+//		     sr=4000;
+//		     so=4000;
+//	  	     break;
+//		   }
+//	   case MPKT:
+//		   {
+//
+//  	             sprintf(MODE,"%s",mUSB);
+//		     sr=4000;
+//		     so=4000;
+//	  	     break;
+//		   }
+//
+//       }
 
 // --- format command
 
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d -r %d -E direct 2>/dev/null | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null",MODE,FREQ,sr,so,vol,so); 
+   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14.074M -s %d  -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2>/dev/null >/dev/null",so,vol,so); 
+   //sprintf(command,"sudo /home/pi/OrangeThunder/bin/demo_rtlfm"); 
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
@@ -251,17 +293,22 @@ char   command[256];
 // exit unexpectedly, the parent process will obtain SIGCHLD signal that
 // can be handled (e.g. you can respawn the child process).
 //**************************************************************************
-  running=true;
+  setWord(&MSW,RUN,true);
+  usleep(100000);
   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() receiver process started\n",PROGRAMID) : _NOP);
-
 }
 //---------------------------------------------------------------------------------------------------
 // readpipe CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 int rtlfm::readpipe(char* buffer,int len) {
 
- if (running == true) {
-    return read(inpipefd[0],buffer,len);
+ if (getWord(MSW,RUN) == true) {
+    int rc=read(inpipefd[0],buffer,len);
+    if (rc<=0) {
+       return 0;
+    }
+    buffer[rc]=0x00;
+    return rc;
  } else {
     return 0;
  }
@@ -274,13 +321,13 @@ void rtlfm::stop() {
 
 // --- Normal termination kills the child first and wait for its termination
 
-  if (running==false) {
+  if (getWord(MSW,RUN)==false) {
      return;
   }
 
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
   waitpid(pid, &status, 0);
-  running=false;
+  setWord(&MSW,RUN,false);
   (this->TRACE >=0x01 ? fprintf(stderr,"%s::stop() process terminated\n",PROGRAMID) : _NOP);
 
 }

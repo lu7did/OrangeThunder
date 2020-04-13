@@ -11,5 +11,6 @@ clear
 #*----------------------------------------*
 sudo pkill -9 -f rtl_fm
 sudo pkill -9 -f mplayer
+sudo pkill -9 -f aplay
 
-/home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14.074M -s 4000 -E direct | mplayer -nocache -af volume=0 -rawaudio samplesize=2:channels=1:rate=4000 -demuxer rawaudio -
+/home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14074000 -s 4000 -E direct | mplayer -nocache -af volume=0 -rawaudio samplesize=2:channels=1:rate=4000 -demuxer rawaudio -

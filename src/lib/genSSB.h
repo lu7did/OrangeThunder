@@ -30,6 +30,13 @@ using namespace std;
 #include <sys/stat.h>
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
 
+typedef unsigned char byte;
+typedef bool boolean;
+typedef void (*CALLBACK)();
+
+bool getWord (unsigned char SysWord, unsigned char v);
+void setWord(unsigned char* SysWord,unsigned char v, bool val);
+
 //---------------------------------------------------------------------------------------------------
 // SSB CLASS
 //---------------------------------------------------------------------------------------------------
@@ -187,34 +194,9 @@ if ( m == this->mode) {
    return;
 }
 
-switch(m) {
-           case MCW:
-           case MCWR: 
-	   case MAM:
-	   case MDIG:
-	   case MPKT:
-           case MUSB:
-                   {
-  	             sprintf(MODE,"%s",mUSB);
-		     sr=6000;
-                     break;
-                   }
-           case MLSB:
-                   {
-		     sr=6000;
-  	             sprintf(MODE,"%s",mLSB);
-                     break;
-                   }
- 	   case MWFM:
-	   case MFM:
-                   {
-	  	     break;
-		   }
 
-   }
-
+   this->mode=m;
    if (getWord(MSW,RUN) == false) {
-      this->mode=m;
       return;
    }
 
@@ -264,16 +246,43 @@ char   command[256];
 // --- format command
 
 char cmd_DEBUG[16];
-   switch(this->TRACE) {
 
-     case 0x00 : sprintf(cmd_DEBUG," "); break;
-     case 0x01 : sprintf(cmd_DEBUG," -t 1 "); break;
-     case 0x02 : sprintf(cmd_DEBUG," -t 2 "); break;
-
+   if (this->TRACE>=0) {
+      sprintf(cmd_DEBUG," -t %d ",this->TRACE);
+   } else {
+     sprintf(cmd_DEBUG," ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float 2>/dev/null",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
+   switch(this->mode) {
+           case MCW:
+           case MCWR: 
+	   case MAM:
+	   case MDIG:
+	   case MPKT:
+           case MUSB:
+                   {
+  	             sprintf(MODE,"%s",mUSB);
+		     sr=6000;
+                     break;
+                   }
+           case MLSB:
+                   {
+		     sr=6000;
+  	             sprintf(MODE,"%s",mLSB);
+                     break;
+                   }
+ 	   case MWFM:
+	   case MFM:
+                   {
+	  	     break;
+		   }
+
+   }
+   (this->TRACE >= 0x00 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
+
+
+   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null  | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
 

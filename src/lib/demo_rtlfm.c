@@ -2,6 +2,7 @@
  * rtl-fm, turns your Realtek RTL2832 based DVB dongle into a SDR receiver
  *-----------------------------------------------------------------------------
 
+
  * Quick refactoring to integrate origina rtl_fm.c code into OT project
  * main reasons for change:
  *    - introduce ability to change frequency while running
@@ -52,6 +53,25 @@ int    bRun=0;
 rtlfm* r=nullptr;
 struct sigaction sigact;
 char   *buffer;
+//--------------------------[System Word Handler]---------------------------------------------------
+// getSSW Return status according with the setting of the argument bit onto the SW
+//--------------------------------------------------------------------------------------------------
+bool getWord (unsigned char SysWord, unsigned char v) {
+
+  return SysWord & v;
+
+}
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
+void setWord(unsigned char* SysWord,unsigned char v, bool val) {
+
+  *SysWord = ~v & *SysWord;
+  if (val == true) {
+    *SysWord = *SysWord | v;
+  }
+
+}
 
 
 // ======================================================================================================================
@@ -90,14 +110,12 @@ int main(int argc, char** argv)
 
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
   while(bRun==0)
-  
   {
-   
     int nread=r->readpipe(buffer,1024);
-    buffer[nread]=0x00;
-    fprintf(stderr,"%s",(char*)buffer);
-    //write(STDOUT_FILENO,buffer,nread);
-        
+    if (nread>0) {
+       buffer[nread]=0x00;
+       fprintf(stderr,"%s",(char*)buffer);
+    }
   }
 
 // --- Normal termination kills the child first and wait for its termination

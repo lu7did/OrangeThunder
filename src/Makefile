@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB
+all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -30,11 +30,11 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
+../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h $(LDFLAGS)
+
 ../bin/genSSB : lib/genSSB.cpp /home/pi/librpitx/src/librpitx.a  $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/genSSB ./lib/genSSB.cpp $(LDFLAGS)
-
-#../bin/genSSB : lib/genSSB.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
-#	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/genSSB ./lib/genSSB.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
 ../bin/rtl_fm : rtl-sdr/rtl_fm.c rtl-sdr/convenience.c
 	$(CC) $(OSC_CFLAGS) -o ../bin/rtl_fm ./rtl-sdr/rtl_fm.c rtl-sdr/convenience.c $(LDFLAGS)
