@@ -30,7 +30,7 @@ using namespace std;
 
 typedef unsigned char byte;
 typedef bool boolean;
-typedef void (*CALLBACK)();
+typedef void (*CALLBACKPIN)(int pin);
 
 bool getWord (unsigned char SysWord, unsigned char v);
 void setWord(unsigned char* SysWord,unsigned char v, bool val);
@@ -40,6 +40,7 @@ struct gpio_state
         bool     active;
         bool     mode;
         bool     pullup;
+        bool     longpush;
 };
 
 
@@ -51,15 +52,15 @@ class gpioWrapper
 {
   public: 
   
-         gpioWrapper(CALLBACK p);
+         gpioWrapper(CALLBACKPIN p);
 
 // --- public methods
 
-CALLBACK changePin=NULL;
+CALLBACKPIN changePin=NULL;
      int start();
     void stop();
      int readpipe(char* buffer,int len);
-     int setPin(int pin, int mode, int pullup);
+     int setPin(int pin, int mode, int pullup,int longpush);
     void writePin(int pin, int v);
      int openPipe();
 
@@ -90,7 +91,7 @@ private:
 //---------------------------------------------------------------------------------------------------
 // gpio CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-gpioWrapper::gpioWrapper(CALLBACK p){
+gpioWrapper::gpioWrapper(CALLBACKPIN p){
 
 
    if (p!=NULL) {changePin=p;}
@@ -101,6 +102,7 @@ gpioWrapper::gpioWrapper(CALLBACK p){
       g[i].active=false;
       g[i].mode  =false;
       g[i].pullup=false;
+      g[i].longpush=false;
    }
    indexGPIO=0;
    setWord(&MSW,RUN,false);
@@ -154,7 +156,7 @@ char cmd[16];
    ports[0]=0x00;
    for (int i=0; i<MAXGPIO; i++) {
        if (g[i].active==true) {
-          sprintf(cmd,"-p %d:%d:%d ",i,(g[i].mode==false ? 0 : 1),(g[i].pullup=false ? 0 : 1));
+          sprintf(cmd,"-p %d:%d:%d:%d ",i,(g[i].mode==false ? 0 : 1),(g[i].pullup==false ? 0 : 1),(g[i].longpush==false ? 0 : 1));
           strcat(ports,cmd);
           (TRACE>=0x02 ? fprintf(stderr,"%s::start() added port(%d) to command\n",PROGRAMID,i) : _NOP);
        }
@@ -224,7 +226,7 @@ int gpioWrapper::readpipe(char* buffer,int len) {
 //---------------------------------------------------------------------------------------------------
 // setPin CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-int gpioWrapper::setPin(int pin, int mode, int pullup) {
+int gpioWrapper::setPin(int pin, int mode, int pullup,int longpush) {
 
     if(pin <= 0 || pin >= MAXGPIO) {
       (TRACE>=0x00 ? fprintf(stderr,"%s::setPin invalid pin(%d)\n",PROGRAMID,pin) : _NOP);
@@ -234,8 +236,10 @@ int gpioWrapper::setPin(int pin, int mode, int pullup) {
     g[pin].active=true;
     (mode == 1 ? g[pin].mode=true : g[pin].mode=false);
     (pullup == 1 ? g[pin].pullup=true : g[pin].pullup=false);
+    (longpush == 1 ? g[pin].longpush=true : g[pin].longpush=false);
+
     indexGPIO++;
-    (TRACE>=0x02 ? fprintf(stderr,"%s::setPin set pin(%d) mode(%s) pull(%s)\n",PROGRAMID,pin,BOOL2CHAR(mode),BOOL2CHAR(pullup)) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::setPin set pin(%d) mode(%s) pull(%s) long(%s)\n",PROGRAMID,pin,BOOL2CHAR(mode),BOOL2CHAR(pullup),BOOL2CHAR(longpush)) : _NOP);
     return 0;
 }
 //---------------------------------------------------------------------------------------------------

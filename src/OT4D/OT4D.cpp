@@ -242,9 +242,9 @@ void SSBchangeVOX() {
 // VOX upcall signal
 // ======================================================================================================================
 
-void gpiochangePin() {
+void gpiochangePin(int pin) {
 
-  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state\n",PROGRAMID);
+  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d)\n",PROGRAMID,pin);
 
 }
 //---------------------------------------------------------------------------------
@@ -356,7 +356,11 @@ int main(int argc, char** argv)
   fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID);
   g=new gpioWrapper(gpiochangePin);
   g->TRACE=TRACE;
-  if (g->setPin(GPIO_PTT,1,1) == -1) {
+  if (g->setPin(GPIO_PTT,1,1,0) == -1) {
+     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
+     exit(16);
+  }
+  if (g->setPin(20,1,1,1) == -1) {
      fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
      exit(16);
   }

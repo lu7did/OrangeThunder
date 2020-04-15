@@ -114,6 +114,10 @@ typedef void (*CALLBACK)();
 #define KEYER_OUT_GPIO 12
 #define COOLER_GPIO 19
 
+
+#define MINSWPUSH  10
+#define MAXSWPUSH  2000
+
 // GPIO pins
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 

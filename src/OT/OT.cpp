@@ -191,10 +191,29 @@ short  *buffer_i16;
 // --- IQ Buffer
 
 std::complex<float> CIQBuffer[IQBURST];	
-//--------------------------------------------------------------------------------------------------
+// *--------------------------[System Word Handler]---------------------------------------------------
+// * getSSW Return status according with the setting of the argument bit onto the SW
+// *--------------------------------------------------------------------------------------------------
+bool getWord (unsigned char SysWord, unsigned char v) {
+
+  return SysWord & v;
+
+}
+// *--------------------------------------------------------------------------------------------------
+// * setSSW Sets a given bit of the system status Word (SSW)
+// *--------------------------------------------------------------------------------------------------
+void setWord(unsigned char* SysWord,unsigned char v, bool val) {
+
+  *SysWord = ~v & *SysWord;
+  if (val == true) {
+    *SysWord = *SysWord | v;
+  }
+
+}
+// --------------------------------------------------------------------------------------------------
 // map_peripheral
 // Exposes the physical address defined in the passed structure using mmap on /dev/mem
-//--------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------
 int map_peripheral(struct bcm2835_peripheral *p)
 {
    // Open /dev/mem

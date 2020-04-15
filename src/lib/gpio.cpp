@@ -40,6 +40,7 @@
 #include <string.h>
 #include <fcntl.h> 
 
+#include <chrono>
 
 #include <string.h>
 #include <errno.h>
@@ -56,6 +57,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <sys/time.h>
+
+
 #include <pigpio.h>
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
 
@@ -67,7 +71,15 @@ struct gpio_state
         bool     active;
         bool     mode;
         bool     pullup;
+        bool     longpush;
+        bool     BMULTI;
+        bool     KDOWN;
+struct  timeval  start;
+struct  timeval  end;
 };
+
+auto     startPush=std::chrono::system_clock::now();
+auto     endPush=std::chrono::system_clock::now();
 
 
 const char   *PROGRAMID="gpio";
@@ -102,6 +114,9 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
+// ======================================================================================================================
+// pigpio SIGTERM handler
+// ======================================================================================================================
 int gpioSIGTERM() {
 
     setWord(&MSW,RUN,false);
@@ -142,10 +157,12 @@ int parseport(char* arg, gpio_state* gpio) {
 char* e;
 char* m;
 char* r;
+char* l;
 int   index;
 char  port[8];
 char  mode[8];
 char  pull[8];
+char  push[8];
 int   pin;
 int   p;
 
@@ -160,7 +177,8 @@ int   p;
        gpio[pin].active=true;
        gpio[pin].mode=false;
        gpio[pin].pullup=false;
-       (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN[%d] only pin informed assumed MODE[%s] PULLUP[%s]\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup)) : _NOP);
+       gpio[pin].longpush=false;
+       (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN[%d] only pin informed assumed MODE[%s] PULLUP[%s] longPush(%s)\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup),BOOL2CHAR(gpio[pin].longpush)) : _NOP);
        return pin;
     }
 
@@ -184,7 +202,8 @@ int   p;
       p=atoi(e);
       (p!=1 ? gpio[pin].mode=false : gpio[pin].mode=true);
       gpio[pin].pullup=false;
-      (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN[%d] MODE[%s] assumed PULLUP[%s]\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup)) : _NOP);
+      gpio[pin].longpush=false;
+      (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN[%d] MODE[%s] assumed PULLUP[%s] longPush[%s]\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup),BOOL2CHAR(gpio[pin].longpush)) : _NOP);
       return pin;
     }
     index = (int)(m - e);
@@ -194,20 +213,40 @@ int   p;
     (p!=1 ? gpio[pin].mode=false : gpio[pin].mode=true);
     m++;
 
-// --- now parse the pin pullup mode
+// --- now parse the pin mode 
 
     r = strchr(m,':');
-    if (r!=NULL) {
-       index = (int)(r - m);
-    } else {
-       index = strlen(m);
+    if(r==NULL) {
+      p=atoi(m);
+      (p!=1 ? gpio[pin].pullup=false : gpio[pin].pullup=true);
+      gpio[pin].longpush=false;
+      (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN[%d] MODE[%s] PULLUP[%s] assumed longPush[%s]\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup),BOOL2CHAR(gpio[pin].longpush)) : _NOP);
+      return pin;
     }
+
+
+    index = (int)(r - m);
     strncpy(pull,m,index);
     pull[index]=0x00;
     p=atoi(pull);
     (p!=1 ? gpio[pin].pullup=false : gpio[pin].pullup=true);
+    r++;
 
-    (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN(%d) MODE(%s) PULL(%s)\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup)) : _NOP);
+// --- now parse the pin pullup mode
+
+
+    l = strchr(r,':');
+    if (l!=NULL) {
+       index = (int)(l - r);
+    } else {
+       index = strlen(r);
+    }
+    strncpy(push,r,index);
+    push[index]=0x00;
+    p=atoi(push);
+    (p!=1 ? gpio[pin].longpush=false : gpio[pin].longpush=true);
+
+    (TRACE >= 0x02 ? fprintf(stderr,"%s:parseport parsed PIN(%d) MODE(%s) PULL(%s) pushButton(%s)\n",PROGRAMID,pin,BOOL2CHAR(gpio[pin].mode),BOOL2CHAR(gpio[pin].pullup),BOOL2CHAR(gpio[pin].longpush)) : _NOP);
     return pin;
 }
 
@@ -215,9 +254,69 @@ int   p;
 // alert function
 // this is a program callback to handle changes on the informed pin
 // ======================================================================================================================
-void handleGPIOAlert(int gpio, int level, uint32_t tick)
+void handleGPIOAlert(int g, int level, uint32_t tick)
 {
-   fprintf(stderr,"GPIO%d=%1d\n", gpio, level);
+
+long mtime, seconds, useconds;
+
+   (TRACE>=0x03 ? fprintf(stderr,"%s:handleGPIOAlert() ISR Handler pin number(%d) level(%d) tick(%ld)\n",PROGRAMID,g,level,(long int)tick) : _NOP);
+
+   if (g<=0 || g>=32) {
+      (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() invalid pin number(%d), ignored!\n",PROGRAMID,g) : _NOP);
+      return;
+   }
+
+   if (gpio[g].active!=true) {
+      (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() pin number(%d) not active, ignored!\n",PROGRAMID,g) : _NOP);
+      return;
+   }
+
+   if (level == 0) {
+
+      if (gpio[g].BMULTI==false) {
+         (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() pin number(%d) timer not running, ignored!\n",PROGRAMID,g) : _NOP);
+         return;
+      }
+
+      gettimeofday(&gpio[g].end, NULL);
+
+      seconds  = gpio[g].end.tv_sec  - gpio[g].start.tv_sec;
+      useconds = gpio[g].end.tv_usec - gpio[g].start.tv_usec;
+      mtime = ((seconds) * 1000 + useconds/1000.0) + 0.5;
+      int lapPush=mtime;    //std::chrono::duration_cast<std::chrono::milliseconds>(endPush - gpio[g].start).count();
+      (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() >>> Button(%d) released. Stop of timer (%d) millisecs!\n",PROGRAMID,g,lapPush) : _NOP);
+
+      if (lapPush < MINSWPUSH) {
+         (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOALert() Push pulse too short! (%d) millisecs ignored!\n",PROGRAMID,lapPush) : _NOP);
+         gpio[g].BMULTI=false;
+         return;
+      } else {
+         //gpio[g].BMULTI=true;
+         if (mtime > MAXSWPUSH) {
+            (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() Pin(%d) pushed long t(%d) ms.\n",PROGRAMID,mtime) : _NOP);
+            gpio[g].KDOWN=true;
+         } else {
+            (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() Pin(%d) pushed short t(%d) ms\n",PROGRAMID,mtime) : _NOP);
+            gpio[g].KDOWN=false;
+         }
+         int k=0;
+         if (gpio[g].KDOWN==true && gpio[g].longpush==true) {k=2;} else {k=1;}
+         fprintf(stderr,"GPIO%d=%1d\n", g, k);
+         gpio[g].BMULTI=false;
+         gpio[g].KDOWN=false;
+         return;
+       }
+  }
+  if (gpio[g].BMULTI==true) {
+     (TRACE >= 0x03 ? fprintf(stderr,"%s:handleGPIOAlert() Received request to start while processing previouspin(%d). Ignored!\n",PROGRAMID,g) : _NOP);
+     return;
+  }
+
+  gettimeofday(&gpio[g].start, NULL);
+  gpio[g].BMULTI=true;
+  (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() >>> Button(%d) pressed. Start of timer!\n",PROGRAMID,g) : _NOP);
+  
+
 
 }
 
@@ -246,6 +345,10 @@ int    j=0;
      gpio[i].active = false;
      gpio[i].mode   = false;
      gpio[i].pullup = false;
+     gpio[i].BMULTI = false;
+     gpio[i].KDOWN  = false;
+     gpio[i].longpush=false;
+  
    }
 
 // *--------------------------------------------------------------------------------
@@ -324,9 +427,8 @@ int    j=0;
       if (gpio[i].active == true) {
          (gpio[i].mode == false ? gpioSetMode(i,PI_INPUT) : gpioSetMode(i,PI_OUTPUT));
          (gpio[i].pullup == false ? gpioSetPullUpDown(i,PI_PUD_DOWN) : gpioSetPullUpDown(i,PI_PUD_UP));
-
          if (gpio[i].mode==false) {
-            gpioSetISRFunc(i,FALLING_EDGE,-1,handleGPIOAlert);
+            gpioSetISRFunc(i,EITHER_EDGE,-1,handleGPIOAlert);
             (TRACE>=0x02 ? fprintf(stderr,"%s:main() gpio pin(%d) configured MODE[%s] PULL[%s] handleGPIOAlert()\n",PROGRAMID,i,BOOL2CHAR(gpio[i].mode),BOOL2CHAR(gpio[i].pullup)) : _NOP);
          } else {
             (TRACE>=0x02 ? fprintf(stderr,"%s:main() gpio pin(%d) configured MODE[%s] PULL[%s]\n",PROGRAMID,i,BOOL2CHAR(gpio[i].mode),BOOL2CHAR(gpio[i].pullup)) : _NOP);
@@ -352,7 +454,7 @@ int    j=0;
 // *                       Main Loop                                               *
 // *--------------------------------------------------------------------------------
 
-   while (getWord(MSW,RUN) == true && (time_time() - start) < 60.0)
+   while (getWord(MSW,RUN) == true)
    {
       int cmd_length=read(cmd_FD,(void*)cmd_buffer,255);
           cmd_buffer[cmd_length] = 0x00;
@@ -385,6 +487,7 @@ int    j=0;
           }
       usleep(100000);
       if (q==true) {
+         (TRACE>=0x00 ? fprintf(stderr,"%s:main() one shot termination\n",PROGRAMID) : _NOP);
          break;
       }
    }
