@@ -109,5 +109,12 @@ typedef unsigned char byte;
 typedef bool boolean;
 typedef void (*CALLBACK)();
 #define MAXGPIO 32
+#define CATBAUD 4800
+#define GPIO04  4
+#define KEYER_OUT_GPIO 12
+#define COOLER_GPIO 19
+
+// GPIO pins
+#define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 
 

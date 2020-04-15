@@ -83,7 +83,7 @@
 #include "/home/pi/PixiePi/src/lib/SSB.h" 
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/PixiePi/src/lib/VFOSystem.h" 
-#include "/home/pi/PixiePi/src/pixie/pixie.h" 
+//#include "/home/pi/PixiePi/src/pixie/pixie.h" 
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
 // #include "/home/pi/PixiePi/src/lib/DDS.h"
