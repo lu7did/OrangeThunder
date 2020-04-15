@@ -44,12 +44,11 @@
 #include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
-
+#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
 
 // --- Program initialization
 
@@ -75,6 +74,12 @@ int    anyargs=1;
 byte   TRACE=0x00;
 byte   MSW=0x00;
 int    vol=10;
+
+// --- gpio object
+gpioWrapper* g=nullptr;
+char   *gpio_buffer;
+
+void gpiochangePin();
 
 // -- - genSSB object
 genSSB* usb=nullptr;
@@ -130,13 +135,13 @@ void setPTT(bool ptt) {
 
     if (ptt==true) {  //currently receiving now transmitting
        fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt));
-       int z = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnon.py");
+       if(g!=nullptr) {g->writePin(GPIO_PTT,1);}
        usleep(10000);
        usb->setPTT(ptt);
     } else {          //currently transmitting, now receiving
        usb->setPTT(ptt);
        usleep(10000);
-       int x = system("/usr/bin/python /home/pi/OrangeThunder/bash/turnoff.py");
+       if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
        usleep(10000);
     }
     setWord(&MSW,PTT,ptt);
@@ -211,7 +216,6 @@ void CATchangeStatus() {
 void CATgetRX() {
 
     cat->RX=cat->snr2code(SNR);
-    //fprintf(stderr,"%s:CATgetRX() SNR(%d)->RX(%d)\n",PROGRAMID,SNR,cat->RX);
 
 }
 void CATgetTX() {
@@ -222,7 +226,6 @@ void CATgetTX() {
 void changeSNR() {
 
      SNR=rtl->SNR;
-     //fprintf(stderr,"%s:CATgetRX() update SNR(%d)\n",PROGRAMID,SNR);
 
 }
 // ======================================================================================================================
@@ -233,6 +236,15 @@ void SSBchangeVOX() {
   fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX));
   setPTT(usb->stateVOX);
 
+
+}
+// ======================================================================================================================
+// VOX upcall signal
+// ======================================================================================================================
+
+void gpiochangePin() {
+
+  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state\n",PROGRAMID);
 
 }
 //---------------------------------------------------------------------------------
@@ -277,6 +289,7 @@ int main(int argc, char** argv)
 // --- memory areas
 
   fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
+  gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
   sprintf(port,"/tmp/ttyv0");
@@ -338,6 +351,22 @@ int main(int argc, char** argv)
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
 
+// --- gpio Wrapper creation
+
+  fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID);
+  g=new gpioWrapper(gpiochangePin);
+  g->TRACE=TRACE;
+  if (g->setPin(GPIO_PTT,1,1) == -1) {
+     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
+     exit(16);
+  }
+
+  if (g->start() == -1) {
+     fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID);
+     exit(8);
+  }
+
+  usleep(100000);
 // --- define rtl-sdr handling objects
 
   fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID);
@@ -362,6 +391,7 @@ int main(int argc, char** argv)
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
   usb->start();
+
 
 // --- creation of CAT object
 
@@ -402,18 +432,29 @@ int main(int argc, char** argv)
     cat->get();
 
     if (getWord(rtl->MSW,RUN)==true) {
+
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
         if (rtl_read>0) {
            rtl_buffer[rtl_read]=0x00;
            fprintf(stderr,"%s",(char*)rtl_buffer);
         }
     }
+
+    if (getWord(rtl->MSW,RUN)==true) {
+
+    int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
+        if (rtl_read>0) {
+           rtl_buffer[rtl_read]=0x00;
+           fprintf(stderr,"%s",(char*)rtl_buffer);
+        }
+    }
+
  
-    if (getWord(usb->MSW,RUN)==true) {
-    int usb_read=usb->readpipe(usb_buffer,BUFSIZE);
-        if (usb_read>0) {
-           usb_buffer[usb_read]=0x00;
-           fprintf(stderr,"%s",(char*)usb_buffer);
+    if (getWord(g->MSW,RUN)==true) {
+    int gpio_read=g->readpipe(gpio_buffer,BUFSIZE);
+        if (gpio_read>0) {
+           gpio_buffer[gpio_read]=0x00;
+           fprintf(stderr,"%s",(char*)gpio_buffer);
         }
     }
 
@@ -422,6 +463,7 @@ int main(int argc, char** argv)
 // --- Normal termination kills the child first and wait for its termination
 
   fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
+  g->stop();
   cat->close();
   usb->stop();
   rtl->stop();

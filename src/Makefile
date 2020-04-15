@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D
+all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -10,12 +10,12 @@ INCLUDEDIR=/usr/local/include
 
 CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable
 
-CFLAGS  = -Wall -g -O2 -Wno-unused-variable -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
+CFLAGS  = -Wall -g -O2 -Wno-unused-variable -lrt -lpthread -lpigpio -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
 CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable -DLIBCSDR_GPL -DUSE_FFTW -DUSE_IMA_ADPCM -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
 
 OSC_CFLAGS=-DOSCILLATOR_Z -DOSCILLATOR_D
 #LDFLAGS = $(LIBRPITX)/src/librpitx.a -lm -lrt -lpthread -lwiringPi -lwiringPiDev -lpigpio  -lasound -lusb-1.0 -lrtlsdr -L$(LIBDIR) 
-LDFLAGS = $(LIBRPITX)/src/librpitx.a -lm -lrt -lpthread -lwiringPi -lasound -lusb-1.0 -lrtlsdr -L$(LIBDIR) 
+LDFLAGS = $(LIBRPITX)/src/librpitx.a -lm -lrt -lpthread -lwiringPi -lpigpio -lasound -lusb-1.0 -lrtlsdr -L$(LIBDIR) 
 
 CCP  = c++
 CC   = cc
@@ -31,8 +31,15 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
-../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/rtlfm.h ./lib/genSSB.h
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h $(LDFLAGS)
+../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/gpioWrapper.h ./lib/rtlfm.h ./lib/genSSB.h
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h ./lib/gpioWrapper.h $(LDFLAGS)
+
+
+../bin/demo_gpio: lib/demo_gpio.c 
+	$(GCC) -o ../bin/demo_gpio ./lib/demo_gpio.c $(CFLAGS)
+
+../bin/gpio: lib/gpio.cpp
+	$(CCP) -o ../bin/gpio ./lib/gpio.cpp $(LDFLAGS)
 
 ../bin/demo_rtlfm : lib/demo_rtlfm.c  $(PP)/lib/CAT817.h 
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_rtlfm ./lib/demo_rtlfm.c  $(LDFLAGS)

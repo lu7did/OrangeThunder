@@ -36,7 +36,7 @@ sudo pkill -9 -f arecord
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
-/home/pi/OrangeThunder/bin/OT4D -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
+/home/pi/OrangeThunder/bin/OT4D -p /tmp/ttyv0 -f 14074000
 #sudo /home/pi/OrangeThunder/bin/OT4D -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
 
 #*----------------------------------------*
