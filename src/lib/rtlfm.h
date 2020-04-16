@@ -105,7 +105,7 @@ rtlfm::rtlfm(){
    sr=4000;
    so=4000;
    vol=0;
-   TRACE=0x02;
+   TRACE=0x00;
    //running=false;
    (this->TRACE>=0x01 ? fprintf(stderr,"%s::rtlfm() Initialization completed tracelevel(%d)\n",PROGRAMID,this->TRACE) : _NOP);
 
@@ -122,11 +122,8 @@ void rtlfm::setchangeSNR(CALLBACK c) {
 // setFrequency CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 void rtlfm::setFrequency(float f) {
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency setting f(%f)\n",PROGRAMID,f) : _NOP);
 
-   //if (f==this->f) {
-   //   return;
-   //}
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency setting f(%f)\n",PROGRAMID,f) : _NOP);
 
    this->f=f;
    if (this->f >= 1000000) {
@@ -171,6 +168,27 @@ void rtlfm::setMode(byte m) {
    }
 
    this->mode=m;
+
+   switch(this->mode) {
+
+      case MUSB:
+      case MCW:
+      case MAM:
+      case MDIG:
+      case MPKT:
+                 {sprintf(MODE,"%s",mUSB); break;}
+      case MLSB:
+      case MCWR:
+                 {sprintf(MODE,"%s",mLSB); break;}
+      default:
+                 {
+                 (TRACE>=0x02 ? fprintf(stderr,"%s::setMode() invalid mode, default to USB mode(%d)\n",PROGRAMID,this->mode) : _NOP);
+                 this->mode=MUSB;
+                 sprintf(MODE,"%s",mUSB); break;
+                 break;
+                 }
+   }
+
    if ( getWord(MSW,RUN)==false) {
       (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%d) changed mode\n",PROGRAMID,this->mode) : _NOP);
       return;
@@ -223,69 +241,10 @@ char   command[256];
 
     prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-// --- update current mode to a string representation
-
-    //switch(this->mode) {
-    //       case MCW:
-    //       case MCWR: 
-    //       case MUSB:
-    //               {
- // 	             sprintf(MODE,"%s",mUSB);
-//		     sr=4000;
-//		     so=4000;
-  //                   break;
-    //               }
-      //     case MLSB:
-        //           {
-//		     sr=4000;
-//		     so=4000;
-  //	             sprintf(MODE,"%s",mLSB);
-    //                 break;
-      //             }
-//	   case MAM:
-  //                 { 
-//		     sr=4000;
-//		     so=4000;
-//
-  //	             sprintf(MODE,"%s",mAM);
-    // 		     break;
-//		   }
- //	   case MWFM:
-//		   {
-  //	             sprintf(MODE,"%s","fm -o 4 -A fast -l 0 -E deemp ");
-//		     sr=170000;
-//	  	     so=32000;
-//	  	     break;
-//		   }
-//	   case MFM:
-//		   {
-  //	             sprintf(MODE,"%s",mFM);
-//		     sr=4000;
-//		     so=4000;
-//	  	     break;
-//		   }
-//	   case MDIG:
-//		   {
- // 	             sprintf(MODE,"%s",mUSB);
-//		     sr=4000;
-//		     so=4000;
-//	  	     break;
-//		   }
-//	   case MPKT:
-//		   {
-//
-//  	             sprintf(MODE,"%s",mUSB);
-//		     sr=4000;
-//		     so=4000;
-//	  	     break;
-//		   }
-//
-//       }
 
 // --- format command
 
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M usb -f 14.074M -s %d  -E direct | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",so,vol,so); 
-   //sprintf(command,"sudo /home/pi/OrangeThunder/bin/demo_rtlfm"); 
+   sprintf(command,"sudo /home/pi/OrangeThunder/bin/rtl_fm -M %s -f %s -s %d  -E direct 2>/dev/null | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - 2> /dev/null >/dev/null",MODE,FREQ,so,vol,so); 
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization
@@ -325,7 +284,6 @@ int rtlfm::readpipe(char* buffer,int len) {
         strncpy(b,&buffer[4],strlen(buffer)-5);
         this->SNR=atoi(b);
         if(changeSNR!=NULL) {changeSNR();}
-        //fprintf(stderr,"%s::readPipe() SNR= token detected{%s}\n",PROGRAMID,b);
         return 0;
     } else {
       return rc;

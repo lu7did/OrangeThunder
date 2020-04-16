@@ -9,10 +9,11 @@
 #*            ./demo_genSSB.sh   (transmit at 14074000 Hz)
 #*-----------------------------------------------------------------------
 clear
+echo "$0 (Orange Thunder simple USB transceiver)"
 #*----------------------------------------*
 #* Launching socat server                 *
 #*----------------------------------------*
-sudo socat -d -d pty,raw,echo=0,mode=0777,link=/tmp/ttyv0 pty,raw,echo=0,mode=0777,link=/tmp/ttyv1 &
+sudo socat -d -d pty,raw,echo=0,mode=0777,link=/tmp/ttyv0 pty,raw,echo=0,mode=0777,link=/tmp/ttyv1 2> /dev/null  &
 PID=$!
 echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
 #*----------------------------------------*
@@ -26,32 +27,32 @@ echo "CAT commands piped from apps thru /tmp/ttyv1 PID($PID)"
 #*----------------------------------------*
 #* Process clean up                       *
 #*----------------------------------------*
-sudo rm -r /tmp/ptt_fifo
+sudo rm -r /tmp/ptt_fifo 2> /dev/null
 
-sudo pkill -9 -f sendiq
-sudo pkill -9 -f wsjtx
-sudo pkill -9 -f flrig
-sudo pkill -9 -f arecord
+sudo pkill -9 -f sendiq  2> /dev/null
+sudo pkill -9 -f wsjtx   2> /dev/null
+sudo pkill -9 -f flrig   2> /dev/null
+sudo pkill -9 -f arecord 2> /dev/null
 
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
 /home/pi/OrangeThunder/bin/OT4D -p /tmp/ttyv0 -f 14074000
-#sudo /home/pi/OrangeThunder/bin/OT4D -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
 
 #*----------------------------------------*
 #* terminating                            *
 #*----------------------------------------*
-sudo rm -r /tmp/ptt_fifo
+sudo rm -r /tmp/ptt_fifo 2> /dev/null
 
 echo "Killing rigtcl PID($RIGCTL)"
-sudo pkill rigctld
+sudo pkill rigctld 2> /dev/null
 
 echo "Removing /tmp/ttyv0 PI($PID)"
-sudo pkill socat
+sudo pkill socat 2> /dev/null
 
 echo "Removing /tmp/ptt_fifo"
-sudo rm /tmp/ptt_fifo
+sudo rm /tmp/ptt_fifo 2> /dev/null
+echo "$0 completed"
 #*----------------------------------------*
 #*           End of Script                * 
 #*----------------------------------------*

@@ -62,8 +62,7 @@ CALLBACK changeVOX=NULL;
 
 // -- public attributes
 
-      byte                TRACE=0x02;
-//    boolean             running;
+      byte                TRACE=0x00;
       pid_t               pid = 0;
       int                 status;
 
@@ -225,14 +224,14 @@ char   command[256];
 // --- launch pipe
 
   pid = fork();
-  fprintf(stderr,"%s::start() starting pid(%d)\n",PROGRAMID,pid);
+  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting pid(%d)\n",PROGRAMID,pid) : _NOP);
 
 
   if (pid == 0)
   {
 
 // --- This is executed by the child only, output is being redirected
-    fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid) : _NOP);
 
     dup2(outpipefd[0], STDIN_FILENO);
     dup2(inpipefd[1], STDOUT_FILENO);
@@ -281,7 +280,7 @@ char cmd_DEBUG[16];
    (this->TRACE >= 0x00 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
 
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE -  | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null  | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

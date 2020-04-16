@@ -133,7 +133,7 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 // ======================================================================================================================
 static void sighandler(int signum)
 {
-	fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum);
+	(TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum) : _NOP);
         setWord(&MSW,RUN,false);
 }
 // ======================================================================================================================
@@ -142,7 +142,7 @@ static void sighandler(int signum)
 void setPTT(bool ptt) {
 
     if (ptt==true) {  //currently receiving now transmitting
-       fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt));
+       (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
        if(g!=nullptr) {g->writePin(GPIO_PTT,1);}
        usleep(10000);
        usb->setPTT(ptt);
@@ -154,7 +154,7 @@ void setPTT(bool ptt) {
     }
 
     setWord(&MSW,PTT,ptt);
-    fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
+    (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
     return;
 }
 //---------------------------------------------------------------------------
@@ -164,13 +164,13 @@ void setPTT(bool ptt) {
 void CATchangeFreq() {
 
   if (usb->statePTT == true) {
-     fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency) : _NOP);
      cat->SetFrequency=f;
      return;
   }
 
   cat->SetFrequency=f;
-  fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f) : _NOP);
 
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ void CATchangeFreq() {
 //-----------------------------------------------------------------------------------------------------------
 void CATchangeMode() {
 
-  fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE) : _NOP);
   cat->MODE=MUSB;
   return;
 
@@ -192,28 +192,28 @@ void CATchangeMode() {
 //------------------------------------------------------------------------------------------------------------
 void CATchangeStatus() {
 
-  fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817);
+  (TRACE >= 0x03 ? fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817) : _NOP);
 
   if (getWord(cat->FT817,PTT) != usb->statePTT) {
-     fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false");
+     (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false") : _NOP);
      setPTT(getWord(cat->FT817,PTT));
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
 
   if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
-     fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false");
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false") : _NOP);
   }
 
   if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed
-     fprintf(stderr,"%s:CATchangeStatus() LOCK change request cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false");
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() LOCK change request cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false") : _NOP);
   }
 
   if (getWord(cat->FT817,SPLIT) != getWord(FT817,SPLIT)) {    // SPLIT mode Changed
-     fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false");
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false") : _NOP);
   }
 
   if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
-     fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID);
+     (TRACE >=0x01 ? fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID) : _NOP);
   }
   FT817=cat->FT817;
   return;
@@ -242,7 +242,7 @@ void changeSNR() {
 // ======================================================================================================================
 void SSBchangeVOX() {
 
-  fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX));
+  (TRACE>=0x02 ? fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX)) : _NOP);
   setPTT(usb->stateVOX);
 
 
@@ -253,10 +253,10 @@ void SSBchangeVOX() {
 void gpiochangePin(int pin,int state) {
 
 
-  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state) : _NOP);
   if (pin==GPIO_AUX) {
      (state==1 ? setPTT(false) : setPTT(true));
-     fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state);
+     (TRACE >=0x01 ? fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state) : _NOP);
   }
   
 }
@@ -299,14 +299,10 @@ int main(int argc, char** argv)
  
   signal(SIGPIPE, SIG_IGN);
 
-// --- memory areas
 
-  fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
-  gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
-  usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
-  rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
   sprintf(port,"/tmp/ttyv0");
   sprintf(inifile,"./OT.cfg");
+
 
 //---------------------------------------------------------------------------------
 // reading INI files
@@ -322,8 +318,17 @@ int main(int argc, char** argv)
   (TRACE>=0x02 ? fprintf(stderr,"%s:main()    VOL=%d\n",PROGRAMID,vol) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main()   PORT=%s\n",PROGRAMID,port) : _NOP);
 
+
+// --- memory areas
+
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID) : _NOP);
+  gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
+  usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
+  rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
+
+
 //---------------------------------------------------------------------------------
-// arg_parse
+// arg_parse (parameters override previous configuration)
 //---------------------------------------------------------------------------------
    while(1)
 	{
@@ -339,28 +344,28 @@ int main(int argc, char** argv)
 	{
 	case 'p': // File name
              sprintf(port,optarg);
-	     fprintf(stderr,"%s: argument port(%s)\n",PROGRAMID,port);
+	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument port(%s)\n",PROGRAMID,port) : _NOP);
 	     break;
 	case 'f': // Frequency
 	     f = atof(optarg);
-  	     fprintf(stderr,"%s: argument frequency(%10f)\n",PROGRAMID,f);
+  	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument frequency(%10f)\n",PROGRAMID,f) : _NOP);
 	     break;
 	case 'v': // SampleRate (Only needeed in IQ mode)
 	     vol = atoi(optarg);
-	     fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol);
+	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol) : _NOP);
              break;
 	case 't': // SampleRate (Only needeed in IQ mode)
 	     TRACE = atoi(optarg);
-	     fprintf(stderr,"%s: argument tracelevel(%d)\n",PROGRAMID,TRACE);
+	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
              break;
 	case -1:
              break;
 	case '?':
 	     if (isprint(optopt) )
  	     {
- 	        fprintf(stderr, "%s:arg_parse() unknown option `-%c'.\n",PROGRAMID,optopt);
+ 	        (TRACE>=0x00 ? fprintf(stderr, "%s:arg_parse() unknown option `-%c'.\n",PROGRAMID,optopt) : _NOP);
  	     } 	else {
-		fprintf(stderr, "%s:arg_parse() unknown option character `\\x%x'.\n",PROGRAMID,optopt);
+		(TRACE>=0x00 ?fprintf(stderr, "%s:arg_parse() unknown option character `\\x%x'.\n",PROGRAMID,optopt) : _NOP);
   	     }
 	     print_usage();
 	     exit(1);
@@ -375,42 +380,42 @@ int main(int argc, char** argv)
 
 // --- ALSA loopback support 
 
-  fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID) : _NOP);
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,"Loopback");
 
 // --- gpio Wrapper creation
 
-  fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
   g=new gpioWrapper(gpiochangePin);
   g->TRACE=TRACE;
 
   if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
+     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA);
+     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX);
+     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER);
+     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
      exit(16);
   }
 
   if (g->start() == -1) {
-     fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
      exit(8);
   }
 
   usleep(100000);
 // --- define rtl-sdr handling objects
 
-  fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
 
   rtl=new rtlfm();  
   rtl->TRACE=TRACE;
@@ -423,7 +428,7 @@ int main(int argc, char** argv)
 
 // --- USB generator 
 
-  fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
 
   usb=new genSSB(SSBchangeVOX);  
   usb->TRACE=TRACE;
@@ -436,7 +441,7 @@ int main(int argc, char** argv)
 
 // --- creation of CAT object
 
-  fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID) : _NOP);
   FT817=0x00;
 
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
@@ -455,7 +460,7 @@ int main(int argc, char** argv)
   
   
   setWord(&MSW,RUN,true);
-  fprintf(stderr,"%s:main() start operation\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() start operation\n",PROGRAMID) : _NOP);
 
 // --- Cycle the PTT to check the interface  
 
@@ -477,7 +482,7 @@ int main(int argc, char** argv)
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
         if (rtl_read>0) {
            rtl_buffer[rtl_read]=0x00;
-           fprintf(stderr,"%s",(char*)rtl_buffer);
+           (TRACE>=0x01 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
         }
     }
 
@@ -486,7 +491,7 @@ int main(int argc, char** argv)
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
         if (rtl_read>0) {
            rtl_buffer[rtl_read]=0x00;
-           fprintf(stderr,"%s",(char*)rtl_buffer);
+           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
         }
     }
 
@@ -495,7 +500,7 @@ int main(int argc, char** argv)
     int gpio_read=g->readpipe(gpio_buffer,BUFSIZE);
         if (gpio_read>0) {
            gpio_buffer[gpio_read]=0x00;
-           fprintf(stderr,"%s",(char*)gpio_buffer);
+           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)gpio_buffer) : _NOP);
         }
     }
 
@@ -503,7 +508,7 @@ int main(int argc, char** argv)
 
 // --- Normal termination kills the child first and wait for its termination
 
-  fprintf(stderr,"%s:main() saving parameters\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() saving parameters\n",PROGRAMID) : _NOP);
 
   sprintf(iniStr,"%f",f);
   nIni = ini_puts("OT4D","FREQ",iniStr,inifile);
@@ -518,7 +523,7 @@ int main(int argc, char** argv)
   nIni = ini_puts("OT4D","PORT",iniStr,inifile);
 
 
-  fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID) : _NOP);
   g->stop();
   cat->close();
   usb->stop();
