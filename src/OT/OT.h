@@ -37,7 +37,7 @@
 * MA 02110-1301, USA.
  */
 #define IQBURST          4000
-#define GPIO_PTT           12
+
 #define PTT_FIFO       "/tmp/ptt_fifo"
 
 #define _NOP        (byte)0
@@ -57,6 +57,17 @@
 #define SOUNDHW    "Loopback"
 
 #define GPIO_PTT    12
+#define GPIO_KEYER  16
+#define GPIO_AUX    20
+#define GPIO_PA     21
+
+
+#define GPIO_IN      0
+#define GPIO_OUT     1
+#define GPIO_PUP     1
+#define GPIO_PDN     0
+#define GPIO_NLP     0
+#define GPIO_LP      1
 
 #define BUFSIZE     1024
 #define RTLSIZE     2048

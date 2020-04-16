@@ -45,7 +45,7 @@
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
 #include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
-
+#include "/home/pi/PixiePi/src/minIni/minIni.h"
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -69,6 +69,15 @@ char   *HW;
 float  f=14074000;
 int    anyargs=1;
 
+// --- Define INI related variables
+
+char inifile[80];
+char iniStr[100];
+long nIni;
+int  sIni,kIni;
+char iniSection[50];
+
+
 // --- System control objects
 
 byte   TRACE=0x00;
@@ -78,7 +87,6 @@ int    vol=10;
 // --- gpio object
 gpioWrapper* g=nullptr;
 char   *gpio_buffer;
-
 void gpiochangePin();
 
 // -- - genSSB object
@@ -144,6 +152,7 @@ void setPTT(bool ptt) {
        if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
        usleep(10000);
     }
+
     setWord(&MSW,PTT,ptt);
     fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
     return;
@@ -241,11 +250,15 @@ void SSBchangeVOX() {
 // ======================================================================================================================
 // VOX upcall signal
 // ======================================================================================================================
+void gpiochangePin(int pin,int state) {
 
-void gpiochangePin(int pin) {
 
-  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d)\n",PROGRAMID,pin);
-
+  fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state);
+  if (pin==GPIO_AUX) {
+     (state==1 ? setPTT(false) : setPTT(true));
+     fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state);
+  }
+  
 }
 //---------------------------------------------------------------------------------
 // Print usage
@@ -293,6 +306,21 @@ int main(int argc, char** argv)
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
   sprintf(port,"/tmp/ttyv0");
+  sprintf(inifile,"./OT.cfg");
+
+//---------------------------------------------------------------------------------
+// reading INI files
+//---------------------------------------------------------------------------------
+
+  f=ini_getl("OT4D","FREQ",14074000,inifile);
+  TRACE=ini_getl("OT4D","TRACE",2,inifile);
+  vol=ini_getl("OT4D","VOL",10,inifile);
+  nIni=ini_gets("OT4D", "PORT", "/tmp/ttyv0", port, sizearray(port), inifile);
+
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main()   FREQ=%g\n",PROGRAMID,f) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main()  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main()    VOL=%d\n",PROGRAMID,vol) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main()   PORT=%s\n",PROGRAMID,port) : _NOP);
 
 //---------------------------------------------------------------------------------
 // arg_parse
@@ -356,12 +384,21 @@ int main(int argc, char** argv)
   fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID);
   g=new gpioWrapper(gpiochangePin);
   g->TRACE=TRACE;
-  if (g->setPin(GPIO_PTT,1,1,0) == -1) {
+
+  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
      fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
      exit(16);
   }
-  if (g->setPin(20,1,1,1) == -1) {
-     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT);
+  if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA);
+     exit(16);
+  }
+  if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX);
+     exit(16);
+  }
+  if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+     fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER);
      exit(16);
   }
 
@@ -465,6 +502,21 @@ int main(int argc, char** argv)
   }
 
 // --- Normal termination kills the child first and wait for its termination
+
+  fprintf(stderr,"%s:main() saving parameters\n",PROGRAMID);
+
+  sprintf(iniStr,"%f",f);
+  nIni = ini_puts("OT4D","FREQ",iniStr,inifile);
+
+  sprintf(iniStr,"%d",TRACE);
+  nIni = ini_puts("OT4D","TRACE",iniStr,inifile);
+
+  sprintf(iniStr,"%d",vol);
+  nIni = ini_puts("OT4D","VOL",iniStr,inifile);
+
+  sprintf(iniStr,"%s",port);
+  nIni = ini_puts("OT4D","PORT",iniStr,inifile);
+
 
   fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
   g->stop();

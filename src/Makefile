@@ -31,8 +31,8 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
 
-../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/gpioWrapper.h ./lib/rtlfm.h ./lib/genSSB.h
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h ./lib/gpioWrapper.h $(LDFLAGS)
+../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/gpioWrapper.h ./lib/rtlfm.h ./lib/genSSB.h $(PP)/minIni/minIni.c
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h ./lib/gpioWrapper.h $(PP)/minIni/minIni.c $(LDFLAGS)
 
 
 ../bin/demo_gpio: lib/demo_gpio.c 

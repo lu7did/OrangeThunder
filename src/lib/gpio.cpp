@@ -258,6 +258,7 @@ void handleGPIOAlert(int g, int level, uint32_t tick)
 {
 
 long mtime, seconds, useconds;
+int  k=0;
 
    (TRACE>=0x03 ? fprintf(stderr,"%s:handleGPIOAlert() ISR Handler pin number(%d) level(%d) tick(%ld)\n",PROGRAMID,g,level,(long int)tick) : _NOP);
 
@@ -299,7 +300,6 @@ long mtime, seconds, useconds;
             (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() Pin(%d) pushed short t(%d) ms\n",PROGRAMID,mtime) : _NOP);
             gpio[g].KDOWN=false;
          }
-         int k=0;
          if (gpio[g].KDOWN==true && gpio[g].longpush==true) {k=2;} else {k=1;}
          fprintf(stderr,"GPIO%d=%1d\n", g, k);
          gpio[g].BMULTI=false;
@@ -315,8 +315,8 @@ long mtime, seconds, useconds;
   gettimeofday(&gpio[g].start, NULL);
   gpio[g].BMULTI=true;
   (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() >>> Button(%d) pressed. Start of timer!\n",PROGRAMID,g) : _NOP);
-  
-
+  k=0;
+  fprintf(stderr,"GPIO%d=%1d\n", g, k);
 
 }
 

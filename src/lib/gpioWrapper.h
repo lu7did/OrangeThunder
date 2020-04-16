@@ -30,7 +30,7 @@ using namespace std;
 
 typedef unsigned char byte;
 typedef bool boolean;
-typedef void (*CALLBACKPIN)(int pin);
+typedef void (*CALLBACKPIN)(int pin,int state);
 
 bool getWord (unsigned char SysWord, unsigned char v);
 void setWord(unsigned char* SysWord,unsigned char v, bool val);
@@ -206,24 +206,6 @@ int  gpioWrapper::openPipe() {
      return -1;
 }
 //---------------------------------------------------------------------------------------------------
-// readpipe CLASS Implementation
-//--------------------------------------------------------------------------------------------------
-int gpioWrapper::readpipe(char* buffer,int len) {
-
-    if (getWord(MSW,RUN) != true) {
-       (this->TRACE >= 0x01 ? fprintf(stderr,"%s::readpipe() function called without object running\n",PROGRAMID) : _NOP);
-       return 0;
-    }
-   
-    int rc=read(inpipefd[0],buffer,len);
-    if (rc<=0) {
-       return 0;
-    }
-    buffer[rc]=0x00;
-    return rc;
-
-}
-//---------------------------------------------------------------------------------------------------
 // setPin CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 int gpioWrapper::setPin(int pin, int mode, int pullup,int longpush) {
@@ -241,6 +223,36 @@ int gpioWrapper::setPin(int pin, int mode, int pullup,int longpush) {
     indexGPIO++;
     (TRACE>=0x02 ? fprintf(stderr,"%s::setPin set pin(%d) mode(%s) pull(%s) long(%s)\n",PROGRAMID,pin,BOOL2CHAR(mode),BOOL2CHAR(pullup),BOOL2CHAR(longpush)) : _NOP);
     return 0;
+}
+//---------------------------------------------------------------------------------------------------
+// readpipe CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+int gpioWrapper::readpipe(char* buffer,int len) {
+
+    if (getWord(MSW,RUN) != true) {
+       (this->TRACE >= 0x01 ? fprintf(stderr,"%s::readpipe() function called without object running\n",PROGRAMID) : _NOP);
+       return 0;
+    }
+   
+    int rc=read(inpipefd[0],buffer,len);
+    if (rc<=0) {
+       return 0;
+    }
+    buffer[rc]=0x00;
+
+    if (strcmp(buffer,"GPIO20=0\n")==0) {
+       if (changePin != NULL) {
+          changePin(20,0);
+       }
+    }
+    if (strcmp(buffer,"GPIO20=1\n")==0) {
+       if (changePin != NULL) {
+          changePin(20,1);
+       }
+    }
+
+    return rc;
+
 }
 //---------------------------------------------------------------------------------------------------
 // writePin CLASS Implementation
