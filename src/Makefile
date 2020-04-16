@@ -37,7 +37,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_genSSB : lib/demo_genSSB.c  lib/genSSB.h $(PP)/lib/CAT817.h
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/demo_genSSB ./lib/demo_genSSB.c ./lib/genSSB.h $(LDFLAGS)
 
-../bin/genSSB : lib/genSSB.cpp /home/pi/librpitx/src/librpitx.a  $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
+../bin/genSSB : lib/genSSB.cpp /home/pi/librpitx/src/librpitx.a  $(PP)/minIni/minIni.c  $(PP)/lib/SSB.h
 	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/genSSB ./lib/genSSB.cpp $(LDFLAGS)
 
 

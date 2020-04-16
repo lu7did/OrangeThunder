@@ -36,11 +36,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 * MA 02110-1301, USA.
  */
-#define IQBURST          4000
 
-#define PTT_FIFO       "/tmp/ptt_fifo"
-
-#define _NOP        (byte)0
+#define CATBAUD 	4800
+#define CAT_PORT        "/tmp/ttyv0"
+#define PTT_FIFO       	"/tmp/ptt_fifo"
+#define _NOP        	(byte)0
 
 #define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
@@ -48,50 +48,46 @@
 #define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
 #define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
+#define BOOL2CHAR(g)  (g==true ? "True" : "False")
 
-#define AGC_LEVEL 0.80
-#define AFRATE   48000
+
 #define ONESEC       1
 
 #define CHANNEL      1
 #define SOUNDHW    "Loopback"
+#define AFRATE   48000
+
+#define MAXGPIO 	32
 
 #define GPIO_DDS     4
 #define GPIO_PTT    12
 #define GPIO_KEYER  16
-#define GPIO_COOLER  19
+#define GPIO_COOLER 19
 #define GPIO_AUX    20
 #define GPIO_PA     21
 
 #define GPIO_IN      0
 #define GPIO_OUT     1
+
 #define GPIO_PUP     1
 #define GPIO_PDN     0
 #define GPIO_NLP     0
 #define GPIO_LP      1
 
-#define DDS_MAXLEVEL 7
 #define BUFSIZE     1024
 #define RTLSIZE     2048
 #define GENSIZE     2048
+//#define IQBURST     4096
 
-#define FREQUENCY 14074000
-#define IQSR          6000
-#define DECIMATION       1
 
-#define UNDEFINED       -1
-#define AGC_REF        1.0
-#define AGC_MAX        5.0
-#define AGC_ALPHA      0.5
-#define AGC_GAIN       1.0
+#define IQSR        6000
+#define DECIMATION     1
 
-#define VOX_TIMEOUT    0.0
-#define VOX_MIN        0.0
-#define VOX_MAX       10.0
+#define UNDEFINED     -1
 
-#define NODEBUG            0
-#define MINOR              1
-#define DEBUG              2
+#define NODEBUG        0
+#define MINOR          1
+#define DEBUG          2
 
 //*--- Master System Word (MSW)
 
@@ -107,30 +103,27 @@
 #define TUNE      0B01000000   //redefinition TUNE==SQL
 #define BCK       0B10000000
 
-#define MLSB   0x00
-#define MUSB   0x01
-#define MCW    0x02
-#define MCWR   0x03
-#define MAM    0x04
-#define MWFM   0x06
-#define MFM    0x08
-#define MDIG   0x0A
-#define MPKT   0x0C
-#define BOOL2CHAR(g)  (g==true ? "True" : "False")
+#define MLSB      0x00
+#define MUSB      0x01
+#define MCW       0x02
+#define MCWR      0x03
+#define MAM       0x04
+#define MWFM      0x06
+#define MFM       0x08
+#define MDIG      0x0A
+#define MPKT      0x0C
+
 
 typedef unsigned char byte;
 typedef bool boolean;
 typedef void (*CALLBACK)();
-#define MAXGPIO 32
-#define CATBAUD 4800
-//#define GPIO04  4
-//#define KEYER_OUT_GPIO 12
-//#define COOLER_GPIO 19
 
+#define CFGFILE    "./OT.cfg"
 
 #define MINSWPUSH  10
 #define MAXSWPUSH  2000
 
+#define DDS_MAXLEVEL 7
 // GPIO pins
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 

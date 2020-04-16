@@ -438,8 +438,8 @@ int main(int argc, char** argv)
   sigaction(SIGPIPE, &sigact, NULL);
   signal(SIGPIPE, SIG_IGN);
 
-  sprintf(port,"/tmp/ttyv0");
-  sprintf(inifile,"./OT.cfg");
+  sprintf(port,CAT_PORT);
+  sprintf(inifile,CFGFILE);
 
 //---------------------------------------------------------------------------------
 // reading INI files
@@ -522,7 +522,7 @@ int main(int argc, char** argv)
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID) : _NOP);
   HW=(char*)malloc(16*sizeof(unsigned char));
-  sprintf(HW,"Loopback");
+  sprintf(HW,SOUNDHW);
 
 // --- gpio Wrapper creation
 
@@ -596,7 +596,7 @@ int main(int argc, char** argv)
   FT817=0x00;
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
   cat->FT817=FT817;
-  cat->POWER=7;
+  cat->POWER=DDS_MAXLEVEL;
   cat->SetFrequency=f;
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
@@ -615,7 +615,7 @@ int main(int argc, char** argv)
 // --- Cycle the PTT to check the interface  
 
   setPTT(true);
-  sleep(1);
+  sleep(ONESEC);
   setPTT(false);
   
 

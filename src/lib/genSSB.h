@@ -29,6 +29,7 @@ using namespace std;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
+#include "/home/pi/OrangeThunder/src/OT4D/transceiver.h"
 
 typedef unsigned char byte;
 typedef bool boolean;
