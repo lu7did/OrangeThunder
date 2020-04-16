@@ -56,11 +56,12 @@
 #define CHANNEL      1
 #define SOUNDHW    "Loopback"
 
+#define GPIO_DDS     4
 #define GPIO_PTT    12
 #define GPIO_KEYER  16
+#define GPIO_COOLER  19
 #define GPIO_AUX    20
 #define GPIO_PA     21
-
 
 #define GPIO_IN      0
 #define GPIO_OUT     1
@@ -69,6 +70,7 @@
 #define GPIO_NLP     0
 #define GPIO_LP      1
 
+#define DDS_MAXLEVEL 7
 #define BUFSIZE     1024
 #define RTLSIZE     2048
 #define GENSIZE     2048
@@ -121,9 +123,9 @@ typedef bool boolean;
 typedef void (*CALLBACK)();
 #define MAXGPIO 32
 #define CATBAUD 4800
-#define GPIO04  4
-#define KEYER_OUT_GPIO 12
-#define COOLER_GPIO 19
+//#define GPIO04  4
+//#define KEYER_OUT_GPIO 12
+//#define COOLER_GPIO 19
 
 
 #define MINSWPUSH  10

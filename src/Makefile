@@ -21,12 +21,11 @@ CC   = cc
 GCC  = gcc
 LSDR = /usr/local/lib/librtlsdr.a
 
-../bin/OT : OT/OT.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp $(PP)/lib/SSB.h $(PP)/lib/RPI.h $(PP)/minIni/minIni.c  $(LDFLAGS)
+#../bin/OT : OT/OT.cpp OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a ./lib/genSSB.h ./lib/rtlfm.h ./lib/gpioWrapper.h $(PP)/minIni/minIni.c
+#	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT ./OT/OT.cpp ./lib/genSSB.h ./lib/rtlfm.h ./lib/gpioWrapper.h  $(PP)/minIni/minIni.c  $(LDFLAGS)
 
-../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a $(PP)/lib/SSB.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/gpioWrapper.h ./lib/rtlfm.h ./lib/genSSB.h $(PP)/minIni/minIni.c
-	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h ./lib/gpioWrapper.h $(PP)/minIni/minIni.c $(LDFLAGS)
-
+../bin/OT4D : OT4D/OT4D.cpp $(LIBRPITX)/src/librpitx.a ./OT4D/OT4D.h $(PP)/minIni/minIni.c $(PP)/lib/CAT817.h ./lib/gpioWrapper.h ./lib/rtlfm.h ./lib/genSSB.h $(PP)/minIni/minIni.c $(PP)/lib/DDS.h
+	$(CCP) $(OSC_CFLAGS) $(CXXFLAGS) -o ../bin/OT4D ./OT4D/OT4D.cpp ./lib/genSSB.h  ./lib/rtlfm.h ./lib/gpioWrapper.h $(PP)/minIni/minIni.c $(PP)/lib/DDS.h $(LDFLAGS)
 
 ../bin/rtl_fm : rtl-sdr/rtl_fm.c rtl-sdr/convenience.c
 	$(CC) $(OSC_CFLAGS) -o ../bin/rtl_fm ./rtl-sdr/rtl_fm.c rtl-sdr/convenience.c $(LDFLAGS)
