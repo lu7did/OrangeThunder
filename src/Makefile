@@ -1,4 +1,4 @@
-all: ../bin/OT ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/sendiq ../bin/tune ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -49,15 +49,17 @@ LSDR = /usr/local/lib/librtlsdr.a
 
 
 clean:
-	rm -r  ../bin/OT
 	rm -r  ../bin/OT4D
+	rm -r  ../bin/gpio
 	rm -r  ../bin/rtl_fm
 	rm -r  ../bin/demo_rtlfm
 	rm -r  ../bin/demo_genSSB
 
 install: all
-	install -m 0755 ../bin/OT  /usr/bin
 	install -m 0755 ../bin/OT4D  /usr/bin
-	install -m 0755 ../bin/demo_rtlfm  /usr/bin
-	install	-m 0755 ../bin/demo_genSSB  /usr/bin
+	install -m 0755 ../bin/gpio  /usr/bin
 	install	-m 0755 ../bin/rtl_fm  /usr/bin
+	install	-m 0755 ../bin/genSSB  /usr/bin
+	install -m 0755 ../bin/demo_rtlfm  /usr/bin
+	install -m 0755 ../bin/demo_gpio  /usr/bin
+	install	-m 0755 ../bin/demo_genSSB  /usr/bin

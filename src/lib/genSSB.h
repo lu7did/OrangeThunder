@@ -281,7 +281,7 @@ char cmd_DEBUG[16];
    (this->TRACE >= 0x00 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
 
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE - 2>/dev/null  | /home/pi/OrangeThunder/bin/genSSB %s | sudo /home/pi/rpitx/sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D hw:%s,1 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

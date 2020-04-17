@@ -1,3 +1,4 @@
+
 /*
  * OT4D 
  *-----------------------------------------------------------------------------
@@ -52,9 +53,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
-#include "/home/pi/PixiePi/src/lib/CAT817.h" 
-#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 
 
@@ -63,7 +61,12 @@
 
 // --- OT4D specific includes
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
+#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
+#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
+#include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
+#include "/home/pi/OrangeThunder/src/lib/genVFO.h"
+
 
 const char   *PROGRAMID="OT4D";
 const char   *PROG_VERSION="1.0";
@@ -151,6 +154,7 @@ int     SNR;
 
 void    SSBchangeVOX();
 void    changeDDS(float f);
+genVFO* vfo=nullptr;
 
 //-**********************************************************************************************************************
 //-
@@ -547,12 +551,26 @@ int main(int argc, char** argv)
      exit(16);
   }
 
+  if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+     exit(16);
+  }
+
   if (g->start() == -1) {
      (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
      exit(8);
   }
 
   usleep(100000);
+
+  // *---------------------------------------------*
+  // * Set cooler ON mode                          *
+  // *---------------------------------------------*
+       (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
+       if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
+       usleep(10000);
+
+
 
 #ifdef OT4D
 // --- define rtl-sdr handling object
@@ -605,6 +623,14 @@ int main(int argc, char** argv)
 
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
+
+  vfo=new genVFO(NULL);
+  vfo->FT817=FT817;
+  vfo->setPTT(true);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO CAT PTT(%s) VFO PTT(%s)\n",PROGRAMID,BOOL2CHAR(getWord(cat->FT817,PTT)),BOOL2CHAR(getWord(vfo->FT817,PTT))) : _NOP); 
+  vfo->setPTT(false);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO CAT PTT(%s) VFO PTT(%s)\n",PROGRAMID,BOOL2CHAR(getWord(cat->FT817,PTT)),BOOL2CHAR(getWord(vfo->FT817,PTT))) : _NOP);
+
 
 // -- establish loop condition
   
@@ -681,6 +707,15 @@ int main(int argc, char** argv)
   sprintf(iniStr,"%s",port);
   nIni = ini_puts("OT4D","PORT",iniStr,inifile);
 #endif
+
+
+  // *---------------------------------------------*
+  // * Set cooler ON mode                          *
+  // *---------------------------------------------*
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler de-activation\n",PROGRAMID) : _NOP);
+  if(g!=nullptr) {g->writePin(GPIO_COOLER,0);}
+  usleep(10000);
+
 
 // --- Stop all threads and child processes 
 

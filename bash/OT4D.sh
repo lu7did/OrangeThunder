@@ -10,6 +10,7 @@
 #*-----------------------------------------------------------------------
 clear
 echo "$0 (Orange Thunder simple USB transceiver)"
+
 #*----------------------------------------*
 #* Launching socat server                 *
 #*----------------------------------------*
@@ -37,7 +38,7 @@ sudo pkill -9 -f arecord 2> /dev/null
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
-/home/pi/OrangeThunder/bin/OT4D -p /tmp/ttyv0 -f 14074000
+OT4D -p /tmp/ttyv0 -f 14074000 -t 3
 
 #*----------------------------------------*
 #* terminating                            *

@@ -174,7 +174,7 @@ char cmd[16];
       sprintf(cmd," ");
    }
       
-   sprintf(command,"sudo /home/pi/OrangeThunder/bin/gpio %s %s",ports,cmd);
+   sprintf(command,"sudo gpio %s %s",ports,cmd);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

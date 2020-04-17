@@ -36,7 +36,7 @@ sudo pkill -9 -f arecord
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
-sudo /home/pi/OrangeThunder/bin/demo_genSSB -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1"
+sudo /home/pi/OrangeThunder/bin/demo_genSSB -i /dev/stdin -s 6000 -p /tmp/ttyv0 -f "$1" -t 3
 #*----------------------------------------*
 #* terminating                            *
 #*----------------------------------------*

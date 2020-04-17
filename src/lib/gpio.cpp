@@ -86,6 +86,7 @@ const char   *PROGRAMID="gpio";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
+const char   *LF="\n";
 
 byte   TRACE=0x00;
 byte   MSW=0x00;
@@ -93,6 +94,7 @@ int    cmd_FD=UNDEFINED;
 boolean q=false;
 struct sigaction sigact;
 char*  cmd_buffer;
+char*  read_buffer;
 struct gpio_state gpio[MAXGPIO];
 
 //--------------------------[System Word Handler]---------------------------------------------------
@@ -320,8 +322,6 @@ int  k=0;
 
 }
 
-// call aFunction whenever GPIO 4 changes state
-
 // ======================================================================================================================
 //                                                MAIN
 // ======================================================================================================================
@@ -444,7 +444,10 @@ int    j=0;
    } else {
       (TRACE >= 0x02 ? fprintf(stderr,"%s:main() %d gpio pin informed and activated.\n",PROGRAMID,ngpio) : _NOP);
    }
+char* token;
    cmd_buffer=(char*)malloc(1024);
+   read_buffer=(char*)malloc(1024);
+   token=(char*)malloc(128);
    //cmd_FD=fopen("/dev/stdin","rb");
    cmd_FD = open ("/dev/stdin", ( O_RDONLY | O_NONBLOCK ) );
    start = time_time();
@@ -453,37 +456,43 @@ int    j=0;
 // *--------------------------------------------------------------------------------
 // *                       Main Loop                                               *
 // *--------------------------------------------------------------------------------
-
    while (getWord(MSW,RUN) == true)
    {
-      int cmd_length=read(cmd_FD,(void*)cmd_buffer,255);
-          cmd_buffer[cmd_length] = 0x00;
-          if(cmd_length>0) {
-            (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
-            if (strncmp(cmd_buffer,"GPIO",4)==0) {
-               (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data matches GPIO\n",PROGRAMID) : _NOP);
-               iGPIO=strchr(cmd_buffer,'O');
-               if(iGPIO!=NULL) {
-                 iGPIO++;
-                 jGPIO=strchr(iGPIO,'=');
-                 if (jGPIO!=NULL) {
-                    j=(int)(jGPIO-iGPIO);
-                    strncpy(PIN,iGPIO,j);
-                    PIN[j]=0x00;
-                    int pin=atoi(PIN);
-                    (TRACE>=0x02 ? fprintf (stderr,"%s:main() parsed GPIO Pin(%d)\n",PROGRAMID,pin) : _NOP);
-                    jGPIO++;
-                    int val=atoi(jGPIO);
-                    if (val==0 || val==1) {
-                       (TRACE>=0x02 ? fprintf (stderr,"%s:main() parsed GPIO Pin(%d) value(%d)\n",PROGRAMID,pin,val) : _NOP);
-                       if (gpio[pin].active==true) {
-                          gpioWrite(pin,val);
-                       }
+      int read_length=read(cmd_FD,(void*)read_buffer,255);
+          read_buffer[read_length] = 0x00;
+          if(read_length>0) {
+             token = strtok(read_buffer,LF);   
+             while (token != NULL) { 
+                 strcpy(cmd_buffer,token);
+                 int cmd_length=strlen(cmd_buffer);
+                 printf("%s::main() Parsed read_buffer(%s) token(%s) cmd_buffer(%s)\n",PROGRAMID,read_buffer,token,cmd_buffer); 
+
+                 (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
+                 if (strncmp(cmd_buffer,"GPIO",4)==0) {
+                    (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data matches GPIO\n",PROGRAMID) : _NOP);
+                    iGPIO=strchr(cmd_buffer,'O');
+                    if(iGPIO!=NULL) {
+                      iGPIO++;
+                      jGPIO=strchr(iGPIO,'=');
+                      if (jGPIO!=NULL) {
+                         j=(int)(jGPIO-iGPIO);
+                         strncpy(PIN,iGPIO,j);
+                         PIN[j]=0x00;
+                         int pin=atoi(PIN);
+                         (TRACE>=0x02 ? fprintf (stderr,"%s:main() parsed GPIO Pin(%d)\n",PROGRAMID,pin) : _NOP);
+                         jGPIO++;
+                         int val=atoi(jGPIO);
+                         if (val==0 || val==1) {
+                            (TRACE>=0x02 ? fprintf (stderr,"%s:main() parsed GPIO Pin(%d) value(%d)\n",PROGRAMID,pin,val) : _NOP);
+                            if (gpio[pin].active==true) {
+                               gpioWrite(pin,val);
+                            }
+                         }
+                      }
                     }
                  }
-               }
-
-            }
+                 token = strtok(NULL, "-"); 
+             }
           }
       usleep(100000);
       if (q==true) {
