@@ -69,7 +69,7 @@ typedef struct {
 //*---- HF band definition
 
 #define BANDMAX 20
-
+#define STEPMAX 10
 
 
 //*---------------------------------------------------------------------------------------------------
@@ -89,14 +89,26 @@ class genVFO
 
       byte  vfo=VFOA;      
       byte  FT817=0x00;
+      byte  MODE=MUSB;
+      byte  TRACE=0x03;
 
       void setSplit(bool b);
-      void setRIT(bool b);
       void setPTT(bool b);
 
-      void setStep(byte stepIndex);
+      void setRIT(byte v,bool b);
+      void setRIT(bool b);
 
-      void  getStr(byte bVFO);
+      int  getBand(float f);
+      void setBand(byte band);
+      void setBand(byte v,byte band);
+
+      void setStep(byte v,byte s);
+      void setStep(byte s);
+
+      char* vfo2str(byte v);
+
+      float up();
+      float down();
       float update(int dir);
       float update(byte v,int dir);
 
@@ -109,9 +121,14 @@ class genVFO
   
   private:
 
+const char   *PROGRAMID="genVFO";
+const char   *PROG_VERSION="1.0";
+const char   *PROG_BUILD="00";
+const char   *COPYRIGHT="(c) LU7DID 2019,2020";
+
+
 
       void f2str(float f, FSTR* v);
-
 
       float loFreq[BANDMAX+1]={472,500,1800,3500,7000,10100,14000,18068,21000,24890,28000,50000,87000,108000,144000,420000,1240000};
       float hiFreq[BANDMAX+1]={479,1650,2000,3800,7300,10150,14350,18168,21450,24990,29700,54000,107000,137000,148000,450000,1300000};
@@ -124,8 +141,9 @@ class genVFO
       float step[VFOMAX];
       float rit[VFOMAX];
       float shift[VFOMAX];
-
-      byte  band=B40M;
+      float fmin[VFOMAX];
+      float fmax[VFOMAX];
+      byte  band[VFOMAX];
 
 };
 
@@ -138,34 +156,57 @@ genVFO::genVFO(CALLBACK c)
   
   if (c!=NULL) {this->changeVFO=c;}   //* Callback of change VFO frequency
 
+
   setWord(&FT817,VFO,VFOA);
   setWord(&FT817,PTT,0);
   setWord(&FT817,RIT,false);
   setWord(&FT817,SPLIT,false);
   setWord(&FT817,SHIFT,false);
 
-  this->band=B20M;
-  this->f[VFOA]=14074000;  
-  this->f[VFOB]=14074000;  
+  for (int i=0;i<VFOMAX;i++) {
+
+     step[i]=VFO_STEP_100Hz;
+     rit[i]=0.0;
+     shift[i]=600.0;
+
+  }
+
+  this->setSplit(getWord(FT817,SPLIT));
+
+  setBand(VFOA,getBand(14000000));
+  setBand(VFOB,getBand(14000000));
+
+  this->setRIT(VFOA,getWord(FT817,RIT));
+  this->setRIT(VFOB,getWord(FT817,RIT));
+
+  this->MODE=MUSB;
+
+
+  this->set(VFOA,14074000);
+  this->set(VFOB,14074000);
   this->vfo=VFOA;
-   
+  this->setPTT(false);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() Initialization completed\n",PROGRAMID) : _NOP);   
 
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 void genVFO::set(byte v,float freq) {
 
    if (v!=VFOA && v!=VFOB) {return;}
-
+   if (freq<loFreq[band[v]]*1000 || freq>hiFreq[band[v]]*1000) {
+      (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] **ERROR** freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,vfo2str(v),freq,fmin[v],fmax[v],band[v]) : _NOP);   
+      return;
+   }
    f[v]=freq;  
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,vfo2str(v),f[v],fmin[v],fmax[v],band[v]) : _NOP);   
+
    return ;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 void genVFO::set(float freq) {
 
    this->set(vfo,freq);
@@ -174,7 +215,6 @@ void genVFO::set(float freq) {
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 float genVFO::get(byte v) {
 
    if (v!=VFOA && v!=VFOB) {
@@ -195,16 +235,26 @@ float genVFO::get() {
 //*---------------------------------------------------------------------------------------------------
 
 void genVFO::setSplit(bool b) {
-
    setWord(&FT817,SPLIT,b);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,vfo2str(this->vfo),BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
    return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
 
-void genVFO::setRIT(bool b) {
+void genVFO::setRIT(byte v,bool b) {
+   if(v !=VFOA && v != VFOB) {
+     return;
+   }
+
    setWord(&FT817,RIT,b);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,vfo2str(v),BOOL2CHAR(getWord(FT817,RIT)),rit[v]) : _NOP);   
+
+   return;
+}
+void genVFO::setRIT(bool b) {
+   this->setRIT(vfo,b);
    return;
 }
 //*---------------------------------------------------------------------------------------------------
@@ -214,25 +264,54 @@ void genVFO::setRIT(bool b) {
 void genVFO::setPTT(bool b) {
 
    setWord(&FT817,PTT,b);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s]\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT))) : _NOP);   
+
    return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-void setStep(byte v, byte stepIndex) {
+void genVFO::setStep(byte v, byte s) {
 
    if (v!=VFOA && v!=VFOB) {
       return;
    }
+   if (s<0 || s>=STEPMAX) {
+      return;
+   }
+   step[v]=stepList[s];
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setStep() VFO[%s] Code[%d] Step[%f]\n",PROGRAMID,vfo2str(v),s,step[v]) : _NOP);   
 
    return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-void setStep(byte stepIndex) {
+void genVFO::setStep(byte s) {
 
+   
+   return setStep(vfo,s);
+}
 
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+
+char* genVFO::vfo2str(byte v) {
+   return (v==VFOA ? (char*)"VfoA" : (char*)"VfoB");
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+
+void genVFO::setBand(byte v,byte band) {
+
+  //this->set(v,loFreq[band]*1000);
+  this->band[v]=band;
+  this->fmin[v]=loFreq[band]*1000;
+  this->fmax[v]=hiFreq[band]*1000;
+  this->set(v,fmin[v]);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setBand() VFO[%s] Code[%d] fmin[%f fmax[%f] f[%f]\n",PROGRAMID,vfo2str(v),band,loFreq[band]*1000,hiFreq[band]*1000,f[v]) : _NOP);   
    return;
 }
 
@@ -240,24 +319,67 @@ void setStep(byte stepIndex) {
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
 
-void genVFO::getStr(byte bVFO) {
+void genVFO::setBand(byte band) {
+
+   this->setBand(vfo,band);
    return;
 }
 //*---------------------------------------------------------------------------------------------------
+//* getBand
+//* given the frequency obtain the band (-1 if invalid)
+//*---------------------------------------------------------------------------------------------------
+int genVFO::getBand(float freq) {
+
+   for(int i=0;i<BANDMAX;i++) {
+      if (freq>=loFreq[i]*1000 && freq<=hiFreq[i]*1000) {
+         (this->TRACE>=0x02 ? fprintf(stderr,"%s::getBand()  freq[%f] band[%d]\n",PROGRAMID,freq,i) : _NOP);   
+         return i;
+      }
+   }
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::getBand()  ***ERROR*** freq[%f] has no authorized band\n",PROGRAMID,freq) : _NOP);   
+   return -1;     
+
+}
+
+//*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
 
-float genVFO::update(byte b,int dir) {
-   return 0.0;
+float genVFO::update(byte v,int dir) {
+
+   float freq=f[v];
+   f[v]=f[v]+dir*step[v];
+
+   if (f[v] > fmax[v]) {
+      f[v]=fmax[v];
+   }
+
+   if (f[v] < fmin[v]) {
+      f[v]=fmin[v];
+   }
+
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::update() VFO[%s] dir[%d] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,freq,f[v]) : _NOP);     
+   return f[v];
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 float genVFO::update(int dir) {
    return this->update(this->vfo,dir);
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 
+float genVFO::up() {
+   return this->update(+1);
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::down() {
+   return this->update(-1);
+}
 //*---------------------------------------------------------------------------------------------------
 //* Create change frequency callback
 //*---------------------------------------------------------------------------------------------------

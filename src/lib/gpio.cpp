@@ -461,13 +461,12 @@ char* token;
       int read_length=read(cmd_FD,(void*)read_buffer,255);
           read_buffer[read_length] = 0x00;
           if(read_length>0) {
+             (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,read_buffer,read_length) : _NOP);
              token = strtok(read_buffer,LF);   
              while (token != NULL) { 
                  strcpy(cmd_buffer,token);
                  int cmd_length=strlen(cmd_buffer);
-                 printf("%s::main() Parsed read_buffer(%s) token(%s) cmd_buffer(%s)\n",PROGRAMID,read_buffer,token,cmd_buffer); 
-
-                 (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
+                 (TRACE>=0x02 ? fprintf(stderr,"%s::main() Parsed token(%s)\n",PROGRAMID,token) : _NOP);
                  if (strncmp(cmd_buffer,"GPIO",4)==0) {
                     (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received data matches GPIO\n",PROGRAMID) : _NOP);
                     iGPIO=strchr(cmd_buffer,'O');
