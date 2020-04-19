@@ -90,10 +90,10 @@ class genVFO
       byte  vfo=VFOA;      
       byte  FT817=0x00;
       byte  MODE=MUSB;
-      byte  TRACE=0x03;
+      byte  TRACE=0x00;
 
-      void setSplit(bool b);
-      void setPTT(bool b);
+      void  setSplit(bool b);
+      float setPTT(bool b);
 
       void setRIT(byte v,bool b);
       void setRIT(bool b);
@@ -111,6 +111,13 @@ class genVFO
       float down();
       float update(int dir);
       float update(byte v,int dir);
+
+      float updateRIT(byte v,int dir);
+      float updateRIT(int dir);
+
+      bool  getSplit();
+      bool  getRIT(byte v);
+      bool  getRIT();
 
       long int code2step(byte b);
       byte step2code(long int s);
@@ -260,13 +267,43 @@ void genVFO::setRIT(bool b) {
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
+float genVFO::setPTT(bool b) {
 
-void genVFO::setPTT(bool b) {
+byte  v;
+float o;
 
+
+   if (getWord(FT817,SPLIT)==true) {
+      (vfo==VFOA ? v=VFOB : v=VFOA);
+    } else {
+       v=vfo;
+    }
+
+
+   if (b==false) {   // compute reception frequency
+      vfo=v;
+      (getWord(FT817,RIT)==true ? o=rit[vfo] : o=0.0);
+      setWord(&FT817,PTT,false);
+      o=o+f[vfo];
+      (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
+      return o;
+   }
+
+// from now on is transmittion frequency
+
+   vfo=v;
+   float s=0.0;
+   if (MODE==MCW) {
+      s=shift[vfo];
+   } else {
+     if (MODE==MCWR) {
+        s=-1*shift[vfo];
+     }
+   }
+   o=f[vfo]+s;
    setWord(&FT817,PTT,b);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s]\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT))) : _NOP);   
-
-   return;
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
+   return o;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
@@ -365,6 +402,7 @@ float genVFO::update(byte v,int dir) {
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
 float genVFO::update(int dir) {
+
    return this->update(this->vfo,dir);
 }
 //*---------------------------------------------------------------------------------------------------
@@ -379,6 +417,36 @@ float genVFO::up() {
 //*---------------------------------------------------------------------------------------------------
 float genVFO::down() {
    return this->update(-1);
+}
+
+float genVFO::updateRIT(byte v,int dir) {
+
+    float r=rit[v]+(dir*VFO_STEP_100Hz);
+    if ((f[v]+r > hiFreq[band[v]]*1000) || (f[v]+r < loFreq[band[v]]*1000)) {
+       (this->TRACE>=0x02 ? fprintf(stderr,"%s::updateRIT() ** out of band **VFO[%s] dir[%d] r[%f]->[%f] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,rit[v],r,f[v],f[v]+rit[v]) : _NOP);     
+       return f[v]+rit[v];
+    }
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::updateRIT() VFO[%s] dir[%d] r[%f]->[%f] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,rit[v],r,f[v],f[v]+r) : _NOP);     
+    rit[v]=r;
+    return f[v]+rit[v];
+
+}
+float genVFO::updateRIT(int dir) {
+
+   return updateRIT(vfo,dir);
+}
+
+bool  genVFO::getSplit() {
+
+    return getWord(FT817,SPLIT);
+}
+bool  genVFO::getRIT(byte v) {
+
+    return getWord(FT817,RIT);
+}
+bool  genVFO::getRIT() {
+
+    return getRIT(vfo);
 }
 //*---------------------------------------------------------------------------------------------------
 //* Create change frequency callback

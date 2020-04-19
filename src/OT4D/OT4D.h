@@ -625,29 +625,18 @@ int main(int argc, char** argv)
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
 
   vfo=new genVFO(NULL);
-  vfo->TRACE=0x03;
+  vfo->TRACE=TRACE;
   vfo->FT817=FT817;
   vfo->MODE=cat->MODE;
-  vfo->set(f);
+  vfo->set(VFOA,f);
+  vfo->set(VFOB,f);
+  vfo->setSplit(false);
+  vfo->setRIT(VFOA,false);
+  vfo->setRIT(VFOB,false);
 
-  vfo->update(+1);
-  vfo->update(+1);
-  vfo->update(-1);
-  vfo->set(14000000);
-  vfo->update(-1);
-  vfo->set(14350000);
-  vfo->update(+1);
-  vfo->setRIT(true);
-  vfo->setRIT(false);
-
-
-
-
-  vfo->setPTT(true);
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO CAT PTT(%s) VFO PTT(%s)\n",PROGRAMID,BOOL2CHAR(getWord(cat->FT817,PTT)),BOOL2CHAR(getWord(vfo->FT817,PTT))) : _NOP); 
-  vfo->setPTT(false);
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO CAT PTT(%s) VFO PTT(%s)\n",PROGRAMID,BOOL2CHAR(getWord(cat->FT817,PTT)),BOOL2CHAR(getWord(vfo->FT817,PTT))) : _NOP);
-
+  vfo->vfo=VFOA;
+  setWord(&cat->FT817,VFO,VFOA);
+  
 
 // -- establish loop condition
   
