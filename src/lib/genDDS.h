@@ -68,8 +68,7 @@ CALLBACK upcall=NULL;
     void setShift(float s);
     void setSR(int sr);
     void setPTT(bool v);
-    void sendBuffer(float* RfBuffer,int RfSize);
-     int createBuffer(float* RfBuffer,int RfSize);
+    void send();
 
 //static samplerf_t RfBuffer[IQBURST];
 
@@ -90,7 +89,7 @@ CALLBACK upcall=NULL;
       ngfmdmasync         *fmsender=nullptr;
       float               AmOrFmBuffer[IQBURST];
       int                 FifoSize=IQBURST*4;
-
+      float*              buffer;
 
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genDDS";
@@ -117,6 +116,7 @@ genDDS::genDDS(CALLBACK u){
 
    this->f=14074000;
    this->sr=4000;
+   this->buffer=(float*)malloc(16384);
 
    setWord(&MSW,RUN,false);
    (this->TRACE>=0x02 ? fprintf(stderr,"%s::genDDS() Object Initialization...\n",PROGRAMID) : _NOP);
@@ -136,42 +136,19 @@ void genDDS::start() {
      //fmsender->clkgpio::setlevel(7);
      pad.setlevel(7);
 
+     for (int i=0;i<16384;i++) {
+         buffer[i]=100.0;
+     }
+
      (this->TRACE>=0x02 ? fprintf(stderr,"%s::start() object started.\n",PROGRAMID) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
 // sendBuffer() CLASS Implementation
-//---------------------------------------------------------------------------------------------------
-int  genDDS::createBuffer(float* RfBuffer,int RfSize) {
-
-     if (RfSize == 0) {
-        (this->TRACE>=0x02 ? fprintf(stderr,"%s::createBuffer() empty buffer, ignored\n",PROGRAMID) : _NOP);
-        return 0;
-     }
-
-     for (int i=0;i<RfSize;i++) {
-         RfBuffer[i]=100+(getWord(MSW,PTT)==true ? rit : shift);
-     }
-
-     return RfSize;
-}
-//---------------------------------------------------------------------------------------------------
-// sendBuffer() CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-void genDDS::sendBuffer(float *RfBuffer,int RfSize) {
+void genDDS::send() {
 
-     if (RfSize == 0) {
-        (this->TRACE>=0x02 ? fprintf(stderr,"%s::sendBuffer() empty buffer, ignored\n",PROGRAMID) : _NOP);
-        return;
-     }
-
-     int SampleNumber=0;
-     for(int i=0;i<RfSize;i++)
-     {
-        AmOrFmBuffer[SampleNumber++]=(float)(RfBuffer[i]);
-     }
-
-     fmsender->SetFrequencySamples(AmOrFmBuffer,SampleNumber);
+     fmsender->SetFrequencySamples(buffer,1024);
      return;
 
 }

@@ -201,23 +201,11 @@ int main(int argc, char* argv[])
 
   setWord(&MSW,RUN,true);
   fprintf(stderr,"%s:main() start operations f(%f)\n",PROGRAMID,100+(getWord(g->MSW,PTT)==false ? g->rit : g->shift));
-
-uint32_t W=125000;
   
   while(getWord(MSW,RUN)==true)
     {
-       //g->createBuffer(buffer,4096);
-       //g->sendBuffer(buffer,4096);
-       //usleep(512000);
-       int SampleNumber=0;
-       for (int i=0;i<1024;i++) {
-           RF[i].Frequency=100+(getWord(g->MSW,PTT)==true ? g->rit : g->shift);
-           RF[i].WaitForThisSample=W;
-           buffer[SampleNumber++]=(float)(RF[i].Frequency);
-       }
-
-       g->fmsender->SetFrequencySamples(buffer,SampleNumber);
-       //usleep(100);
+       g->send();
+       usleep(100);
     }
   g->stop();
   delete(g);
