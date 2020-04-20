@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -47,13 +47,15 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/gpio	: lib/gpio.cpp
 	$(CCP) -o ../bin/gpio ./lib/gpio.cpp $(LDFLAGS)
 
-
+../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
+	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
 clean:
 	rm -r  ../bin/OT4D
 	rm -r  ../bin/gpio
 	rm -r  ../bin/rtl_fm
 	rm -r  ../bin/demo_rtlfm
 	rm -r  ../bin/demo_genSSB
+	rm -r  ../bin/demo_genDDS
 
 install: all
 	install -m 0755 ../bin/OT4D  /usr/bin
@@ -62,4 +64,5 @@ install: all
 	install	-m 0755 ../bin/genSSB  /usr/bin
 	install -m 0755 ../bin/demo_rtlfm  /usr/bin
 	install -m 0755 ../bin/demo_gpio  /usr/bin
+	install	-m 0755 ../bin/demo_genDDS  /usr/bin
 	install	-m 0755 ../bin/demo_genSSB  /usr/bin

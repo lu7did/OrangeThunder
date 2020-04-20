@@ -450,6 +450,7 @@ int main(int argc, char** argv)
 //---------------------------------------------------------------------------------
 
 #ifdef OT4D
+
   f=ini_getl("OT4D","FREQ",14074000,inifile);
   TRACE=ini_getl("OT4D","TRACE",2,inifile);
   vol=ini_getl("OT4D","VOL",10,inifile);
@@ -535,24 +536,24 @@ int main(int argc, char** argv)
   g->TRACE=TRACE;
 
   if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
+     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
+     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
      exit(16);
   }
   if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
      exit(16);
   }
 
   if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
      exit(16);
   }
 
@@ -566,9 +567,9 @@ int main(int argc, char** argv)
   // *---------------------------------------------*
   // * Set cooler ON mode                          *
   // *---------------------------------------------*
-       (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
-       if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
-       usleep(10000);
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
+  if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
+  usleep(10000);
 
 
 
