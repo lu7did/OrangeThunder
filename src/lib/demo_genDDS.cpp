@@ -201,10 +201,12 @@ int main(int argc, char* argv[])
 
   setWord(&MSW,RUN,true);
   fprintf(stderr,"%s:main() start operations f(%f)\n",PROGRAMID,100+(getWord(g->MSW,PTT)==false ? g->rit : g->shift));
-  
+  int k=0;  
+  fprintf(stderr,"\n");
   while(getWord(MSW,RUN)==true)
     {
        g->send();
+       if (k%100000) {fprintf(stderr,"\rProcessed %d frames",k);}
        usleep(100);
     }
   g->stop();
