@@ -66,6 +66,7 @@
 using namespace std;
 
 
+
 #define FT8LISTEN 0B00000001
 #define FT8PROC   0B00000010
 #define FT8WINDOW 0B00000100
@@ -81,9 +82,14 @@ const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 const char   *LF="\n";
 
-byte   TRACE=0x02;
+byte   TRACE=0x00;
 byte   MSW=0x00;
 byte   FT8=0x00;
+
+#include "/home/pi/OrangeThunder/src/lib/libFT8.h"
+
+int    num_samples=0;
+int    sample_rate=12000;
 
 struct sigaction sigact;
 char   timestr[16];
@@ -91,8 +97,10 @@ char   timestr[16];
 int  FT8process_counter=0;
 int  FT8listen_counter=0;
 int  anyargs=1;
+bool bRetry=false;
 
-
+FILE  *iqfile=NULL;
+short *buffer_i16=NULL;
 
 //--------------------------[Timer Interrupt Class]-------------------------------------------------
 // Implements a timer tick class calling periodically a function 
@@ -176,7 +184,7 @@ char* getTime() {
        int hour=aTime->tm_hour;
        int min=aTime->tm_min;
        int sec=aTime->tm_sec;
-       sprintf(timestr,"%d:%d:%d",hour,min,sec);
+       sprintf(timestr,"%02d:%02d:%02d",hour,min,sec);
        return (char*) &timestr;
 
 }
@@ -185,8 +193,12 @@ char* getTime() {
 // ======================================================================================================================
 static void sighandler(int signum)
 {
+    if (bRetry==true) {
+       exit(16);
+    }
     (TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum) : _NOP);
     setWord(&MSW,RUN,false);  
+    bRetry=true;
 }
 // ======================================================================================================================
 // print_usage
@@ -265,8 +277,14 @@ int main(int argc, char *argv[])
   signal(SIGPIPE, SIG_IGN);
 
 
+
+  iqfile=fopen("/dev/stdin","rb");
+
 // --- Define timer and kick execution
 
+int k=0;
+int nbread=0;
+  buffer_i16 =(short*)malloc(48000*sizeof(short)*2);
 
   CallBackTimer* FT8timer;
   FT8timer=new CallBackTimer();
@@ -284,36 +302,55 @@ int main(int argc, char *argv[])
 
 // --- Wait till the FT8 15 secs window happens, align frame reception with it
 
-       while ((sec % 15) != 0  && getWord(MSW,RUN)==true) {
-
-          theTime = time(NULL);
-          tm *aTime = localtime(&theTime);
-          sec=aTime->tm_sec;
-          usleep(10);
-
-       }
-
-       //FT8listen_counter=12640;
-       FT8listen_counter=12400;
        setWord(&FT8,FT8LISTEN,true);
-       (TRACE >= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s start of FT8 15 sec window\n",PROGRAMID,getTime()) : _NOP);
 
 // --- Wait till the reception window terminates
 
+       num_samples=0;
        while (getWord(FT8,FT8LISTEN)==true && getWord(MSW,RUN)==true) {
-           usleep(100);   // placeholder of the actual process to be placed here [audio sample collection]
+           nbread=fread(buffer_i16,sizeof(short),512,iqfile);
+
+           if (getWord(FT8,FT8WINDOW)==false) {
+              theTime = time(NULL);
+              tm *aTime = localtime(&theTime);
+              sec=aTime->tm_sec;
+              if ((sec%15)==0 ) {
+                 setWord(&FT8,FT8WINDOW,true);
+                 FT8listen_counter=12400;
+                 num_samples=0;
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> --------[%s]--------------------------------------\n",PROGRAMID,getTime()) : _NOP);
+              }
+           }
+
+           if (getWord(FT8,FT8WINDOW)==true) {
+              (TRACE>=0x03 ? fprintf(stderr,"%s:FT8<loop> read from stdin %d bytes\n",PROGRAMID,nbread) : _NOP);
+              for (int i = 0; i < nbread; i++) {
+                signalDSP[num_samples++] = (float) (buffer_i16[i] / 32768.0f);
+              }
+           }
        }
 
        FT8process_counter=2300;
        setWord(&FT8,FT8PROC,true);
-       (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s completed FT8 listening window\n",PROGRAMID,getTime()) : _NOP);
+       (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s completed FT8 listening window samples(%d)\n",PROGRAMID,getTime(),num_samples) : _NOP);
   
 // --- Wail till the processing window terminates
 
        while (getWord(FT8,FT8PROC)==true && getWord(MSW,RUN)==true) {
-           usleep(100);   // placeholder of the actual process to be placed here [frame decoding]
-       }
+           if (num_samples < 100000) {
+              (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Samples less than 100000 samples(%d)\n",PROGRAMID,num_samples) : _NOP);
+              break;
+           }
 
+           (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Sent to FT8_process samples(%d)\n",PROGRAMID,num_samples) : _NOP);
+           if (num_samples <= 210000) {
+              FT8_process(num_samples,sample_rate);
+           } else {
+             (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Number of samples way too large, ignored samples(%d)\n",PROGRAMID,num_samples) : _NOP);
+           }
+           setWord(&FT8,FT8PROC,false);
+       }
+       setWord(&FT8,FT8WINDOW,false);
        (TRACE >= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s completed FT8 processing window\n",PROGRAMID,getTime()) : _NOP);
    }
 

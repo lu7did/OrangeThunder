@@ -5,7 +5,7 @@ LIBRPITX = /home/pi/librpitx
 PP   = /home/pi/PixiePi/src
 OT   = /home/pi/OrangeThunder/src
 CSDRPATH= /home/pi/csdr/
-
+FT8LIB=/home/pi/ft8_lib
 INCLUDEDIR=/usr/local/include
 
 CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable
@@ -51,7 +51,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
 
 ../bin/decodeFT8     : lib/decodeFT8.cpp
-	$(CCP) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(LDFLAGS)
+	$(CCP) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
 clean:
 	rm -r  ../bin/OT4D
 	rm -r  ../bin/gpio
@@ -68,4 +68,5 @@ install: all
 	install -m 0755 ../bin/demo_rtlfm  /usr/bin
 	install -m 0755 ../bin/demo_gpio  /usr/bin
 	install	-m 0755 ../bin/demo_genDDS  /usr/bin
+	install	-m 0755 ../bin/decodeFT8  /usr/bin
 	install	-m 0755 ../bin/demo_genSSB  /usr/bin
