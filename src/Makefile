@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS ../bin/decodeFT8
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -49,6 +49,9 @@ LSDR = /usr/local/lib/librtlsdr.a
 
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
+
+../bin/decodeFT8     : lib/decodeFT8.cpp
+	$(CCP) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(LDFLAGS)
 clean:
 	rm -r  ../bin/OT4D
 	rm -r  ../bin/gpio
