@@ -1,6 +1,8 @@
 /*
    decodeFT8.cpp
-   Sample FT8 receiver largely modelled after K0gba/FT_lib library
+   Simple FT8 decoding program largely based after KGOBA/ft8_lib/decode_ft8.cpp
+   This program can process live signals out of a radio source
+   Everything works with a 12000 samples/sec.
 /*
  *-----------------------------------------------------------------------------
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
@@ -65,16 +67,26 @@
 #include <time.h>
 using namespace std;
 
-
-
 #define FT8LISTEN 0B00000001
 #define FT8PROC   0B00000010
 #define FT8WINDOW 0B00000100
 
+#define LISTEN    12400
+#define PROCESS   2300
+#define MINSAMPLE 100000
+#define MAXSAMPLE 210000
 
 
 typedef unsigned char byte;
 typedef bool boolean;
+
+struct FT8msg {
+        int db;         // Signal SNR
+      float DT;         // Time Shift
+        int offset;     // Frequency offset
+      char* msg;      // Message received
+};
+
 
 const char   *PROGRAMID="decodeFT8";
 const char   *PROG_VERSION="1.0";
@@ -88,26 +100,31 @@ byte   FT8=0x00;
 
 #include "/home/pi/OrangeThunder/src/lib/libFT8.h"
 
+FT8msg slotmsg[kMax_decoded_messages];
 int    num_samples=0;
+
+
 int    sample_rate=12000;
 
 struct sigaction sigact;
 char   timestr[16];
 
-int  FT8process_counter=0;
-int  FT8listen_counter=0;
-int  anyargs=1;
-bool bRetry=false;
+int     FT8process_counter=0;
+int     FT8listen_counter=0;
+int     anyargs=1;
+bool    bRetry=false;
 
-FILE  *iqfile=NULL;
-short *buffer_i16=NULL;
+FILE    *iqfile=NULL;
+short   *buffer_i16=NULL;
 
 //--------------------------[Timer Interrupt Class]-------------------------------------------------
 // Implements a timer tick class calling periodically a function 
+// Function passed as the upcall() needs to be implemented
 //--------------------------------------------------------------------------------------------------
 class CallBackTimer
 {
 public:
+
     CallBackTimer()
     :_execute(false)
     {}
@@ -126,19 +143,19 @@ public:
             _thd.join();
     }
 
-    void start(int interval, std::function<void(void)> func)
+    void start(int interval, std::function<void(void)> upcall)
     {
         if( _execute.load(std::memory_order_acquire) ) {
             stop();
         };
 
         _execute.store(true, std::memory_order_release);
-        _thd = std::thread([this, interval, func]()
+        _thd = std::thread([this, interval, upcall]()
         {
             while (_execute.load(std::memory_order_acquire)) {
                 std::this_thread::sleep_for(
                 std::chrono::milliseconds(interval));
-                func();                   
+                upcall();
 
             }
         });
@@ -205,7 +222,7 @@ static void sighandler(int signum)
 // ======================================================================================================================
 void print_usage(void)
 {
-	fprintf(stderr,"%s\n",PROGRAMID);
+	fprintf(stderr,"%s [-v tracelevel] [-s samplerate] [-h]\n",PROGRAMID);
         exit(1);
 }
 
@@ -241,15 +258,19 @@ int main(int argc, char *argv[])
 // * parse arguments (dummy for now)
 // *--------------------------------------------------------------------------------
         while ( 1 ) {
-             int opt = getopt(argc, argv, "v:h");
+             int opt = getopt(argc, argv, "s:v:h");
              if(opt == -1) {
    	       if(anyargs) break;
 	       else opt='h'; //print usage and exit
              }
 	     switch (opt) {
+		case 't': {
+			sample_rate = (atoi(optarg));
+                        (TRACE >= 0x00 ? fprintf(stderr,"%s  sample_rate=%d\n",PROGRAMID,sample_rate) : _NOP);
+			break; }
 		case 'v': {
 			TRACE = (byte)(atoi(optarg));
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE >= 0x00 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
 			break; }
 		case 'h':
 		default: {
@@ -291,6 +312,11 @@ int nbread=0;
   FT8timer->start(1,FT8ISR);
   setWord(&MSW,RUN,true);
 
+int secAnt=0;
+int slot;
+int prevslot=0;
+boolean firstRun=true;
+boolean slotSkip=false;
 // *--------------------------------------------------------------------------------
 // *                       Main Loop                                               *
 // *--------------------------------------------------------------------------------
@@ -315,10 +341,22 @@ int nbread=0;
               tm *aTime = localtime(&theTime);
               sec=aTime->tm_sec;
               if ((sec%15)==0 ) {
+
+                 slot=(sec/15);
+
+                 if ((prevslot+1)%4 != slot && firstRun == false) {
+                    (TRACE>=0x02 ? fprintf(stderr,"%s:FT8<loop> **** ATTENTION current slot(%d) previous slot(%d) entire slot missed\n",PROGRAMID,(slot%4),(prevslot%4)) : _NOP);
+                   slotSkip=true;
+                 } else {
+                   slotSkip=false;
+                 }
+                 prevslot=slot;
+                 firstRun=false;
+
                  setWord(&FT8,FT8WINDOW,true);
-                 FT8listen_counter=12400;
+                 FT8listen_counter=LISTEN;
                  num_samples=0;
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> --------[%s]--------------------------------------\n",PROGRAMID,getTime()) : _NOP);
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> --------[%s]------------------[slot %d - Even %d]-----[%s]----------\n",PROGRAMID,getTime(),slot,(slot%2),BOOL2CHAR(slotSkip)) : _NOP);
               }
            }
 
@@ -330,21 +368,29 @@ int nbread=0;
            }
        }
 
-       FT8process_counter=2300;
+       FT8process_counter=PROCESS;
        setWord(&FT8,FT8PROC,true);
        (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s completed FT8 listening window samples(%d)\n",PROGRAMID,getTime(),num_samples) : _NOP);
   
 // --- Wail till the processing window terminates
 
        while (getWord(FT8,FT8PROC)==true && getWord(MSW,RUN)==true) {
-           if (num_samples < 100000) {
+           if (num_samples < MINSAMPLE) {
               (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Samples less than 100000 samples(%d)\n",PROGRAMID,num_samples) : _NOP);
               break;
            }
 
            (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Sent to FT8_process samples(%d)\n",PROGRAMID,num_samples) : _NOP);
-           if (num_samples <= 210000) {
-              FT8_process(num_samples,sample_rate);
+           if (num_samples <= MAXSAMPLE) {
+              //FT8_process(num_samples,sample_rate);
+              int ndecoded=FT8_process(num_samples,sample_rate,slotmsg);
+              if (ndecoded!=0) {
+                 for (int i=0; i<ndecoded ; i++) {
+                    fprintf(stderr,"%s %d %4.1f %d %s\n",getTime(),slotmsg[i].db,slotmsg[i].DT,slotmsg[i].offset,slotmsg[i].msg);
+                    free(slotmsg[i].msg);
+                 }
+              }
+                
            } else {
              (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Number of samples way too large, ignored samples(%d)\n",PROGRAMID,num_samples) : _NOP);
            }
@@ -353,7 +399,6 @@ int nbread=0;
        setWord(&FT8,FT8WINDOW,false);
        (TRACE >= 0x02 ? fprintf(stderr,"%s:FT8<loop> %s completed FT8 processing window\n",PROGRAMID,getTime()) : _NOP);
    }
-
 
    delete(FT8timer);
    return 0;

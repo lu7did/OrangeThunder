@@ -50,7 +50,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
 
-../bin/decodeFT8     : lib/decodeFT8.cpp
+../bin/decodeFT8     : lib/decodeFT8.cpp lib/libFT8.h
 	$(CCP) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
 clean:
 	rm -r  ../bin/OT4D
