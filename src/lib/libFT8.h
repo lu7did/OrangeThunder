@@ -15,13 +15,37 @@
 
 const int kMin_score = 40;		// Minimum sync score threshold for candidates
 const int kMax_candidates = 120;
-const int kLDPC_iterations = 25;
+//const int kLDPC_iterations = 25;
+const int kLDPC_iterations = 50;
 const int kMax_decoded_messages = 50;
 const int kMax_message_length = 25;
 const int kFreq_osr = 2;
 const int kTime_osr = 2;
 const float kFSK_dev = 6.25f;    // tone deviation in Hz and symbol rate
 float signalDSP[256000];        //only 128000 used
+
+//----
+
+// A function to implement bubble sort
+void bubbleSort(ft8::Candidate* arr, int n)
+{
+
+ft8::Candidate temp;
+    int i, j;  
+
+    for (i = 0; i < n-1; i++) {
+    // Last i elements are already in place
+       for (j = 0; j < n-i-1; j++) {
+         if (arr[j+1].score > arr[j].score) {
+            temp=arr[j];
+            arr[j]=arr[j+1];
+            arr[j+1]=temp;
+         }
+           // swap(&arr[j], &arr[j+1]);
+       }
+    }
+}
+
 
 //----
 float hann_i(int i, int N) {
@@ -234,20 +258,25 @@ char buffer[128];
 
     // Find top candidates by Costas sync score and localize them in time and frequency
     ft8::Candidate candidate_list[kMax_candidates+2];
-    int num_candidates = ft8::find_sync(&power, ft8::kCostas_map, kMax_candidates, candidate_list, kMin_score);
-    (TRACE >=0x02 ? fprintf(stderr,"%s:FT8_process find top candidates candidates(%d)\n",PROGRAMID,num_candidates) : _NOP);
-
+    num_candidates = ft8::find_sync(&power, ft8::kCostas_map, kMax_candidates, candidate_list, kMin_score);
+    (TRACE >=0x02 ? fprintf(stderr,"%s:FT8_process find top candidates candidates(%d) order them\n",PROGRAMID,num_candidates) : _NOP);
     // TODO: sort the candidates by strongest sync first?
+    bubbleSort(candidate_list,num_candidates);
 
     // Go over candidates and attempt to decode messages
     (TRACE >=0x02 ? fprintf(stderr,"%s:FT8_process decoded message(%d) max message length(%d)\n",PROGRAMID,kMax_decoded_messages,kMax_message_length) : _NOP);
   
     char    decoded[kMax_decoded_messages+1][kMax_message_length+1];
-    int     num_decoded = 0;
+    int num_decoded = 0;
     (TRACE >=0x03 ? fprintf(stderr,"%s:FT8_process allocate memory for decoded candidates\n",PROGRAMID) : _NOP);
 
-
+    //TODO leave following loop when time is about to be up. (**implemented 2020-04-23**)
     for (int idx = 0; idx < num_candidates; ++idx) {
+        if (getWord(FT8,FT8PROC)==false) {
+            setWord(&FT8,FT8GIVEUP,true);
+            (TRACE>=0x02 ? fprintf(stderr,"%s:FT8process() early exit candidates(%d) decoded(%d)\n",PROGRAMID,num_candidates,num_decoded) : _NOP);
+            return num_decoded;
+        }   // implementation of time boundary
         ft8::Candidate &cand = candidate_list[idx];
 
         if (cand.score < kMin_score) continue;
@@ -348,6 +377,6 @@ char buffer[128];
          }
     }
     //LOG(LOG_INFO, "Decoded %d messages\n", num_decoded);
-    (TRACE >=0x02 ? fprintf(stderr,"%s:FT8_process decoded %d messages\n",PROGRAMID,num_decoded) : _NOP);
+    (TRACE >=0x02 ? fprintf(stderr,"%s:FT8_process std exit candidates(%d) decoded(%d) messages\n",PROGRAMID,num_candidates,num_decoded) : _NOP);
     return num_decoded;
 }

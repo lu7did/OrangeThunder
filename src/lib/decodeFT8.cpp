@@ -70,9 +70,13 @@ using namespace std;
 #define FT8LISTEN 0B00000001
 #define FT8PROC   0B00000010
 #define FT8WINDOW 0B00000100
+#define FT8GIVEUP 0B00001000
+#define FT8SKIP   0B00010000
+#define FT8FIRST  0B00100000
 
-#define LISTEN    12400
-#define PROCESS   2300
+
+#define LISTEN    13000
+#define PROCESS   1900
 #define MINSAMPLE 100000
 #define MAXSAMPLE 210000
 
@@ -98,6 +102,28 @@ byte   TRACE=0x00;
 byte   MSW=0x00;
 byte   FT8=0x00;
 
+//--------------------------[System Word Handler]---------------------------------------------------
+// getSSW Return status according with the setting of the argument bit onto the SW
+//--------------------------------------------------------------------------------------------------
+bool getWord (unsigned char SysWord, unsigned char v) {
+
+  return SysWord & v;
+
+}
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
+void setWord(unsigned char* SysWord,unsigned char v, bool val) {
+
+  *SysWord = ~v & *SysWord;
+  if (val == true) {
+    *SysWord = *SysWord | v;
+  }
+
+}
+
+
+int     num_candidates=0;
 #include "/home/pi/OrangeThunder/src/lib/libFT8.h"
 
 FT8msg slotmsg[kMax_decoded_messages];
@@ -116,7 +142,7 @@ bool    bRetry=false;
 
 FILE    *iqfile=NULL;
 short   *buffer_i16=NULL;
-
+int     num_decoded=0;
 //--------------------------[Timer Interrupt Class]-------------------------------------------------
 // Implements a timer tick class calling periodically a function 
 // Function passed as the upcall() needs to be implemented
@@ -153,9 +179,9 @@ public:
         _thd = std::thread([this, interval, upcall]()
         {
             while (_execute.load(std::memory_order_acquire)) {
-                std::this_thread::sleep_for(
-                std::chrono::milliseconds(interval));
                 upcall();
+                std::this_thread::sleep_for(std::chrono::milliseconds(interval));
+                //std::this_thread::sleep_for(std::chrono::microseconds(interval));
 
             }
         });
@@ -172,25 +198,6 @@ private:
 };
 
 
-//--------------------------[System Word Handler]---------------------------------------------------
-// getSSW Return status according with the setting of the argument bit onto the SW
-//--------------------------------------------------------------------------------------------------
-bool getWord (unsigned char SysWord, unsigned char v) {
-
-  return SysWord & v;
-
-}
-//--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
-//--------------------------------------------------------------------------------------------------
-void setWord(unsigned char* SysWord,unsigned char v, bool val) {
-
-  *SysWord = ~v & *SysWord;
-  if (val == true) {
-    *SysWord = *SysWord | v;
-  }
-
-}
 //--------------------------------------------------------------------------------------------------
 // returns the time in a string format
 //--------------------------------------------------------------------------------------------------
@@ -297,8 +304,6 @@ int main(int argc, char *argv[])
   sigaction(SIGPIPE, &sigact, NULL);
   signal(SIGPIPE, SIG_IGN);
 
-
-
   iqfile=fopen("/dev/stdin","rb");
 
 // --- Define timer and kick execution
@@ -311,12 +316,12 @@ int nbread=0;
   FT8timer=new CallBackTimer();
   FT8timer->start(1,FT8ISR);
   setWord(&MSW,RUN,true);
+  setWord(&FT8,FT8FIRST,true);
 
 int secAnt=0;
 int slot;
 int prevslot=0;
-boolean firstRun=true;
-boolean slotSkip=false;
+
 // *--------------------------------------------------------------------------------
 // *                       Main Loop                                               *
 // *--------------------------------------------------------------------------------
@@ -344,19 +349,19 @@ boolean slotSkip=false;
 
                  slot=(sec/15);
 
-                 if ((prevslot+1)%4 != slot && firstRun == false) {
+                 if ((prevslot+1)%4 != slot && getWord(FT8,FT8FIRST) == false) {
                     (TRACE>=0x02 ? fprintf(stderr,"%s:FT8<loop> **** ATTENTION current slot(%d) previous slot(%d) entire slot missed\n",PROGRAMID,(slot%4),(prevslot%4)) : _NOP);
-                   slotSkip=true;
+                   setWord(&FT8,FT8SKIP,true);
                  } else {
-                   slotSkip=false;
+                   setWord(&FT8,FT8SKIP,false);
                  }
                  prevslot=slot;
-                 firstRun=false;
-
+                 setWord(&FT8,FT8FIRST,false);
                  setWord(&FT8,FT8WINDOW,true);
                  FT8listen_counter=LISTEN;
                  num_samples=0;
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> --------[%s]------------------[slot %d - Even %d]-----[%s]----------\n",PROGRAMID,getTime(),slot,(slot%2),BOOL2CHAR(slotSkip)) : _NOP);
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> --[%s]----[slot(%d)-par(%s)]--[%s/%s]----[%3d/%2d]-------------\n",PROGRAMID,getTime(),slot,(slot%2==0 ? "even" : "odd "),(getWord(FT8,FT8SKIP)==true ? "miss" : "OK  "),(getWord(FT8,FT8GIVEUP)==false ? "full " : "break"),num_candidates,num_decoded) : _NOP);
+                 setWord(&FT8,FT8GIVEUP,false);
               }
            }
 
@@ -383,13 +388,14 @@ boolean slotSkip=false;
            (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Sent to FT8_process samples(%d)\n",PROGRAMID,num_samples) : _NOP);
            if (num_samples <= MAXSAMPLE) {
               //FT8_process(num_samples,sample_rate);
-              int ndecoded=FT8_process(num_samples,sample_rate,slotmsg);
-              if (ndecoded!=0) {
-                 for (int i=0; i<ndecoded ; i++) {
-                    fprintf(stderr,"%s %d %4.1f %d %s\n",getTime(),slotmsg[i].db,slotmsg[i].DT,slotmsg[i].offset,slotmsg[i].msg);
+              num_decoded=FT8_process(num_samples,sample_rate,slotmsg);
+              if (num_decoded!=0) {
+                 for (int i=0; i<num_decoded ; i++) {
+                    fprintf(stderr,"%s:FT8<mssg> %s %d %4.1f %d %s\n",PROGRAMID,getTime(),slotmsg[i].db,slotmsg[i].DT,slotmsg[i].offset,slotmsg[i].msg);
                     free(slotmsg[i].msg);
                  }
               }
+              (TRACE>=0x02 ? fprintf(stderr,"%s Returned %s with giveup(%s)\n",PROGRAMID,getTime(),BOOL2CHAR(getWord(FT8,FT8GIVEUP))) : _NOP);
                 
            } else {
              (TRACE>= 0x02 ? fprintf(stderr,"%s:FT8<loop> Number of samples way too large, ignored samples(%d)\n",PROGRAMID,num_samples) : _NOP);
