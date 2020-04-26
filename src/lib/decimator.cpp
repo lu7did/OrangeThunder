@@ -70,7 +70,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "/home/pi/PixiePi/src/lib/SSB.h"
+//#include "/home/pi/PixiePi/src/lib/SSB.h"
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
 #include "/home/pi/OrangeThunder/src/OT4D/transceiver.h"
