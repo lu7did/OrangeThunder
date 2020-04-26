@@ -39,16 +39,28 @@
 #include<string.h>
 #include<stdio.h>
 #include<fcntl.h> 
+#include <sys/select.h>
+#include <termios.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <pthread.h>
+#include <ncurses.h>
+
+
 #include "/home/pi/OrangeThunder/src/lib/decodeFT8.h"
 #include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
+
 
 // --- IPC structures
 
 struct FT8msg {
        char timeMsg[16];    // time stamp
-        int db;         // Signal SNR
-      float DT;         // Time Shift
-        int offset;     // Frequency offset
+       byte slot;           //
+       byte odd;            // 
+        int db;             // Signal SNR
+      float DT;             // Time Shift
+        int offset;         // Frequency offset
        char t1[16];         // first token
        char t2[16];         // second token
        char t3[16];         // third token
@@ -67,14 +79,19 @@ struct FT8slot {
 struct FT8qso {
       byte  FSM;
       byte  cnt;
-      char timeQSO[16];
-      char urcall[16];
-      char urgrid[16];
-      int  myRST;
+      byte  urslot;
+      byte  myslot;
+      byte  urodd;
+      byte  myodd;
+      char  timeQSO[16];
+      char  urcall[16];
+      char  urgrid[16];
+      int   myRST;
       int  urRST;
 };
 
 decodeFT8* r=nullptr;
+
 struct     sigaction sigact;
 char       *buffer;
 byte       TRACE=0x00;
@@ -84,16 +101,19 @@ char       mygrid[16];
 FT8qso     qso;
 FT8slot    s;
 
+char       inChar[4];
+
 FT8msg     ft8[50];
 boolean    fQSO=false;
 int        nQSO=0;
+boolean    fSlot=false;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="demo_decodeFT8";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
-
+struct termios orig_termios;
 // *----------------------------------------------------------------*
 // *                  GPIO support processing                       *
 // *----------------------------------------------------------------*
@@ -102,6 +122,13 @@ gpioWrapper* g=nullptr;
 char   *gpio_buffer;
 void gpiochangePin();
 
+// *----------------------------------------------------------------*
+// *           Read commans from Std input while running            *
+// *----------------------------------------------------------------*
+pthread_t t=(pthread_t)-1;
+int       fd;
+char      len;
+char      buff[128];
 
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
@@ -122,6 +149,54 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
+//--------------------------------------------------------------------------------------------------
+// Process QSO
+//--------------------------------------------------------------------------------------------------
+void selectQSO(char* c) {
+
+int q=atoi(c);
+
+    (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d]\n",PROGRAMID,q) : _NOP);
+
+    if (nQSO==0) {
+       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] not available\n",PROGRAMID,q) : _NOP);
+       return;
+    }
+
+    if (q>=0 && q<nQSO) {
+       int myodd=(ft8[q].odd+1)%2;
+       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() {urOdd=%d->myOdd=%d} [%s %03d %4.1f %4d %s %s %s]\n",PROGRAMID,ft8[q].odd,myodd,ft8[q].timeMsg,ft8[q].db,ft8[q].DT,ft8[q].offset,ft8[q].t1,ft8[q].t2,ft8[q].t3) : _NOP);
+
+    } else {
+       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] out of range\n",PROGRAMID,q) : _NOP);
+       return;
+    }
+
+ 
+}
+//--------------------------------------------------------------------------------------------------
+// read_stdin without waiting for an enter to be pressed
+//--------------------------------------------------------------------------------------------------
+void* read_stdin(void * null) {
+
+int  c;
+char buf[4];
+
+       (TRACE>=0x02 ? fprintf(stderr,"%s:read_stdin() Keyboard thread started\n",PROGRAMID) : _NOP);
+
+       /*
+        * ioctl() would be better here; only lazy
+        * programmers do it this way:
+        */
+        system("/bin/stty cbreak");        /* reacts to Ctl-C */
+        system("/bin/stty -echo");         /* no echo */
+        while (getWord(MSW,RUN)==true) {
+          c = getchar();
+          sprintf(buf,"%c",c);
+          selectQSO(buf);
+        }
+        return NULL;
+}
 
 
 // ======================================================================================================================
@@ -136,14 +211,21 @@ static void sighandler(int signum)
            exit(16);
         }
 	fprintf(stderr, "\nSignal caught(%d), exiting!\n",signum);
+        if(t!=(pthread_t)-1) {
+          pthread_cancel(t);
+        }
 	setWord(&MSW,RUN,false);
         setWord(&MSW,RETRY,true);     
 }
-
+//*----------------------------------------------------------------------------------------------------------------
+//* erase message structure
+//*----------------------------------------------------------------------------------------------------------------
 void clearmsg() {
 
   for (int i=0;i<50;i++) {
     sprintf(ft8[i].timeMsg,"%s","");
+    ft8[i].slot=0;
+    ft8[i].odd=0;
     ft8[i].db=0;
     ft8[i].DT=0.0;
     ft8[i].offset=0;
@@ -219,11 +301,13 @@ char   aux[32];
        s.decoded=atoi(aux);
 
 
-       fprintf(stderr,"\033[0;31m%s %d %d %d %d %03d %02d\033[0m\n",(char*)s.timeSlot,s.slot,s.odd,s.miss,s.brk,s.candidates,s.decoded);
+       fprintf(stderr,"\033[0;31m----[%s] (slot=%d seq=%d) (%d/%d) (%03d- %02d)\033[0m\n",(char*)s.timeSlot,s.slot,s.odd,s.miss,s.brk,s.candidates,s.decoded);
 
 }
 
-
+//*----------------------------------------------------------------------------------------------------------------
+//* processQSO
+//*----------------------------------------------------------------------------------------------------------------
 int processQSO(FT8msg* ft8) {
 
 
@@ -319,29 +403,31 @@ FT8msg  f;
        (TRACE>=0x03 ? fprintf(stderr,"%s:parseMessage()  %s %d %f %d %s %s %s\n",PROGRAMID,f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3) : _NOP);
 
        if (strcmp("CQ",f.t1)==0) {
-          if ( qso.FSM==0x00 ) {
+          if (qso.FSM==0x00 ) {
              strcpy(ft8[nQSO].timeMsg,f.timeMsg);
              ft8[nQSO].db=f.db;
              ft8[nQSO].DT=f.DT;
+             ft8[nQSO].slot=s.slot;
+             ft8[nQSO].odd=s.odd;
              ft8[nQSO].offset=f.offset;
              strcpy(ft8[nQSO].t1,f.t1);
              strcpy(ft8[nQSO].t2,f.t2);
              strcpy(ft8[nQSO].t3,f.t3);
              fQSO=true;
-             fprintf(stderr,"\033[1;33m[%02d] %s %d %f %d %s %s %s\033[0m\n",nQSO,f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
+             fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nQSO,f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
              nQSO++;
              return;
        } else {
-             fprintf(stderr,"\033[0;33m     %s %d %f %d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
+             fprintf(stderr,"\033[0;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
              return;
        }}
 
        if (strcmp(mycall,f.t1)==0) {
-          fprintf(stderr,"\033[1;33m%s %d %f %d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
+          fprintf(stderr,"\033[1;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
           return;
        }
 
-       fprintf(stderr,"\033[0;32m%s %d %f %d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
+       fprintf(stderr,"\033[0;32m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
        return;
 }
 
@@ -363,15 +449,19 @@ char d[256];
       sprintf(d,"%s",s);
       if (strstr(s,"decodeFT8:FT8<loop>") != NULL) {
          (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() loop message(%s)\n",PROGRAMID,d) : _NOP);
+         fSlot=true;
          parseHeader(d);
-         clearmsg();
-         nQSO=0;
-         fQSO=false;
          return;
       }
 
       if (strstr(s,"decodeFT8:FT8<mssg>") != NULL) {
          (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() mssg message(%s)\n",PROGRAMID,d) : _NOP);
+         if(fSlot==true) {
+           fSlot=false;
+           clearmsg();
+           nQSO=0;
+           fQSO=false;
+         }
          parseMessage(d);
          return; 
       } 
@@ -402,6 +492,9 @@ int main(int argc, char** argv)
       }
   }
 
+//  set_conio_terminal_mode();
+
+
   sprintf(mycall,"%s","LU7DID");
   sprintf(mygrid,"%s","GF05");
 
@@ -411,6 +504,10 @@ int main(int argc, char** argv)
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() QSO structure initialization\n",PROGRAMID) : _NOP);
   qso.FSM=0x00;
   qso.cnt=0x00;
+  qso.urslot=0x00;
+  qso.myslot=0x00;
+  qso.urodd=0x00;
+  qso.myodd=0x00;
   sprintf(qso.timeQSO,"%s","");
   sprintf(qso.urcall,"%s","");
   sprintf(qso.urgrid,"%s","");
@@ -482,9 +579,10 @@ int main(int argc, char** argv)
   if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
   usleep(10000);
 
-
-
   setWord(&MSW,RUN,true);
+
+  pthread_create(&t, NULL, &read_stdin, NULL);
+
 
 
 
@@ -495,12 +593,14 @@ int main(int argc, char** argv)
     if (nread>0) {
        buffer[nread]=0x00;
        processFrame((char*)buffer);
-       //fprintf(stderr,"%s",(char*)buffer);
     }
+
   }
 
 // --- Normal termination kills the child first and wait for its termination
 
+  pthread_join(t, NULL);
+  t=(pthread_t)-1;
   r->stop();
   delete(r);
 }

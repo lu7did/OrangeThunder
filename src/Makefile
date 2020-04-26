@@ -15,7 +15,7 @@ CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable -DLIBCSDR_GPL -DUSE_FFTW
 CXYFLAGS = -std=c++11 -Wall -g -O3 -Wno-unused-variable -DLIBCSDR_GPL -DUSE_FFTW -DUSE_IMA_ADPCM -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
 
 OSC_CFLAGS=-DOSCILLATOR_Z -DOSCILLATOR_D
-LDFLAGS = $(LIBRPITX)/src/librpitx.a -lm -lrt -lpthread -lwiringPi -lpigpio -lasound -lusb-1.0 -lrtlsdr -L$(LIBDIR) 
+LDFLAGS = $(LIBRPITX)/src/librpitx.a -lm -lrt -lpthread -lwiringPi -lpigpio -lasound -lusb-1.0 -lrtlsdr -lncurses -L$(LIBDIR) 
 
 CCP  = c++
 CC   = cc
