@@ -54,18 +54,17 @@
 #include <unistd.h>
 
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
-
+#include "/home/pi/OrangeThunder/src/OT/OT.h"
+#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
+#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
+#include "/home/pi/PixiePi/src/lib/CAT817.h" 
+#include "/home/pi/OrangeThunder/src/lib/genVFO.h"
 
 // --- Program initialization
 #ifdef OT4D
 
 // --- OT4D specific includes
-#include "/home/pi/OrangeThunder/src/OT/OT.h"
-#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
-#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
-#include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
-#include "/home/pi/OrangeThunder/src/lib/genVFO.h"
 
 
 const char   *PROGRAMID="OT4D";
@@ -76,7 +75,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 #ifdef Pi4D
 // --- OT4D specific includes
-#include "/home/pi/OrangeThunder/src/OT/OT.h"
 #include "/home/pi/PixiePi/src/lib/DDS.h"
 
 // --- Program initialization

@@ -168,7 +168,7 @@ genVFO::genVFO(CALLBACK c)
   setWord(&FT817,PTT,0);
   setWord(&FT817,RIT,false);
   setWord(&FT817,SPLIT,false);
-  setWord(&FT817,SHIFT,false);
+  //setWord(&FT817,SHIFT,false);
 
   for (int i=0;i<VFOMAX;i++) {
 

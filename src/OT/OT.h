@@ -48,7 +48,7 @@
 #define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
 #define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
-#define BOOL2CHAR(g)  (g==true ? "True" : "False")
+#define BOOL2CHAR(x)  (x==true ? "True" : "False")
 
 
 #define ONESEC       1
