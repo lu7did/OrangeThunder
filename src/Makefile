@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -59,6 +59,9 @@ LSDR = /usr/local/lib/librtlsdr.a
 
 ../bin/decodeFT8     : lib/decodeFT8.cpp lib/libFT8.h
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
+
+../bin/demo_craddle	: lib/demo_craddle.cpp
+	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/demo_craddle ./lib/demo_craddle.cpp $(LDFLAGS)
 
 clean:
 	rm -r  ../bin/OT4D
