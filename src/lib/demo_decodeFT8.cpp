@@ -260,7 +260,7 @@ void handleStartQSO(header* h,msg* m,qso* q) {
 
 char FT8message[128];
 
-   sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+   sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
    sendFT8(FT8message);
    (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() FSM(%d) CMD[%s]\n",PROGRAMID,q->FSM,FT8message) : _NOP);
    return;
@@ -279,7 +279,7 @@ char FT8message[128];
         if (strcmp(m[i].t1,"CQ")==0) {
            if (strcmp(m[i].t2,q->hiscall)==0) {  // keep calling CQ repeat response
               (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) found (%s) still calling CQ\n",PROGRAMID,q->FSM,q->hiscall) : _NOP);
-              sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+              sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
               sendFT8(FT8message);
               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
               q->cnt--;
@@ -315,7 +315,7 @@ char FT8message[128];
     }
 
 // --- all messages scanned but no process hit found, retry message for this state
-     sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+     sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
      sendFT8(FT8message);
      (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
      q->cnt--;

@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpio ../bin/demo_genDDS ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle ../bin/pift8
 
 LIBDIR=/usr/local/lib
 LIBRPITX = /home/pi/librpitx
@@ -8,7 +8,10 @@ CSDRPATH= /home/pi/csdr/
 FT8LIB=/home/pi/ft8_lib
 INCLUDEDIR=/usr/local/include
 
-CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable
+CXXRPITX = -std=c++11 -Wall -g -O3 -Wno-unused-variable
+LDRPITX = -lm
+
+CXXFLAGS = -std=c++11  -g -O2 -Wno-unused-variable
 
 CFLAGS  = -Wall -g -O2 -Wno-unused-variable -lrt -lpthread -lpigpio -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
 CXXFLAGS = -std=c++11 -Wall -g -O2 -Wno-unused-variable -DLIBCSDR_GPL -DUSE_FFTW -DUSE_IMA_ADPCM -I$(INCLUDEDIR) -I/usr/include/libusb-1.0 
@@ -63,6 +66,9 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_craddle	: lib/demo_craddle.cpp
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/demo_craddle ./lib/demo_craddle.cpp $(LDFLAGS)
 
+../bin/pift8	: rpitx/pift8/pift8.cpp
+	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/pift8 ./rpitx/pift8/pift8.cpp $(FT8LIB)/ft8/pack.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
+
 clean:
 	rm -r  ../bin/OT4D
 	rm -r  ../bin/gpio
@@ -70,7 +76,7 @@ clean:
 	rm -r  ../bin/demo_rtlfm
 	rm -r  ../bin/decimator
 	rm -r  ../bin/demo_genSSB
-	rm -r  ../bin/demo_decodeFT8
+	rm -r  ../bin/pift8
 	rm -r  ../bin/demo_genDDS
 
 install: all
@@ -83,5 +89,6 @@ install: all
 	install -m 0755 ../bin/demo_gpio  /usr/bin
 	install	-m 0755 ../bin/demo_genDDS  /usr/bin
 	install	-m 0755 ../bin/decimator  /usr/bin
+	install	-m 0755 ../bin/pift8  /usr/bin
 	install	-m 0755 ../bin/decodeFT8  /usr/bin
 	install	-m 0755 ../bin/demo_genSSB  /usr/bin
