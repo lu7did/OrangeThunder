@@ -47,6 +47,13 @@
 #include <pthread.h>
 #include <ncurses.h>
 
+#include<sys/wait.h>
+#include<sys/prctl.h>
+
+#include <iostream>
+#include <fstream>
+using namespace std;
+
 
 #include "/home/pi/OrangeThunder/src/lib/decodeFT8.h"
 #include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
@@ -54,11 +61,11 @@
 
 // --- IPC structures
 
-struct FT8msg {
-       char timeMsg[16];    // time stamp
+struct msg {
+       char timestamp[16];    // time stamp
        byte slot;           //
-       byte odd;            // 
-        int db;             // Signal SNR
+       bool CQ;
+        int snr;             // Signal SNR
       float DT;             // Time Shift
         int offset;         // Frequency offset
        char t1[16];         // first token
@@ -66,54 +73,56 @@ struct FT8msg {
        char t3[16];         // third token
 };
 
-struct FT8slot {
-      char  timeSlot[16];
+struct header {
+      char  timestamp[16];
       byte  slot;
-      byte  odd;
-      byte  miss;
-      byte  brk;
-      int   candidates;
-      int   decoded;
+      bool  newheader;
+      bool  active;
+};
+
+struct qso {
+      byte  FSM;
+      int   nmsg;
+      char  hiscall[16];
+      char  hisgrid[16];
+      int   hissnr;
+      int   hisslot;
+      char  mycall[16];
+      char  mygrid[16];
+      int   mysnr;
+      int   myslot;
+      int   cnt;
 };
  
-struct FT8qso {
-      byte  FSM;
-      byte  cnt;
-      byte  urslot;
-      byte  myslot;
-      byte  urodd;
-      byte  myodd;
-      char  timeQSO[16];
-      char  urcall[16];
-      char  urgrid[16];
-      int   myRST;
-      int  urRST;
-};
+typedef void (*QSOCALL)(header* h,msg* m,qso* q);
+QSOCALL    FSMhandler[50];
 
 decodeFT8* r=nullptr;
-
 struct     sigaction sigact;
 char       *buffer;
 byte       TRACE=0x00;
 byte       MSW=0x00;
 char       mycall[16];
 char       mygrid[16];
-FT8qso     qso;
-FT8slot    s;
 
 char       inChar[4];
+float      freq=14074000;    // operating frequency
 
-FT8msg     ft8[50];
-boolean    fQSO=false;
-int        nQSO=0;
+msg        ft8_msg[50];
+header     ft8_header[1];
+qso        ft8_qso[1];
+int        nmsg=0;
+int        nCQ=0;
+
 boolean    fSlot=false;
+pthread_t  t=(pthread_t)-1;
+
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="demo_decodeFT8";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
-struct termios orig_termios;
 // *----------------------------------------------------------------*
 // *                  GPIO support processing                       *
 // *----------------------------------------------------------------*
@@ -125,10 +134,10 @@ void gpiochangePin();
 // *----------------------------------------------------------------*
 // *           Read commans from Std input while running            *
 // *----------------------------------------------------------------*
-pthread_t t=(pthread_t)-1;
 int       fd;
 char      len;
 char      buff[128];
+
 
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
@@ -138,6 +147,7 @@ bool getWord (unsigned char SysWord, unsigned char v) {
   return SysWord & v;
 
 }
+
 //--------------------------------------------------------------------------------------------------
 // setSSW Sets a given bit of the system status Word (SSW)
 //--------------------------------------------------------------------------------------------------
@@ -149,27 +159,186 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
+char *ltrim(char *s)
+{
+    while(isspace(*s)) s++;
+    return s;
+}
+
+char *rtrim(char *s)
+{
+    char* back = s + strlen(s);
+    while(isspace(*--back));
+    *(back+1) = '\0';
+    return s;
+}
+
+char *trim(char *s)
+{
+    return rtrim(ltrim(s)); 
+}
+
+void sendFT8(char* cmd) {
+
+   (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
+
+// --- process being launch 
+
+    execl(getenv("SHELL"),"sh","-c",cmd,NULL);
+
+
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleNOP(header h,msg* m,qso q) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleNOP() do nothing hook\n",PROGRAMID) : _NOP);
+    return;
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleStartQSO(header* h,msg* m,qso* q) {
+   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() handle start of QSO\n",PROGRAMID) : _NOP);
+
+   q->FSM=0x01;
+   strcpy(q->hiscall,m[q->nmsg].t2);
+   strcpy(q->hisgrid,m[q->nmsg].t3);
+   q->hissnr=10;
+   strcpy(q->mycall,mycall);
+   strcpy(q->mygrid,mygrid);
+   q->mysnr=0;
+   q->cnt=4;
+   q->hisslot=m[q->nmsg].slot;
+   q->myslot=(q->hisslot + 1)%2;
+   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() QSO structure created FSM(%d) [%s %s %d] (slot %d)->[%s %s %d] (slot %d) cnt(%d)\n",PROGRAMID,q->FSM,q->hiscall,q->hisgrid,q->hissnr,q->hisslot,q->mycall,q->mygrid,q->mysnr,q->myslot,q->cnt) : _NOP);
+
+char FT8message[128];
+
+   sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d &",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() FSM(%d) CMD[%s]\n",PROGRAMID,q->FSM,FT8message) : _NOP);
+   return;
+
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleReply(header* h,msg* m,qso* q) {
+
+char FT8message[128];
+
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
+    for (int i=0;i<nmsg;i++) {
+
+//--- message is a CQ
+        if (strcmp(m[i].t1,"CQ")==0) {
+           if (strcmp(m[i].t2,q->hiscall)==0) {  // keep calling CQ repeat response
+              (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) found (%s) still calling CQ\n",PROGRAMID,q->FSM,q->hiscall) : _NOP);
+              sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d &",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
+              q->cnt--;
+              if (q->cnt==0) {   //give up
+                 (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
+                 q->FSM=0x00;
+                 return;
+              }
+              return;
+           }
+        }
+
+//--- message towards me
+
+       if (strcmp(m[i].t1,q->mycall)==0) {
+
+          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, not implemented yet\n",PROGRAMID) : _NOP);
+          return;
+
+       }
+
+
+//--- message not CQ but sent by my destination, in QSO with somebody else, abandon
+
+       if (strcmp(m[i].t2,q->hiscall)==0) {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
+          q->FSM=0x00;
+          return;
+       }
+
+// ----
+
+    }
+
+// --- all messages scanned but no process hit found, retry message for this state
+     sprintf(FT8message,"sudo pift8 -m \"%s %s %s\" -f %f -s %d &",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
+     q->cnt--;
+     if (q->cnt==0) {   //give up
+        (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
+        q->FSM=0x00;
+        return;
+     }
+
+     return;
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleEXCH(header* h,msg* m,qso* q) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleEXCH() handle EXCH\n",PROGRAMID) : _NOP);
+    return;
+
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleRRR(header* h,msg* m,qso* q) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleRRR() handle RRR\n",PROGRAMID) : _NOP);
+    return;
+
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleHAL(header* h,msg* m,qso* q) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleHAL() handle HAL behaviour\n",PROGRAMID) : _NOP);
+    return;
+
+}
+
+// --------------------------------------------------------------------------------------------------
+// qsoMachine
+// --------------------------------------------------------------------------------------------------
+int qsoMachine(header* h,msg* m,qso* q) {
+
+    if (q->FSM >= 0 && q->FSM <= 50) {
+       if (FSMhandler[q->FSM] != nullptr) {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:qsoMachine() service handler found for FSM state(%d) calling\n",PROGRAMID,q->FSM) : _NOP);
+          FSMhandler[q->FSM](h,m,q);
+          return 0;
+       } else {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:qsoMachine() handler for FSM state(%d) not defined\n",PROGRAMID,q->FSM) : _NOP);
+         return -1;
+       }
+       (TRACE>=0x00 ? fprintf(stderr,"%s:qsoMachine() invalid FSM state(%d) ignored\n",PROGRAMID,q->FSM) : _NOP);
+       return -1;
+    }
+    return  0;
+}
+
 //--------------------------------------------------------------------------------------------------
 // Process QSO
 //--------------------------------------------------------------------------------------------------
-void selectQSO(char* c) {
+int  selectQSO(char* c) {
 
-int q=atoi(c);
+int r=atoi(c);
 
-    (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d]\n",PROGRAMID,q) : _NOP);
+    (TRACE>=0x03 ? fprintf(stderr,"%s:selectQSO() QSO[%d]\n",PROGRAMID,r) : _NOP);
 
-    if (nQSO==0) {
-       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] not available\n",PROGRAMID,q) : _NOP);
-       return;
+    if (nCQ==0) {
+       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] not available\n",PROGRAMID,r) : _NOP);
+       return -1;
     }
 
-    if (q>=0 && q<nQSO) {
-       int myodd=(ft8[q].odd+1)%2;
-       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() {urOdd=%d->myOdd=%d} [%s %03d %4.1f %4d %s %s %s]\n",PROGRAMID,ft8[q].odd,myodd,ft8[q].timeMsg,ft8[q].db,ft8[q].DT,ft8[q].offset,ft8[q].t1,ft8[q].t2,ft8[q].t3) : _NOP);
-
+    if (r>=0 && r<nCQ) {
+       (TRACE>=0x03 ? fprintf(stderr,"%s:selectQSO() option selected[%d]\n",PROGRAMID,r) : _NOP);
+       return r;
     } else {
-       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] out of range\n",PROGRAMID,q) : _NOP);
-       return;
+       (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] out of range\n",PROGRAMID,r) : _NOP);
+       return -1;
     }
 
  
@@ -178,8 +347,7 @@ int q=atoi(c);
 // read_stdin without waiting for an enter to be pressed
 //--------------------------------------------------------------------------------------------------
 void* read_stdin(void * null) {
-
-int  c;
+char c;
 char buf[4];
 
        (TRACE>=0x02 ? fprintf(stderr,"%s:read_stdin() Keyboard thread started\n",PROGRAMID) : _NOP);
@@ -192,8 +360,8 @@ char buf[4];
         system("/bin/stty -echo");         /* no echo */
         while (getWord(MSW,RUN)==true) {
           c = getchar();
-          sprintf(buf,"%c",c);
-          selectQSO(buf);
+          sprintf(inChar,"%c",c);
+          setWord(&MSW,GUI,true);
         }
         return NULL;
 }
@@ -217,252 +385,285 @@ static void sighandler(int signum)
 	setWord(&MSW,RUN,false);
         setWord(&MSW,RETRY,true);     
 }
+
+int findQSO(int cq,msg *m) {
+    int j=0;
+    for (int i=0;i<nmsg;i++) {
+        if (m[i].CQ==true) {
+           if (j==cq) {
+              return i;
+           }
+           j++;
+        }
+    }
+    return -1;
+}
 //*----------------------------------------------------------------------------------------------------------------
-//* erase message structure
+//* clear all messages from the previous cycle
+//* messages must be available during most of the next cycle till a new decode message is received
 //*----------------------------------------------------------------------------------------------------------------
-void clearmsg() {
+void clearmsg(msg *m) {
 
   for (int i=0;i<50;i++) {
-    sprintf(ft8[i].timeMsg,"%s","");
-    ft8[i].slot=0;
-    ft8[i].odd=0;
-    ft8[i].db=0;
-    ft8[i].DT=0.0;
-    ft8[i].offset=0;
-    sprintf(ft8[i].t1,"%s","");
-    sprintf(ft8[i].t2,"%s","");
-    sprintf(ft8[i].t3,"%s","");
+    sprintf(m[i].timestamp,"%s","");
+    m[i].slot=0;
+    m[i].CQ=false;
+    m[i].snr=0;
+    m[i].DT=0.0;
+    m[i].offset=0;
+    sprintf(m[i].t1,"%s","");
+    sprintf(m[i].t2,"%s","");
+    sprintf(m[i].t3,"%s","");
   }
+  nmsg=0;
 
 }
 //*----------------------------------------------------------------------------------------------------------------
 //* parse slot header information
 //*----------------------------------------------------------------------------------------------------------------
-void parseHeader(char* st) {
+void parseHeader(char* st,header* h,qso* q) {
 
 char * p;
 char   aux[32];
 
-       p=strtok(st," ");
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() received header(%s)\n",PROGRAMID,st) : _NOP);
+       h->active=true;
+
+       p=strtok(st,",");
        if (p==NULL) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:parseHeader() malformed header, ignored\n",PROGRAMID) : _NOP);
+          (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() malformed header, ignored\n",PROGRAMID) : _NOP);
           return;
        }
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
           return;
        }
-      
+          
        sprintf(aux,"%s",p);  //timeMsg
-       strcpy(s.timeSlot,aux);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed timeslot=%s\n",PROGRAMID,aux) : _NOP);
+       strcpy(h->timestamp,aux);
 
-
-       p=strtok(NULL," ");
-       if (p==NULL) {
-          return;
-       }
-       sprintf(aux,"%s",p);  //timeMsg
-       s.slot=atoi(aux);
-
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
           return;
        }
        sprintf(aux,"%s",p);  //timeMsg
-       (strcmp(aux,"e")==0 ? s.odd = 0 : s.odd = 1);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed seq=%s\n",PROGRAMID,aux) : _NOP);
+       int seq=atoi(aux);
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
+       if (p==NULL) {
+          return;
+       }
+
+       sprintf(aux,"%s",p);  //timeMsg
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed slot=%s\n",PROGRAMID,aux) : _NOP);
+       (strcmp(aux,"e")==0 ? h->slot = 0 : h->slot = 1);
+
+       p=strtok(NULL,",");
+       if (p==NULL) {
+          return;
+       }
+
+       sprintf(aux,"%s",p);  //timeMsg
+       int status=0;
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed status=%s\n",PROGRAMID,aux) : _NOP);
+       (strcmp(aux,"OK")==0 ? status = 0 : status = 1);
+
+       p=strtok(NULL,",");
        if (p==NULL) {
           return;
        }
        sprintf(aux,"%s",p);  //timeMsg
-       (strcmp(aux,"OK")==0 ? s.miss = 0 : s.miss = 1);
+       int brk=0;
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed cpl=%s\n",PROGRAMID,aux) : _NOP);
+       (strcmp(aux,"cpl")==0 ? brk = 0 : brk = 1);
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
           return;
        }
        sprintf(aux,"%s",p);  //timeMsg
-       (strcmp(aux,"cpl")==0 ? s.brk = 0 : s.brk = 1);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed candidates=%s\n",PROGRAMID,aux) : _NOP);
+       int candidates=atoi(aux);
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
           return;
        }
        sprintf(aux,"%s",p);  //timeMsg
-       s.candidates=atoi(aux);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed decoded=%s\n",PROGRAMID,aux) : _NOP);
+       int decoded=atoi(aux);
 
-       p=strtok(NULL," ");
-       if (p==NULL) {
-          return;
-       }
-       sprintf(aux,"%s",p);  //timeMsg
-       s.decoded=atoi(aux);
+       fprintf(stderr,"\033[0;31m----[%s] (seq=%d slot=%d) (%d/%d) (%03d- %02d) active(%s)\033[0m\n",(char*)h->timestamp,seq,h->slot,status,brk,candidates,decoded,BOOL2CHAR(h->active));
 
-
-       fprintf(stderr,"\033[0;31m----[%s] (slot=%d seq=%d) (%d/%d) (%03d- %02d)\033[0m\n",(char*)s.timeSlot,s.slot,s.odd,s.miss,s.brk,s.candidates,s.decoded);
-
-}
-
-//*----------------------------------------------------------------------------------------------------------------
-//* processQSO
-//*----------------------------------------------------------------------------------------------------------------
-int processQSO(FT8msg* ft8) {
-
-
-    switch(qso.FSM) {
-
-       case 0x00 :  {
-
-                    break;
-                    }
-
-       case 0x01 :  {
-
-
-                    break;
-                    }
-
-       case 0x02:   {
-
-
-                    break;
-                    }
-       case 0x03:   {
-         
-                    break;
-                    }
-
-
-    }
-
-    return  0;
 }
 //*----------------------------------------------------------------------------------------------------------------
 //* parse message information
 //*----------------------------------------------------------------------------------------------------------------
-void parseMessage(char* st) {
+int parseMessage(char* st,header* h,int j,msg* m,qso* q) {
 
 char * p;
+char * x;
 char    aux[32];
-FT8msg  f;
+msg    f;
 
-       p=strtok(st," ");
+
+       (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage msg(%d) so far\n",PROGRAMID,j) : _NOP);
+
+       p=strtok(st,",");
        if (p==NULL) {
-          return;
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage wrong format\n",PROGRAMID) : _NOP );
+          return j;
        }
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
-          return;
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage quite wrong format\n",PROGRAMID) : _NOP );
+          return j;
        }
-       sprintf(f.timeMsg,"%s",p);  //timeMsg
+       sprintf(f.timestamp,"%s",p);  //timeMsg
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage detected last message\n",PROGRAMID) : _NOP );
-          return;
-       }
-
-       sprintf(aux,"%s",p);
-       f.db=atoi(aux);
-
-       p=strtok(NULL," ");
-       if (p==NULL) {
-          return;
-       }
-       sprintf(aux,"%s",p);
-       f.DT=atof(aux);
-
-       p=strtok(NULL," ");
-       if (p==NULL) {
-          return;
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage incomplete message\n",PROGRAMID) : _NOP );
+          return j;
        }
 
        sprintf(aux,"%s",p);
-       f.offset=atoi(aux);
-
-       p=strtok(NULL," ");
-       if (p==NULL) {
-          return;
+       f.snr=atoi(trim(aux));
+       if (f.snr==-1) {
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage last message FSM(%d)\n",PROGRAMID,q->FSM) : _NOP );
+          return -1;
        }
-       sprintf(f.t1,"%s",p);
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
-          return;
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage corrupted message\n",PROGRAMID) : _NOP );
+          return j;
        }
-       sprintf(f.t2,"%s",p);
+       sprintf(aux,"%s",p);
+       
+       f.DT=atof(trim(aux));
 
-       p=strtok(NULL," ");
+       p=strtok(NULL,",");
        if (p==NULL) {
-          return;
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage partial message not processed\n",PROGRAMID) : _NOP );
+          return j;
        }
-       sprintf(f.t3,"%s",p);
-       (TRACE>=0x03 ? fprintf(stderr,"%s:parseMessage()  %s %d %f %d %s %s %s\n",PROGRAMID,f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3) : _NOP);
+
+       sprintf(aux,"%s",p);
+       f.offset=atoi(trim(aux));
+
+
+       p=strtok(NULL,",");
+       if (p==NULL) {
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t1)\n",PROGRAMID) : _NOP );
+          return j;
+       }
+char   mssg[128];
+       sprintf(mssg,"%s",p);
+
+       x=strtok(mssg," ");
+       if (x==NULL) {
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t2)\n",PROGRAMID) : _NOP );
+          return j;
+       }
+       sprintf(f.t1,"%s",x);
+
+       x=strtok(NULL," ");
+       if (x==NULL) {
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
+          return j;
+       }
+       sprintf(f.t2,"%s",x);
+
+       x=strtok(NULL," ");
+       if (x==NULL) {
+          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
+          return j;
+       }
+       sprintf(f.t3,"%s",x);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:parseMessage()  %s %d %f %d %s %s %s\n",PROGRAMID,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3) : _NOP);
+
+
+       strcpy(m[j].timestamp,f.timestamp);
+       m[j].snr=f.snr;
+       m[j].DT=f.DT;
+       m[j].offset=f.offset;
+       m[j].slot=h->slot;
+       strcpy(m[j].t1,f.t1);
+       strcpy(m[j].t2,f.t2);
+       strcpy(m[j].t3,f.t3);
+       m[j].CQ=false;
 
        if (strcmp("CQ",f.t1)==0) {
-          if (qso.FSM==0x00 ) {
-             strcpy(ft8[nQSO].timeMsg,f.timeMsg);
-             ft8[nQSO].db=f.db;
-             ft8[nQSO].DT=f.DT;
-             ft8[nQSO].slot=s.slot;
-             ft8[nQSO].odd=s.odd;
-             ft8[nQSO].offset=f.offset;
-             strcpy(ft8[nQSO].t1,f.t1);
-             strcpy(ft8[nQSO].t2,f.t2);
-             strcpy(ft8[nQSO].t3,f.t3);
-             fQSO=true;
-             fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nQSO,f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
-             nQSO++;
-             return;
-       } else {
-             fprintf(stderr,"\033[0;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
-             return;
-       }}
-
-       if (strcmp(mycall,f.t1)==0) {
-          fprintf(stderr,"\033[1;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
-          return;
+          m[j].CQ=true;
+          fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nCQ,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          nCQ++;
+          j++;
+          return j;
        }
 
-       fprintf(stderr,"\033[0;32m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timeMsg,f.db,f.DT,f.offset,f.t1,f.t2,f.t3);
-       return;
+       if (strcmp(mycall,f.t1)==0) {
+          j++;
+          fprintf(stderr,"\033[1;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          return j;
+       }
+
+       fprintf(stderr,"\033[0;32m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+       j++;
+       return j;
 }
 
 // ======================================================================================================================
 // processFrame
 // manipulate received frames to operate FT8
 //=======================================================================================================================
-void processFrame(char* s) {
+void processFrame(char* s,header* h,msg* m,qso* q) {
 
-
+char * p;
 char d[256];
 
+      (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() processing frame(%s)\n",PROGRAMID,s) : _NOP ); 
+   
       if (s==NULL) {
-         (TRACE>=0x02 ? fprintf(stderr,"%s:processFrame() empty frame received, ignored\n",PROGRAMID) : _NOP ); 
+         (TRACE>=0x00 ? fprintf(stderr,"%s:processFrame() empty frame received, ignored\n",PROGRAMID) : _NOP ); 
          return;
       }
 
-      s[strlen(s)-1] = 0x00;
-      sprintf(d,"%s",s);
-      if (strstr(s,"decodeFT8:FT8<loop>") != NULL) {
-         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() loop message(%s)\n",PROGRAMID,d) : _NOP);
-         fSlot=true;
-         parseHeader(d);
+
+      if (strstr(s,"HDR,") != NULL) {
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() hdr message(%s)\n",PROGRAMID,s) : _NOP);
+         parseHeader(s,h,q);
+         h->active=true;
+         h->newheader=true;
+         (TRACE>=0x02 ? fprintf(stderr,"%s:processFrame() hdr initialized new header(%s)\n",PROGRAMID,BOOL2CHAR(h->newheader)) : _NOP);
          return;
       }
 
-      if (strstr(s,"decodeFT8:FT8<mssg>") != NULL) {
-         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() mssg message(%s)\n",PROGRAMID,d) : _NOP);
-         if(fSlot==true) {
-           fSlot=false;
-           clearmsg();
-           nQSO=0;
-           fQSO=false;
+      if (strstr(s,"MSG,") != NULL) {
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() mssg message(%s) active(%s) new Header(%s)\n",PROGRAMID,s,BOOL2CHAR(h->active),BOOL2CHAR(h->newheader)) : _NOP);
+         if (h->newheader==true) {
+            h->newheader=false;
+            h->active=false;
+            clearmsg(m);
+            nmsg=0;
+            nCQ=0;
+            (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() first message, init messages\n",PROGRAMID) : _NOP);
          }
-         parseMessage(d);
+
+         int n=parseMessage(s,h,nmsg,m,q);
+         if (n==-1) {
+            if (q->FSM >= 0x01) {       // there is a QSO in progress
+               qsoMachine(h,m,q);
+            }          
+         } else {
+           nmsg=n;
+         }
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() number of messages(%d)\n",PROGRAMID,nmsg) : _NOP);
+
          return; 
       } 
 
@@ -492,8 +693,20 @@ int main(int argc, char** argv)
       }
   }
 
-//  set_conio_terminal_mode();
+  for (int i = 0; i < 50; i++) {
+      FSMhandler[i]=nullptr;
+  }
 
+// -- define processor handles
+
+
+  FSMhandler[0] = handleStartQSO;
+  FSMhandler[1] = handleReply;
+  FSMhandler[2] = handleEXCH;
+  FSMhandler[3] = handleRRR;
+
+
+// --- define my own coordinates 
 
   sprintf(mycall,"%s","LU7DID");
   sprintf(mygrid,"%s","GF05");
@@ -501,38 +714,13 @@ int main(int argc, char** argv)
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() Memory initialization\n",PROGRAMID) : _NOP);
   buffer=(char*)malloc(2048*sizeof(unsigned char));
 
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main() QSO structure initialization\n",PROGRAMID) : _NOP);
-  qso.FSM=0x00;
-  qso.cnt=0x00;
-  qso.urslot=0x00;
-  qso.myslot=0x00;
-  qso.urodd=0x00;
-  qso.myodd=0x00;
-  sprintf(qso.timeQSO,"%s","");
-  sprintf(qso.urcall,"%s","");
-  sprintf(qso.urgrid,"%s","");
-  qso.myRST=-10;
-  qso.urRST=-10;
-
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main() time slot structure initialization\n",PROGRAMID) : _NOP);
-
-  sprintf(s.timeSlot,"%s","");
-  s.slot=0;
-  s.odd=0;
-  s.miss=0;
-  s.brk=0;
-  s.candidates=0;
-  s.decoded=0;
-
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main() payload structure initialization\n",PROGRAMID) : _NOP);
-
-  clearmsg();
+  clearmsg(ft8_msg);
 
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() FT8 decoder initialization\n",PROGRAMID) : _NOP);
   r=new decodeFT8();  
   r->TRACE=TRACE;
-  r->setFrequency(14074000);
+  r->setFrequency(freq);
   r->setMode(MUSB);
   r->sr=12000;
   r->start();
@@ -580,19 +768,34 @@ int main(int argc, char** argv)
   usleep(10000);
 
   setWord(&MSW,RUN,true);
-
   pthread_create(&t, NULL, &read_stdin, NULL);
-
-
-
 
 // --- Now, you can write to outpipefd[1] and read from inpipefd[0] :  
   while(getWord(MSW,RUN)==true)
   {
+
     int nread=r->readpipe(buffer,1024);
     if (nread>0) {
        buffer[nread]=0x00;
-       processFrame((char*)buffer);
+       char* z=strtok(buffer,"\n");
+       while(z!=NULL) {
+          processFrame(z,ft8_header,ft8_msg,ft8_qso);
+          (TRACE>=0x01 ? fprintf(stderr,"%s:main() returned from processFrame active(%s)\n",PROGRAMID,BOOL2CHAR(ft8_header->active)) : _NOP);
+
+          z=strtok(NULL,"\n");
+       }
+    }
+
+    if (getWord(MSW,GUI)==true) {
+       setWord(&MSW,GUI,false);
+       if (ft8_qso->FSM == 0x00) {  // hay QSO en curso
+          ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
+          (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+          if (ft8_qso->nmsg>=0) {
+             (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+             qsoMachine(ft8_header,ft8_msg,ft8_qso);
+          }
+       }
     }
 
   }
@@ -601,6 +804,7 @@ int main(int argc, char** argv)
 
   pthread_join(t, NULL);
   t=(pthread_t)-1;
+
   r->stop();
   delete(r);
 }

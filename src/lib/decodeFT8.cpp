@@ -360,7 +360,7 @@ int prevslot=0;
                  setWord(&FT8,FT8WINDOW,true);
                  FT8listen_counter=LISTEN;
                  num_samples=0;
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:FT8<loop> %s %d %s %s %s %03d %02d *\n",PROGRAMID,getTime(),slot,(slot%2==0 ? "e" : "o"),(getWord(FT8,FT8SKIP)==true ? "--" : "OK"),(getWord(FT8,FT8GIVEUP)==false ? "cpl" : "brk"),num_candidates,num_decoded) : _NOP);
+                 (TRACE >= 0x00 ? fprintf(stderr,"HDR,%s,%d,%s,%s,%s,%03d,%02d\n",getTime(),slot,(slot%2==0 ? "e" : "o"),(getWord(FT8,FT8SKIP)==true ? "--" : "OK"),(getWord(FT8,FT8GIVEUP)==false ? "cpl" : "brk"),num_candidates,num_decoded) : _NOP);
                  setWord(&FT8,FT8GIVEUP,false);
               }
            }
@@ -391,10 +391,10 @@ int prevslot=0;
               num_decoded=FT8_process(num_samples,sample_rate,slotmsg);
               if (num_decoded!=0) {
                  for (int i=0; i<num_decoded ; i++) {
-                    fprintf(stderr,"%s:FT8<mssg> %s %d %4.1f %d %s\n",PROGRAMID,getTime(),slotmsg[i].db,slotmsg[i].DT,slotmsg[i].offset,slotmsg[i].msg);
+                    fprintf(stderr,"MSG,%s,%d,%4.1f,%d,%s\n",getTime(),slotmsg[i].db,slotmsg[i].DT,slotmsg[i].offset,slotmsg[i].msg);
                     free(slotmsg[i].msg);
                  }
-                 fprintf(stderr,"%s:FT8<mssg> ",PROGRAMID);
+                 fprintf(stderr,"MSG,%s,-1\n",getTime());
               }
               (TRACE>=0x02 ? fprintf(stderr,"%s Returned %s with giveup(%s)\n",PROGRAMID,getTime(),BOOL2CHAR(getWord(FT8,FT8GIVEUP))) : _NOP);
                 
