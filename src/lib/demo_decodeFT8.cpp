@@ -45,7 +45,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <ncurses.h>
+//#include <ncurses.h>
 
 #include<sys/wait.h>
 #include<sys/prctl.h>
@@ -54,10 +54,7 @@
 #include <fstream>
 using namespace std;
 
-
 #include "/home/pi/OrangeThunder/src/lib/decodeFT8.h"
-#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
-
 
 // --- IPC structures
 
@@ -114,9 +111,10 @@ qso        ft8_qso[1];
 int        nmsg=0;
 int        nCQ=0;
 
-boolean    fSlot=false;
+boolean    fthread=false;
 pthread_t  t=(pthread_t)-1;
-
+pthread_t  pift8=(pthread_t)-1;
+char       pcmd[1024];
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="demo_decodeFT8";
 const char   *PROG_VERSION="1.0";
@@ -127,9 +125,9 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 // *                  GPIO support processing                       *
 // *----------------------------------------------------------------*
 // --- gpio object
-gpioWrapper* g=nullptr;
-char   *gpio_buffer;
-void gpiochangePin();
+//gpioWrapper* g=nullptr;
+//char   *gpio_buffer;
+//void gpiochangePin();
 
 // *----------------------------------------------------------------*
 // *           Read commans from Std input while running            *
@@ -178,16 +176,64 @@ char *trim(char *s)
     return rtrim(ltrim(s)); 
 }
 
+//---------------------------------------------------------------------------------------------------
+// startProcess
+// thread to send information
+//---------------------------------------------------------------------------------------------------
+void* startProcess (void * null) {
+
+    (TRACE>=0x02 ? fprintf(stderr,"%s::startProcess() starting thread\n",PROGRAMID) : _NOP);
+    char cmd[2048];
+    char buf[4096];
+
+
+    sprintf(cmd,"python /home/pi/OrangeThunder/bash/turnon.py && %s && python /home/pi/OrangeThunder/bash/turnoff.py",pcmd);
+    (TRACE>=0x02 ? printf("%s::startProcess() cmd(%s)\n",PROGRAMID,cmd) : _NOP);
+
+    FILE *fp;
+
+    if ((fp = popen(cmd, "r")) == NULL) {
+        (TRACE>=0x02 ? printf("%s::startProcess() error opening pipe\n",PROGRAMID) : _NOP);
+        fthread=false;
+        pthread_exit(NULL);
+    }
+
+    while (fgets(buf, BUFSIZE, fp) != NULL) {
+        // Do whatever you want here...
+        printf("OUTPUT: %s", buf);
+
+    }
+
+    if(pclose(fp))  {
+        (TRACE>=0x02 ? printf("%s::startProcess() command not found of exited with error status\n",PROGRAMID) : _NOP);
+        fthread=false;
+        pthread_exit(NULL);
+    }
+
+
+    (TRACE>=0x02 ? printf("%s::startProcess() thread normally terminated\n",PROGRAMID) : _NOP);
+    fthread=false;
+    pthread_exit(NULL);
+}
+// --------------------------------------------------------------------------------------------------
 void sendFT8(char* cmd) {
 
-   (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
-
+    (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
+    if (fthread == true) {
+       (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() thread already running, skip!\n",PROGRAMID) : _NOP);
+       return;
+    }
+    fthread=true;
+    sprintf(pcmd,"python /home/pi/OrangeThunder/bash/turnon.py && sudo %s && python /home/pi/OrangeThunder/bash/turnoff.py",cmd);
+int rct=pthread_create(&pift8,NULL, &startProcess, NULL);
+    if (rct != 0) {
+       fprintf(stderr,"%s:main() thread can not be created at this point rc(%d)\n",PROGRAMID,rct);
+       exit(16);
+    }
 // --- process being launch 
 
-    //execl(getenv("SHELL"),"sh","-c",cmd,NULL);
-int status = system(cmd);
-   (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() status[%d]\n",PROGRAMID,status) : _NOP);
 
+   (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() thread launch completed[%d]\n",PROGRAMID,rct) : _NOP);
 }
 // --------------------------------------------------------------------------------------------------
 
@@ -729,47 +775,46 @@ int main(int argc, char** argv)
   r->sr=12000;
   r->start();
 
-
-  gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
+  //gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 // --- gpio Wrapper creation
 
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
-  g=new gpioWrapper(NULL);
-  g->TRACE=TRACE;
+  //(TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
+  //g=new gpioWrapper(NULL);
+  //g->TRACE=TRACE;
 
-  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-     exit(16);
-  }
+  //if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
+  //   exit(16);
+  //}
+  //if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+  //   (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
+  //   exit(16);
+  //}
+  //if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+  //   (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
+  //   exit(16);
+  //}
+  //if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+  //   exit(16);
+  //}
 
-  if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-     exit(16);
-  }
+  //if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+  //   exit(16);
+  //}
 
-  if (g->start() == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
-     exit(8);
-  }
+  //if (g->start() == -1) {
+  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
+  //   exit(8);
+  //}
 
   // *---------------------------------------------*
   // * Set cooler ON mode                          *
   // *---------------------------------------------*
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
-  if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
-  usleep(10000);
+  //(TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
+  //if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
+  //usleep(10000);
 
   setWord(&MSW,RUN,true);
   pthread_create(&t, NULL, &read_stdin, NULL);
