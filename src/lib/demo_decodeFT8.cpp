@@ -272,7 +272,8 @@ char FT8message[128];
 
     (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
     for (int i=0;i<nmsg;i++) {
-
+        (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) processing loop(%d)\n",PROGRAMID,q->FSM,i) : _NOP);
+        
 //--- message is a CQ
         if (strcmp(m[i].t1,"CQ")==0) {
            if (strcmp(m[i].t2,q->hiscall)==0) {  // keep calling CQ repeat response
@@ -285,7 +286,7 @@ char FT8message[128];
                  (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
                  q->FSM=0x00;
               }
-              return;
+              //return;
            } else {
              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody else CQ, ignore\n",PROGRAMID) : _NOP);
            }
@@ -294,8 +295,9 @@ char FT8message[128];
 //--- message towards me
 
        if (strcmp(m[i].t1,q->mycall)==0) {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me\n",PROGRAMID) : _NOP);
           if (strcmp(m[i].t2,q->hiscall)==0) {
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, not implemented yet\n",PROGRAMID) : _NOP);
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, still in QSO\n",PROGRAMID) : _NOP);
              sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,(char*)"R-10",freq,q->myslot);
              sendFT8(FT8message);
              q->cnt=4;
@@ -303,8 +305,8 @@ char FT8message[128];
              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() next state(%d)\n",PROGRAMID,q->FSM) : _NOP);
              return;
           } else { //to me but not from who I'm in QSO with, so ignore it.
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() ignore message (%s %s %s)  state(%d)\n",PROGRAMID,m[i].t1,m[i].t2,m[i].t3,q->FSM) : _NOP);
-             return;
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody is calling me, ignore message (%s %s %s)  state(%d)\n",PROGRAMID,m[i].t1,m[i].t2,m[i].t3,q->FSM) : _NOP);
+             //return;
           }
        }
 
@@ -314,7 +316,7 @@ char FT8message[128];
        if (strcmp(m[i].t2,q->hiscall)==0) {
           if (strcmp(m[i].t1,q->mycall)==0) {          //erroneous message I'm not sending 
              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
-             return;
+             //return;
           } else {
              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
              q->FSM=0x00;
@@ -337,7 +339,7 @@ char FT8message[128];
         return;
      }
 
-     return;
+     //return;
 
 }
 // --------------------------------------------------------------------------------------------------
@@ -378,7 +380,7 @@ char FT8message[128];
              }
          } else {
              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, ignore\n",PROGRAMID) : _NOP);
-             return;
+             //return;
          }
 
       }
