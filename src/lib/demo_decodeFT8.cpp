@@ -267,9 +267,7 @@ char FT8message[128];
 
 }
 // --------------------------------------------------------------------------------------------------
-
 void handleReply(header* h,msg* m,qso* q) {
-
 char FT8message[128];
 
     (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
@@ -286,31 +284,45 @@ char FT8message[128];
               if (q->cnt==0) {   //give up
                  (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
                  q->FSM=0x00;
-                 return;
               }
               return;
+           } else {
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody else CQ, ignore\n",PROGRAMID) : _NOP);
            }
         }
 
 //--- message towards me
 
        if (strcmp(m[i].t1,q->mycall)==0) {
-
-          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, not implemented yet\n",PROGRAMID) : _NOP);
-          return;
-
+          if (strcmp(m[i].t2,q->hiscall)==0) {
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, not implemented yet\n",PROGRAMID) : _NOP);
+             sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,(char*)"R-10",freq,q->myslot);
+             sendFT8(FT8message);
+             q->cnt=4;
+             q->FSM=0x02;
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() next state(%d)\n",PROGRAMID,q->FSM) : _NOP);
+             return;
+          } else { //to me but not from who I'm in QSO with, so ignore it.
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() ignore message (%s %s %s)  state(%d)\n",PROGRAMID,m[i].t1,m[i].t2,m[i].t3,q->FSM) : _NOP);
+             return;
+          }
        }
 
 
 //--- message not CQ but sent by my destination, in QSO with somebody else, abandon
 
        if (strcmp(m[i].t2,q->hiscall)==0) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
-          q->FSM=0x00;
-          return;
+          if (strcmp(m[i].t1,q->mycall)==0) {          //erroneous message I'm not sending 
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
+             return;
+          } else {
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
+             q->FSM=0x00;
+             return;
+          }
        }
 
-// ----
+// ---- Explore the rest of the QSO lines available at this point
 
     }
 
@@ -326,6 +338,77 @@ char FT8message[128];
      }
 
      return;
+
+}
+// --------------------------------------------------------------------------------------------------
+void handleRRR(header* h,msg* m,qso* q) {
+
+char FT8message[128];
+
+    (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
+    for (int i=0;i<nmsg;i++) {
+
+//--- message is a CQ
+        if (strcmp(m[i].t1,"CQ")==0) {
+           (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody else CQ, ignore\n",PROGRAMID) : _NOP);
+        }
+
+//--- message towards me
+
+       if (strcmp(m[i].t1,q->mycall)==0) {
+          if (strcmp(m[i].t2,q->hiscall)==0) {  // could be either a repeat of the signal using R-00 or a goodby [RRR,73,R73]
+             if(strstr(m[i].t3, "73") != NULL) {
+               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() some 73 detected [%s]\n",PROGRAMID,m[i].t3) : _NOP);
+               sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"RR73",freq,q->myslot);
+               sendFT8(FT8message);
+               q->FSM=0x00;
+               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() completed QSO sequence [%s]\n",PROGRAMID,FT8message) : _NOP);
+               return;
+             } else {
+               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() some report repeat [%s]\n",PROGRAMID,m[i].t3) : _NOP);
+               sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"R-10",freq,q->myslot);
+               sendFT8(FT8message);
+               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() repeat completed [%s]\n",PROGRAMID,FT8message) : _NOP);
+               q->cnt--;
+               if (q->cnt==0) {
+                  (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded, abandon [%s]\n",PROGRAMID,FT8message) : _NOP);
+                  q->FSM=0x00;
+                  return;
+               }
+             }
+         } else {
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, ignore\n",PROGRAMID) : _NOP);
+             return;
+         }
+
+      }
+//--- message not CQ but sent by my destination, in QSO with somebody else, abandon
+
+       if (strcmp(m[i].t2,q->hiscall)==0) {
+          if (strcmp(m[i].t1,q->mycall)!=0) {          //erroneous message I'm not sending 
+             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
+             q->FSM=0x00;
+             return;
+          }
+       }
+
+// ---- Explore the rest of the QSO lines available at this point but ignore all of them
+
+    }
+
+// --- all messages scanned but no process hit found, retry message for this state
+     sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"R-10",freq,q->myslot);
+     sendFT8(FT8message);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
+     q->cnt--;
+     if (q->cnt==0) {   //give up
+        (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
+        q->FSM=0x00;
+        return;
+     }
+
+     return;
+
 }
 // --------------------------------------------------------------------------------------------------
 
@@ -334,13 +417,7 @@ void handleEXCH(header* h,msg* m,qso* q) {
     return;
 
 }
-// --------------------------------------------------------------------------------------------------
 
-void handleRRR(header* h,msg* m,qso* q) {
-    (TRACE>=0x00 ? fprintf(stderr,"%s:handleRRR() handle RRR\n",PROGRAMID) : _NOP);
-    return;
-
-}
 // --------------------------------------------------------------------------------------------------
 
 void handleHAL(header* h,msg* m,qso* q) {
@@ -752,8 +829,8 @@ int main(int argc, char** argv)
 
   FSMhandler[0] = handleStartQSO;
   FSMhandler[1] = handleReply;
-  FSMhandler[2] = handleEXCH;
-  FSMhandler[3] = handleRRR;
+  FSMhandler[2] = handleRRR;;
+  //FSMhandler[3] = handleRRR;
 
 
 // --- define my own coordinates 
