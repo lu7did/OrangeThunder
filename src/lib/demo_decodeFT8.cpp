@@ -82,15 +82,20 @@ struct qso {
       int   nmsg;
       char  hiscall[16];
       char  hisgrid[16];
-      int   hissnr;
+      char  hissnr[16];
       int   hisslot;
       char  mycall[16];
       char  mygrid[16];
-      int   mysnr;
+      char  mysnr[16];
       int   myslot;
       int   cnt;
+      char  lastsent[256];
 };
- 
+struct Queue {
+      int   slot;
+      char  message[1024];
+};
+
 typedef void (*QSOCALL)(header* h,msg* m,qso* q);
 QSOCALL    FSMhandler[50];
 
@@ -110,6 +115,10 @@ header     ft8_header[1];
 qso        ft8_qso[1];
 int        nmsg=0;
 int        nCQ=0;
+
+Queue      queueFT8[1024];
+int        nextPush=0;
+int        nextPop=0;
 
 boolean    fthread=false;
 pthread_t  t=(pthread_t)-1;
@@ -157,11 +166,18 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
+
 char *ltrim(char *s)
 {
     while(isspace(*s)) s++;
     return s;
 }
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
 
 char *rtrim(char *s)
 {
@@ -170,15 +186,76 @@ char *rtrim(char *s)
     *(back+1) = '\0';
     return s;
 }
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
 
 char *trim(char *s)
 {
     return rtrim(ltrim(s)); 
 }
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
 
+void clearQueue() {
+
+     nextPop=0;
+     nextPush=0;
+    (TRACE>=0x03 ? fprintf(stderr,"%s::pushQueue() clear stack\n",PROGRAMID) : _NOP);
+
+     return;
+}
+//--------------------------------------------------------------------------------------------------
+// setSSW Sets a given bit of the system status Word (SSW)
+//--------------------------------------------------------------------------------------------------
+
+void pushQueue(int slot,char* cmd) {
+
+     queueFT8[nextPush].slot=slot;
+     strcpy(queueFT8[nextPush].message,cmd);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::pushQueue() stored stack(%d) message(%s)\n",PROGRAMID,nextPush,queueFT8[nextPush].message) : _NOP);
+
+     nextPush++;
+     if (nextPush>=1024) {
+        nextPush=0;
+     }
+     return;
+
+}
+//--------------------------------------------------------------------------------------------------
+// popQueue recover an element from the message queue
+//--------------------------------------------------------------------------------------------------
+int popQueue() {
+int i=nextPop;
+    if(i==nextPush) {
+      return -1;
+    }
+    nextPop++;
+    if (nextPop>=1024) {
+       nextPop=0;
+    }
+    (TRACE>=0x02 ? fprintf(stderr,"%s::popQueue() retrieved stack(%d) message(%s)\n",PROGRAMID,i,queueFT8[i].message) : _NOP);
+    return i;
+}
+//--------------------------------------------------------------------------------------------------
+// isQueue return whether there is a pending element or not
+//--------------------------------------------------------------------------------------------------
+bool isQueue() {
+    if (nextPop != nextPush) {
+       return true;
+    }
+    return false;
+}
+//--------------------------------------------------------------------------------------------------
+// peekQueue peek for next element
+//--------------------------------------------------------------------------------------------------
+int peekQueue() {
+    return nextPop;
+}
 //---------------------------------------------------------------------------------------------------
 // startProcess
-// thread to send information
+// thread to send information using FT8 frames over the air
 //---------------------------------------------------------------------------------------------------
 void* startProcess (void * null) {
 
@@ -187,235 +264,249 @@ void* startProcess (void * null) {
     char buf[4096];
 
 
-    sprintf(cmd,"python /home/pi/OrangeThunder/bash/turnon.py && %s && python /home/pi/OrangeThunder/bash/turnoff.py",pcmd);
-    (TRACE>=0x02 ? printf("%s::startProcess() cmd(%s)\n",PROGRAMID,cmd) : _NOP);
+    sprintf(cmd,"python /home/pi/OrangeThunder/bash/turnon.py 2>/dev/null && %s 2>/dev/null > /dev/null  && python /home/pi/OrangeThunder/bash/turnoff.py 2>/dev/null",pcmd);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::startProcess() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
 
     FILE *fp;
 
     if ((fp = popen(cmd, "r")) == NULL) {
-        (TRACE>=0x02 ? printf("%s::startProcess() error opening pipe\n",PROGRAMID) : _NOP);
+        (TRACE>=0x00 ? fprintf(stderr,"%s::startProcess() error opening pipe\n",PROGRAMID) : _NOP);
         fthread=false;
         pthread_exit(NULL);
     }
 
     while (fgets(buf, BUFSIZE, fp) != NULL) {
         // Do whatever you want here...
-        printf("OUTPUT: %s", buf);
-
+        fprintf(stderr,"o-> %s", buf);
     }
 
     if(pclose(fp))  {
-        (TRACE>=0x02 ? printf("%s::startProcess() command not found of exited with error status\n",PROGRAMID) : _NOP);
+        (TRACE>=0x00 ? fprintf(stderr,"%s::startProcess() command not found of exited with error status\n",PROGRAMID) : _NOP);
         fthread=false;
         pthread_exit(NULL);
     }
 
-
-    (TRACE>=0x02 ? printf("%s::startProcess() thread normally terminated\n",PROGRAMID) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::startProcess() thread normally terminated\n",PROGRAMID) : _NOP);
     fthread=false;
     pthread_exit(NULL);
 }
 // --------------------------------------------------------------------------------------------------
-void sendFT8(char* cmd) {
+// sendFT8
+// send a frame pending on the queue
+// --------------------------------------------------------------------------------------------------
+void sendFT8(header* h) {
 
-    (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
     if (fthread == true) {
-       (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() thread already running, skip!\n",PROGRAMID) : _NOP);
+       (TRACE >= 0x02 ? fprintf(stderr,"%s::sendFT8() thread already running, skip!\n",PROGRAMID) : _NOP);
        return;
     }
+
+
+    if (isQueue() == false) {   // and it is for this particular slot then send, otherwise leave
+       (TRACE >= 0x02 ? fprintf(stderr,"%s::sendFT8() slot(%d) queue empty, skip!\n",PROGRAMID,h->slot) : _NOP);
+       return;
+    }
+
+    if (queueFT8[peekQueue()].slot != h->slot) {
+       (TRACE >= 0x02 ? fprintf(stderr,"%s::sendFT8() slot(%d) waiting till slot(%d), skip!\n",PROGRAMID,h->slot,queueFT8[peekQueue()].slot) : _NOP);
+       return;
+    }
+
+    int k=popQueue();    // Check if there is any pending message, if so continue
+    if (k==-1) {
+       return;
+    }
+
+    (TRACE>=0x02 ? fprintf(stderr,"%s::sendFT8() slot(%d) sending stack(%d) message(%s)\n",PROGRAMID,h->slot,k,queueFT8[k].message) : _NOP);
+    
     fthread=true;
-    sprintf(pcmd,"python /home/pi/OrangeThunder/bash/turnon.py && sudo %s && python /home/pi/OrangeThunder/bash/turnoff.py",cmd);
+    sprintf(pcmd,"python /home/pi/OrangeThunder/bash/turnon.py && sudo %s && python /home/pi/OrangeThunder/bash/turnoff.py",queueFT8[k].message);
 int rct=pthread_create(&pift8,NULL, &startProcess, NULL);
     if (rct != 0) {
-       fprintf(stderr,"%s:main() thread can not be created at this point rc(%d)\n",PROGRAMID,rct);
+       (TRACE>=0x00 ? fprintf(stderr,"%s:main() thread can not be created at this point rc(%d)\n",PROGRAMID,rct) : _NOP);
        exit(16);
     }
 // --- process being launch 
 
 
-   (TRACE >= 0x00 ? fprintf(stderr,"%s::sendFT8() thread launch completed[%d]\n",PROGRAMID,rct) : _NOP);
+   (TRACE >= 0x03 ? fprintf(stderr,"%s::sendFT8() thread launch completed[%d]\n",PROGRAMID,rct) : _NOP);
 }
+// --------------------------------------------------------------------------------------------------
+void retryFT8(qso* q) {
+
+    if (isQueue()==true) {
+       return;
+    }
+
+    q->cnt--;
+    if (q->cnt==0) {
+       q->FSM=0x00;
+       clearQueue();
+       (TRACE>=0x02 ? fprintf(stderr,"%s:retryFT8() FSM(%d) **retry exceeded***\n",PROGRAMID,q->FSM) : _NOP);
+    }
+    (TRACE>=0x02 ? fprintf(stderr,"%s:retryFT8() FSM(%d) retrying message slot(%d) [%s]\n",PROGRAMID,q->FSM,q->myslot,q->lastsent) : _NOP);
+    pushQueue(q->myslot,q->lastsent);
+
+    return;
+}
+
 // --------------------------------------------------------------------------------------------------
 
 void handleNOP(header h,msg* m,qso q) {
-    (TRACE>=0x00 ? fprintf(stderr,"%s:handleNOP() do nothing hook\n",PROGRAMID) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleNOP() do nothing hook\n",PROGRAMID) : _NOP);
     return;
 }
 // --------------------------------------------------------------------------------------------------
-
 void handleStartQSO(header* h,msg* m,qso* q) {
-   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() handle start of QSO\n",PROGRAMID) : _NOP);
 
-   q->FSM=0x01;
-   strcpy(q->hiscall,m[q->nmsg].t2);
-   strcpy(q->hisgrid,m[q->nmsg].t3);
-   q->hissnr=10;
-   strcpy(q->mycall,mycall);
-   strcpy(q->mygrid,mygrid);
-   q->mysnr=0;
-   q->cnt=4;
-   q->hisslot=m[q->nmsg].slot;
-   q->myslot=(q->hisslot + 1)%2;
-   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() QSO structure created FSM(%d) [%s %s %d] (slot %d)->[%s %s %d] (slot %d) cnt(%d)\n",PROGRAMID,q->FSM,q->hiscall,q->hisgrid,q->hissnr,q->hisslot,q->mycall,q->mygrid,q->mysnr,q->myslot,q->cnt) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s:handleStartQSO() handle start of QSO\n",PROGRAMID) : _NOP);
+   if (strcmp(m[q->nmsg].t1,"CQ")==0) {   // is a CQ
+      if (strcmp(m[q->nmsg].t2,mycall) == 0) { // is CQ mycall * ignore
+         (TRACE>=0x02 ? fprintf(stderr,"%s:handleStartQSO() CQ performed by me, ignore\n",PROGRAMID) : _NOP);
+         return;
+      }
 
-char FT8message[128];
+      q->FSM=0x01;
+      strcpy(q->hiscall,m[q->nmsg].t2);
+      strcpy(q->hisgrid,m[q->nmsg].t3);
+      strcpy(q->hissnr,"R-10");
+      strcpy(q->mycall,mycall);
+      strcpy(q->mygrid,mygrid);
+      strcpy(q->mysnr,(char*)"");
+      q->cnt=4;
+      q->hisslot=m[q->nmsg].slot;
+      q->myslot=(q->hisslot + 1)%2;
+      (TRACE>=0x02 ?  fprintf(stderr,"%s:handleStartQSO() QSO created FSM(%d) [%s %s %s] (slot %d)->[%s %s %s] (slot %d) cnt(%d)\n",PROGRAMID,q->FSM,q->hiscall,q->hisgrid,q->hissnr,q->hisslot,q->mycall,q->mygrid,q->mysnr,q->myslot,q->cnt) : _NOP);
 
-   sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
-   sendFT8(FT8message);
-   (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() FSM(%d) CMD[%s]\n",PROGRAMID,q->FSM,FT8message) : _NOP);
+//--- push a response in the message queue to start the QSO
+
+      clearQueue();
+      sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
+      (TRACE>=0x02 ? fprintf(stderr,"%s:handleStartQSO() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
+      pushQueue(q->myslot,q->lastsent);
+      return;
+   }
+
    return;
 
 }
 // --------------------------------------------------------------------------------------------------
 void handleReply(header* h,msg* m,qso* q) {
-char FT8message[128];
 
-    (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() FSM(%d) QSO (%s(%d):%s(%d))\n",PROGRAMID,q->FSM,q->hiscall,q->hisslot,q->mycall,q->myslot) : _NOP);
+
+//--- scan all available messages
+
     for (int i=0;i<nmsg;i++) {
-        (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) processing loop(%d)\n",PROGRAMID,q->FSM,i) : _NOP);
-        
-//--- message is a CQ
-        if (strcmp(m[i].t1,"CQ")==0) {
-           if (strcmp(m[i].t2,q->hiscall)==0) {  // keep calling CQ repeat response
-              (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) found (%s) still calling CQ\n",PROGRAMID,q->FSM,q->hiscall) : _NOP);
-              sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
-              sendFT8(FT8message);
-              (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
-              q->cnt--;
-              if (q->cnt==0) {   //give up
-                 (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
-                 q->FSM=0x00;
-              }
-              //return;
-           } else {
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody else CQ, ignore\n",PROGRAMID) : _NOP);
+        (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() FSM(%d) message (%d)<%s %s %s>\n",PROGRAMID,q->FSM,i,m[i].t1,m[i].t2,m[i].t3) : _NOP);
+
+        if (strcmp(m[i].t1,"CQ")==0) {                //it is a CQ call
+           if (strcmp(m[i].t2,q->hiscall)==0) {       //CQ hiscall *
+              (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() CQ hiscall *, retry(%s)\n",PROGRAMID,q->lastsent) : _NOP);
+              retryFT8(q);                 //No pending message, so the previous one has been sent but not received, retry
+              return;                                 //process no further message
            }
+
+           if (strcmp(m[i].t2,q->mycall)==0) {        // CQ mycall this is weird, ignore
+              continue;
+           }
+
+           continue;
         }
 
-//--- message towards me
-
-       if (strcmp(m[i].t1,q->mycall)==0) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me\n",PROGRAMID) : _NOP);
-          if (strcmp(m[i].t2,q->hiscall)==0) {
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, still in QSO\n",PROGRAMID) : _NOP);
-             sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,(char*)"R-10",freq,q->myslot);
-             sendFT8(FT8message);
-             q->cnt=4;
-             q->FSM=0x02;
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() next state(%d)\n",PROGRAMID,q->FSM) : _NOP);
-             return;
-          } else { //to me but not from who I'm in QSO with, so ignore it.
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody is calling me, ignore message (%s %s %s)  state(%d)\n",PROGRAMID,m[i].t1,m[i].t2,m[i].t3,q->FSM) : _NOP);
-             //return;
-          }
-       }
+        if (strcmp(m[i].t1,mycall)==0) {
+           if (strcmp(m[i].t2,q->hiscall)==0) {       // Mycall HisCall * sounds like an answer
+              strcpy(q->mysnr,m[i].t3);
+              clearQueue();
+              if (isQueue()==false) {
+                 sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->hissnr,freq,q->myslot);
+                 pushQueue(q->myslot,q->lastsent);
+                 (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() mycall hiscall SIG , reply(%s)\n",PROGRAMID,q->lastsent) : _NOP);
+                 q->FSM=0x02;                         // advance to next stage in the machine
+              }
+              return;
+           }
+           continue;
+        }
 
 
-//--- message not CQ but sent by my destination, in QSO with somebody else, abandon
-
-       if (strcmp(m[i].t2,q->hiscall)==0) {
-          if (strcmp(m[i].t1,q->mycall)==0) {          //erroneous message I'm not sending 
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
-             //return;
-          } else {
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
-             q->FSM=0x00;
-             return;
-          }
-       }
-
-// ---- Explore the rest of the QSO lines available at this point
+        if (strcmp(m[i].t1,mycall)!=0 && strcmp(m[i].t1,q->hiscall)!=0) {  //not my or his call, somebody elses call
+           if (strcmp(m[i].t2,q->hiscall)==0) {                                       //from his call, so clearly doing QSO with somebody else
+              (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() !mycall hiscall *, abandon\n",PROGRAMID) : _NOP);
+              q->FSM=0x00;
+              clearQueue();
+              return;
+           }
+           continue;
+        }
 
     }
+//--- end of loop so all messages has been scanned and no appropriate action found before, so is there is no pending action resend message
 
-// --- all messages scanned but no process hit found, retry message for this state
-     sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
-     sendFT8(FT8message);
-     (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
-     q->cnt--;
-     if (q->cnt==0) {   //give up
-        (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
-        q->FSM=0x00;
-        return;
-     }
-
-     //return;
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() FSM(%d) processing retry(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
+    retryFT8(q);
 
 }
 // --------------------------------------------------------------------------------------------------
 void handleRRR(header* h,msg* m,qso* q) {
 
-char FT8message[128];
 
-    (TRACE>=0x00 ? fprintf(stderr,"%s:handleReply() FSM(%d) (%s)->(%s)\n",PROGRAMID,q->FSM,q->hiscall,q->mycall) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() FSM(%d) QSO (%s(%d):%s(%d))\n",PROGRAMID,q->FSM,q->hiscall,q->hisslot,q->mycall,q->myslot) : _NOP);
+
     for (int i=0;i<nmsg;i++) {
-
-//--- message is a CQ
-        if (strcmp(m[i].t1,"CQ")==0) {
-           (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() somebody else CQ, ignore\n",PROGRAMID) : _NOP);
-        }
-
-//--- message towards me
-
-       if (strcmp(m[i].t1,q->mycall)==0) {
-          if (strcmp(m[i].t2,q->hiscall)==0) {  // could be either a repeat of the signal using R-00 or a goodby [RRR,73,R73]
-             if(strstr(m[i].t3, "73") != NULL) {
-               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() some 73 detected [%s]\n",PROGRAMID,m[i].t3) : _NOP);
-               sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"RR73",freq,q->myslot);
-               sendFT8(FT8message);
-               q->FSM=0x00;
-               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() completed QSO sequence [%s]\n",PROGRAMID,FT8message) : _NOP);
-               return;
-             } else {
-               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() some report repeat [%s]\n",PROGRAMID,m[i].t3) : _NOP);
-               sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"R-10",freq,q->myslot);
-               sendFT8(FT8message);
-               (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() repeat completed [%s]\n",PROGRAMID,FT8message) : _NOP);
-               q->cnt--;
-               if (q->cnt==0) {
-                  (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded, abandon [%s]\n",PROGRAMID,FT8message) : _NOP);
-                  q->FSM=0x00;
-                  return;
-               }
+       (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() FSM(%d) line---------> (%s %s %s)\n",PROGRAMID,q->FSM,m[i].t1,m[i].t2,m[i].t3) : _NOP);
+ 
+       if (strcmp(m[i].t1,q->mycall)==0) {       //mycall * *
+          if (strcmp(m[i].t2,q->hiscall)==0) {   //mycall hiscall *
+             if (strcmp(m[i].t3,"RRR")==0 || strcmp(m[i].t3,"73")==0 || strcmp(m[i].t3,"R73")==0 || strcmp(m[i].t3,"RR73") ==0) {    //mycall hiscall {R73|73|RRR|RR73}
+                 clearQueue();
+                 if (isQueue()==false) {
+                    sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"RR73",freq,q->myslot);
+                    pushQueue(q->myslot,q->lastsent);
+                    (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() mycall hiscall RRR, reply (%s) and finalize\n",PROGRAMID,q->lastsent) : _NOP);
+                    q->FSM=0x00;
+                    return;
+                 }
+                 (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() mycall hiscall *, retry (%s)\n",PROGRAMID,q->lastsent) : _NOP);
+                 retryFT8(q);
+                 return;  
              }
-         } else {
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to me, ignore\n",PROGRAMID) : _NOP);
-             //return;
-         }
-
-      }
-//--- message not CQ but sent by my destination, in QSO with somebody else, abandon
-
-       if (strcmp(m[i].t2,q->hiscall)==0) {
-          if (strcmp(m[i].t1,q->mycall)!=0) {          //erroneous message I'm not sending 
-             (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() answering to somebody else, abandon\n",PROGRAMID) : _NOP);
-             q->FSM=0x00;
              return;
           }
+          continue;
        }
 
-// ---- Explore the rest of the QSO lines available at this point but ignore all of them
+
+       if (strcmp(m[i].t1,q->mycall)!=0 && strcmp(m[i].t1,q->hiscall)!=0) {    //not his call nor mine
+          if (strcmp(m[i].t2,q->hiscall)==0) {         // hiscall * answering to somebody else
+             (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() * hiscall *, abandon\n",PROGRAMID) : _NOP);
+             q->FSM=0x00;
+             clearQueue();
+             return;
+          }
+          continue;
+       }
+
+       if (strcmp(m[i].t1,"CQ")==0) {    // CQ *
+          if (strcmp(m[i].t2,q->hiscall)==0) {         // CQ hiscall * ignoring my QSO or operating as if terminated, abandon
+             (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() CQ hiscall *, abandon\n",PROGRAMID) : _NOP);
+             q->FSM=0x00;
+             clearQueue();
+             return;
+          }
+          continue;
+       }
 
     }
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() retry(%s)\n",PROGRAMID,q->lastsent) : _NOP);
+    retryFT8(q);
 
-// --- all messages scanned but no process hit found, retry message for this state
-     sprintf(FT8message,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"R-10",freq,q->myslot);
-     sendFT8(FT8message);
-     (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() CMD[%s]\n",PROGRAMID,FT8message) : _NOP);
-     q->cnt--;
-     if (q->cnt==0) {   //give up
-        (TRACE>=0x00 ? fprintf(stderr,"%s:handleStart() retry exceeded\n",PROGRAMID) : _NOP);
-        q->FSM=0x00;
-        return;
-     }
-
-     return;
 
 }
 // --------------------------------------------------------------------------------------------------
 
 void handleEXCH(header* h,msg* m,qso* q) {
-    (TRACE>=0x00 ? fprintf(stderr,"%s:handleEXCH() handle EXCH\n",PROGRAMID) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleEXCH() handle EXCH\n",PROGRAMID) : _NOP);
     return;
 
 }
@@ -434,8 +525,13 @@ void handleHAL(header* h,msg* m,qso* q) {
 int qsoMachine(header* h,msg* m,qso* q) {
 
     if (q->FSM >= 0 && q->FSM <= 50) {
+       (TRACE>=0x03 ? fprintf(stderr,"%s:qsoMachine() messages(%d) to process FSM(%d)\n",PROGRAMID,nmsg,q->FSM) : _NOP);
+       for (int j=0;j<nmsg;j++) {
+         (TRACE>=0x03 ? fprintf(stderr,"%s:qsoMachine()      [%s %s %s]\n",PROGRAMID,m[j].t1,m[j].t2,m[j].t3) : _NOP);
+       }
+       
        if (FSMhandler[q->FSM] != nullptr) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:qsoMachine() service handler found for FSM state(%d) calling\n",PROGRAMID,q->FSM) : _NOP);
+          (TRACE>=0x03 ? fprintf(stderr,"%s:qsoMachine() service handler found for FSM state(%d) calling\n",PROGRAMID,q->FSM) : _NOP);
           FSMhandler[q->FSM](h,m,q);
           return 0;
        } else {
@@ -463,7 +559,7 @@ int r=atoi(c);
     }
 
     if (r>=0 && r<nCQ) {
-       (TRACE>=0x03 ? fprintf(stderr,"%s:selectQSO() option selected[%d]\n",PROGRAMID,r) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s:selectQSO() option selected[%d]\n",PROGRAMID,r) : _NOP);
        return r;
     } else {
        (TRACE>=0x00 ? fprintf(stderr,"%s:selectQSO() QSO[%d] out of range\n",PROGRAMID,r) : _NOP);
@@ -479,7 +575,7 @@ void* read_stdin(void * null) {
 char c;
 char buf[4];
 
-       (TRACE>=0x02 ? fprintf(stderr,"%s:read_stdin() Keyboard thread started\n",PROGRAMID) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:read_stdin() Keyboard thread started\n",PROGRAMID) : _NOP);
 
        /*
         * ioctl() would be better here; only lazy
@@ -534,7 +630,7 @@ int findQSO(int cq,msg *m) {
 void clearmsg(msg *m) {
 
   for (int i=0;i<50;i++) {
-    sprintf(m[i].timestamp,"%s","");
+    sprintf(m[i].timestamp,"%s",(char*)"");
     m[i].slot=0;
     m[i].CQ=false;
     m[i].snr=0;
@@ -627,6 +723,7 @@ char   aux[32];
 
        fprintf(stderr,"\033[0;31m----[%s] (seq=%d slot=%d) (%d/%d) (%03d- %02d) active(%s)\033[0m\n",(char*)h->timestamp,seq,h->slot,status,brk,candidates,decoded,BOOL2CHAR(h->active));
 
+       sendFT8(h);
 }
 //*----------------------------------------------------------------------------------------------------------------
 //* parse message information
@@ -639,37 +736,37 @@ char    aux[32];
 msg    f;
 
 
-       (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage msg(%d) so far\n",PROGRAMID,j) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage msg(%d) so far buffer(%s)\n",PROGRAMID,j,st) : _NOP);
 
        p=strtok(st,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage wrong format\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage wrong format\n",PROGRAMID) : _NOP );
           return j;
        }
 
        p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage quite wrong format\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage quite wrong format\n",PROGRAMID) : _NOP );
           return j;
        }
        sprintf(f.timestamp,"%s",p);  //timeMsg
 
        p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage incomplete message\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage incomplete message\n",PROGRAMID) : _NOP );
           return j;
        }
 
        sprintf(aux,"%s",p);
        f.snr=atoi(trim(aux));
        if (f.snr==-1) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage last message FSM(%d)\n",PROGRAMID,q->FSM) : _NOP );
+          (TRACE>=0x02 ? fprintf(stderr,"%s:processMessage last message FSM(%d)\n",PROGRAMID,q->FSM) : _NOP );
           return -1;
        }
 
        p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage corrupted message\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage corrupted message\n",PROGRAMID) : _NOP );
           return j;
        }
        sprintf(aux,"%s",p);
@@ -678,7 +775,7 @@ msg    f;
 
        p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage partial message not processed\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage partial message not processed\n",PROGRAMID) : _NOP );
           return j;
        }
 
@@ -688,7 +785,7 @@ msg    f;
 
        p=strtok(NULL,",");
        if (p==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t1)\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage parsing error (t1)\n",PROGRAMID) : _NOP );
           return j;
        }
 char   mssg[128];
@@ -696,25 +793,30 @@ char   mssg[128];
 
        x=strtok(mssg," ");
        if (x==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t2)\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage parsing error (t2)\n",PROGRAMID) : _NOP );
           return j;
        }
        sprintf(f.t1,"%s",x);
 
        x=strtok(NULL," ");
        if (x==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
           return j;
        }
        sprintf(f.t2,"%s",x);
 
        x=strtok(NULL," ");
        if (x==NULL) {
-          (TRACE>=0x03 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
+          (TRACE>=0x00 ? fprintf(stderr,"%s:processMessage parsing error (t3)\n",PROGRAMID) : _NOP );
           return j;
        }
        sprintf(f.t3,"%s",x);
        (TRACE>=0x03 ? fprintf(stderr,"%s:parseMessage()  %s %d %f %d %s %s %s\n",PROGRAMID,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3) : _NOP);
+
+       if (strcmp(mycall,f.t2)==0) { // message sent by me just ignore it
+          (TRACE>=0x03 ? fprintf(stderr,"%s:parseMessage()  message sent by me ignored(%s %d %f %d %s %s %s)\n",PROGRAMID,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3) : _NOP);
+          return j;
+       }
 
 
        strcpy(m[j].timestamp,f.timestamp);
@@ -727,6 +829,8 @@ char   mssg[128];
        strcpy(m[j].t3,f.t3);
        m[j].CQ=false;
 
+// --- this is CQ traffic 
+
        if (strcmp("CQ",f.t1)==0) {
           m[j].CQ=true;
           fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nCQ,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
@@ -735,11 +839,15 @@ char   mssg[128];
           return j;
        }
 
-       if (strcmp(mycall,f.t1)==0) {
+// --- this is traffic sent to me 
+
+       if (strcmp(mycall,f.t1)==0) { 
           j++;
-          fprintf(stderr,"\033[1;33m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          fprintf(stderr,"\033[1;36m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
           return j;
        }
+
+// -- this is general traffic
 
        fprintf(stderr,"\033[0;32m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
        j++;
@@ -758,7 +866,7 @@ char d[256];
       (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() processing frame(%s)\n",PROGRAMID,s) : _NOP ); 
    
       if (s==NULL) {
-         (TRACE>=0x00 ? fprintf(stderr,"%s:processFrame() empty frame received, ignored\n",PROGRAMID) : _NOP ); 
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() empty frame received, ignored\n",PROGRAMID) : _NOP ); 
          return;
       }
 
@@ -768,7 +876,7 @@ char d[256];
          parseHeader(s,h,q);
          h->active=true;
          h->newheader=true;
-         (TRACE>=0x02 ? fprintf(stderr,"%s:processFrame() hdr initialized new header(%s)\n",PROGRAMID,BOOL2CHAR(h->newheader)) : _NOP);
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() hdr initialized new header(%s)\n",PROGRAMID,BOOL2CHAR(h->newheader)) : _NOP);
          return;
       }
 
@@ -784,17 +892,23 @@ char d[256];
          }
 
          int n=parseMessage(s,h,nmsg,m,q);
+         (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() message received, pending(%d) there are (%d) in queue\n",PROGRAMID,nmsg,n) : _NOP);
          if (n==-1) {
+            (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() last message received, there are (%d) in queue\n",PROGRAMID,nmsg) : _NOP);
             if (q->FSM >= 0x01) {       // there is a QSO in progress
+               (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() QSO in progress FSM(%d) process\n",PROGRAMID,q->FSM) : _NOP);
                qsoMachine(h,m,q);
-            }          
+            }
          } else {
            nmsg=n;
+           (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() message received, pending(%d) now (%d) in queue\n",PROGRAMID,nmsg,n) : _NOP);
          }
          (TRACE>=0x03 ? fprintf(stderr,"%s:processFrame() number of messages(%d)\n",PROGRAMID,nmsg) : _NOP);
 
          return; 
       } 
+
+// -- Print as general traffic (not QSO related)
 
       fprintf(stderr,"\033[0;32m%s\033[0m\n",s);
       return;
@@ -854,47 +968,6 @@ int main(int argc, char** argv)
   r->sr=12000;
   r->start();
 
-  //gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
-// --- gpio Wrapper creation
-
-  //(TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
-  //g=new gpioWrapper(NULL);
-  //g->TRACE=TRACE;
-
-  //if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
-  //   exit(16);
-  //}
-  //if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-  //   (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
-  //   exit(16);
-  //}
-  //if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-  //   (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
-  //   exit(16);
-  //}
-  //if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-  //   exit(16);
-  //}
-
-  //if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-  //   exit(16);
-  //}
-
-  //if (g->start() == -1) {
-  //   (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
-  //   exit(8);
-  //}
-
-  // *---------------------------------------------*
-  // * Set cooler ON mode                          *
-  // *---------------------------------------------*
-  //(TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
-  //if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
-  //usleep(10000);
-
   setWord(&MSW,RUN,true);
   pthread_create(&t, NULL, &read_stdin, NULL);
 
@@ -908,24 +981,26 @@ int main(int argc, char** argv)
        char* z=strtok(buffer,"\n");
        while(z!=NULL) {
           processFrame(z,ft8_header,ft8_msg,ft8_qso);
-          (TRACE>=0x01 ? fprintf(stderr,"%s:main() returned from processFrame active(%s)\n",PROGRAMID,BOOL2CHAR(ft8_header->active)) : _NOP);
-
+          (TRACE>=0x03 ? fprintf(stderr,"%s:main() returned from processFrame active(%s)\n",PROGRAMID,BOOL2CHAR(ft8_header->active)) : _NOP);
           z=strtok(NULL,"\n");
        }
     }
 
-    if (getWord(MSW,GUI)==true) {
-       setWord(&MSW,GUI,false);
-       if (ft8_qso->FSM == 0x00) {  // hay QSO en curso
-          ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
-          (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
-          if (ft8_qso->nmsg>=0) {
-             (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
-             qsoMachine(ft8_header,ft8_msg,ft8_qso);
+    if (ft8_qso->FSM > 0x00) {  //hay QSO en curso
+       //(TRACE>=0x00 ? fprintf(stderr,"%s:main() FSM(%d) indicates a QSO in progress\n",PROGRAMID,ft8_qso->FSM) : _NOP);
+    } else {
+       if (getWord(MSW,GUI)==true) {
+          setWord(&MSW,GUI,false);
+          if (ft8_qso->FSM == 0x00) {  // no hay QSO en curso
+             ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
+             (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+             if (ft8_qso->nmsg>=0) {
+                (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+                qsoMachine(ft8_header,ft8_msg,ft8_qso);
+             }
           }
        }
-    }
-
+   }
   }
 
 // --- Normal termination kills the child first and wait for its termination
