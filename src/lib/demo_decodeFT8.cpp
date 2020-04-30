@@ -1144,8 +1144,10 @@ int main(int argc, char** argv)
 	int ax = getopt(argc, argv, "f:g:v:s:l:c:r:xh");
 	if(ax == -1) 
 	{
-	  if(anyargs) break;
-	  else ax='h'; //print usage and exit
+	  if(anyargs)
+            break;
+	  else
+            break; //print usage and exit
         }
 	anyargs = 1;
 
