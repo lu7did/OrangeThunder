@@ -56,7 +56,6 @@ using namespace std;
 
 #include "/home/pi/OrangeThunder/src/lib/decodeFT8.h"
 #include "/home/pi/OrangeThunder/src/lib/cabrillo.h"
-#define  POPEN
 
 // --- IPC structures
 
@@ -105,13 +104,20 @@ QSOCALL    FSMhandler[50];
 decodeFT8* r=nullptr;
 struct     sigaction sigact;
 char       *buffer;
+
+byte       HAL=0x00;
 byte       TRACE=0x00;
 byte       MSW=0x00;
+
 char       mycall[16];
 char       mygrid[16];
+char       mysig[16];
+int        anyargs;
+char       filePath[128];
 
-char       inChar[4];
+char       inChar[32];
 float      freq=14074000;    // operating frequency
+int        sr=12000;
 
 msg        ft8_msg[50];
 header     ft8_header[1];
@@ -392,7 +398,8 @@ void handleStartQSO(header* h,msg* m,qso* q) {
       q->FSM=0x01;
       strcpy(q->hiscall,m[q->nmsg].t2);
       strcpy(q->hisgrid,m[q->nmsg].t3);
-      strcpy(q->hissnr,"R-10");
+      //sprintf(mysig,"R-%s",mysig);,
+      strcpy(q->hissnr,mysig);
       strcpy(q->mycall,mycall);
       strcpy(q->mygrid,mygrid);
       strcpy(q->mysnr,(char*)"");
@@ -537,7 +544,8 @@ void handleCQ(header* h,msg* m,qso* q) {
 
       strcpy(q->hiscall,"");
       strcpy(q->hisgrid,"");
-      strcpy(q->hissnr,"R-10");
+      //sprintf(mysig,"R-%s",mysig);
+      strcpy(q->hissnr,mysig);
       strcpy(q->mycall,mycall);
       strcpy(q->mygrid,mygrid);
       strcpy(q->mysnr,(char*)"");
@@ -633,7 +641,7 @@ void handleCancelQSO(header* h,msg* m,qso* q) {
     clearQueue();
     strcpy(q->hiscall,"");
     strcpy(q->hisgrid,"");
-    strcpy(q->hissnr,"R-10");
+    strcpy(q->hissnr,"");
     strcpy(q->mycall,mycall);
     strcpy(q->mygrid,mygrid);
     strcpy(q->mysnr,(char*)"");
@@ -760,10 +768,10 @@ int findQSO(int cq,msg *m) {
     }
     return -1;
 }
-//*----------------------------------------------------------------------------------------------------------------
-//* clear all messages from the previous cycle
-//* messages must be available during most of the next cycle till a new decode message is received
-//*----------------------------------------------------------------------------------------------------------------
+// *----------------------------------------------------------------------------------------------------------------
+// * clear all messages from the previous cycle
+// * messages must be available during most of the next cycle till a new decode message is received
+// *----------------------------------------------------------------------------------------------------------------
 void clearmsg(msg *m) {
 
   for (int i=0;i<50;i++) {
@@ -780,9 +788,9 @@ void clearmsg(msg *m) {
   nmsg=0;
 
 }
-//*----------------------------------------------------------------------------------------------------------------
-//* parse slot header information
-//*----------------------------------------------------------------------------------------------------------------
+// *----------------------------------------------------------------------------------------------------------------
+// * parse slot header information
+// *----------------------------------------------------------------------------------------------------------------
 void parseHeader(char* st,header* h,qso* q) {
 
 char * p;
@@ -865,9 +873,9 @@ char   aux[32];
        }
        sendFT8(h);
 }
-//*----------------------------------------------------------------------------------------------------------------
-//* parse message information
-//*----------------------------------------------------------------------------------------------------------------
+// *----------------------------------------------------------------------------------------------------------------
+// * parse message information
+// *----------------------------------------------------------------------------------------------------------------
 int parseMessage(char* st,header* h,int j,msg* m,qso* q) {
 
 char * p;
@@ -1005,7 +1013,7 @@ char   mssg[128];
 // ======================================================================================================================
 // processFrame
 // manipulate received frames to operate FT8
-//=======================================================================================================================
+// =======================================================================================================================
 void processFrame(char* s,header* h,msg* m,qso* q) {
 
 char * p;
@@ -1062,6 +1070,26 @@ char d[256];
       return;
  
 }
+//---------------------------------------------------------------------------------
+// Print usage
+//---------------------------------------------------------------------------------
+void print_usage(void)
+{
+fprintf(stderr,"%s %s [%s]\n\
+Usage: [-f frequency] [-g grid] [-v trace] [-s samplerate] [-l log path] [-x] [-c callsign] [-r report] \n\
+-g            grid locator (default GF05)\n\
+-f float      central frequency Hz(50 kHz to 1500 MHz),\n\
+-v            tracelevel (0 to 3)\n\
+-s            sample rate (default 12000 beware of modification!)\n\
+-l            cabrillo log path (default ./)\n\
+-x            enable experimental HAL mode (default disabled)\n\
+-c            callsign (default LU7DID)\n\
+-r            default signal report (default 10 is R-10)\n\
+-?            help (this help).\n\
+\n",PROGRAMID,PROG_VERSION,PROG_BUILD);
+
+} /* end function print_usage */
+
 // ======================================================================================================================
 // MAIN
 // Create IPC pipes, launch child process and keep communicating with it
@@ -1105,10 +1133,86 @@ int main(int argc, char** argv)
 
   sprintf(mycall,"%s","LU7DID");
   sprintf(mygrid,"%s","GF05");
+  sprintf(mysig,"%s","10");
+  sprintf(filePath,"./");
+
+//---------------------------------------------------------------------------------
+// arg_parse (parameters override previous configuration)
+//---------------------------------------------------------------------------------
+   while(1)
+	{
+	int ax = getopt(argc, argv, "f:g:v:s:l:c:r:xh");
+	if(ax == -1) 
+	{
+	  if(anyargs) break;
+	  else ax='h'; //print usage and exit
+        }
+	anyargs = 1;
+
+	switch(ax)
+	{
+	case 'l': // log file path
+             sprintf(filePath,"%s",optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....grid(%s)\n",PROGRAMID,mygrid) : _NOP);
+	     break;
+	case 'g': // my grid locator
+             sprintf(mygrid,"%s",optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....grid(%s)\n",PROGRAMID,mygrid) : _NOP);
+	     break;
+	case 'c': // mycall
+             sprintf(mycall,"%s",optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....call(%s)\n",PROGRAMID,mycall) : _NOP);
+	     break;
+	case 'f': // Frequency
+	     freq = atof(optarg);
+  	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....frequency(%f)\n",PROGRAMID,freq) : _NOP);
+	     break;
+	case 'x': // SampleRate (Only needeed in IQ mode)
+	     HAL = 0x01;
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....HAL(%d)\n",PROGRAMID,HAL) : _NOP);
+             break;
+	case 'v': // SampleRate (Only needeed in IQ mode)
+	     TRACE = atoi(optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
+             break;
+	case 'r': // SampleRate (Only needeed in IQ mode)
+	     strcpy(mysig,optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....SNR(%d)\n",PROGRAMID,atoi(mysig)) : _NOP);
+             break;
+	case 's':  // SampleRate (RF sampling for FT8 decoding)
+	     sr = atoi(optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:(arg)....samplerate(%d)\n",PROGRAMID,sr) : _NOP);
+             break;
+
+	case -1:
+             break;
+	case '?':
+	     if (isprint(optopt) )
+ 	     {
+ 	        (TRACE>=0x00 ? fprintf(stderr, "%s:(arg)....unknown option `-%c'.\n",PROGRAMID,optopt) : _NOP);
+ 	     } 	else {
+		(TRACE>=0x00 ?fprintf(stderr, "%s:(arg)....unknown option character `\\x%x'.\n",PROGRAMID,optopt) : _NOP);
+  	     }
+	     print_usage();
+	     exit(1);
+	     break;
+	default:
+   	     print_usage();
+	     exit(1);
+	     break;
+	}/* end switch a */
+	}/* end while getopt() */
+
+
+
+// ---
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() Memory initialization\n",PROGRAMID) : _NOP);
   buffer=(char*)malloc(2048*sizeof(unsigned char));
-
+  sprintf(inChar,"R-%s",mysig);
+  strcpy(mysig,inChar);
+  strcpy(inChar,"");
+  
   clearmsg(ft8_msg);
 
 
@@ -1117,13 +1221,14 @@ int main(int argc, char** argv)
   r->TRACE=TRACE;
   r->setFrequency(freq);
   r->setMode(MUSB);
-  r->sr=12000;
+  r->sr=sr;
   r->start();
 
   l=new cabrillo(NULL);
   strcpy(l->callsign,mycall);
   strcpy(l->grid,mygrid);
-  l->TRACE=0x00;
+  l->TRACE=TRACE;
+  strcpy(l->filePath,filePath);
   l->start();
 
   setWord(&MSW,RUN,true);
