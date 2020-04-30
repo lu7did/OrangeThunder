@@ -13,16 +13,17 @@
 #include "/home/pi/ft8_lib/common/debug.h"
 #include "/home/pi/ft8_lib/fft/kiss_fftr.h"
 
-const int kMin_score = 40;		// Minimum sync score threshold for candidates
-const int kMax_candidates = 120;
-//const int kLDPC_iterations = 25;
-const int kLDPC_iterations = 50;
+const int kMin_score = 40;       // Minimum sync score threshold for candidates
+//const int kMax_candidates = 120;
+const int kMax_candidates = 80;
+const int kLDPC_iterations = 25;
+//const int kLDPC_iterations = 50;
 const int kMax_decoded_messages = 50;
 const int kMax_message_length = 25;
 const int kFreq_osr = 2;
 const int kTime_osr = 2;
 const float kFSK_dev = 6.25f;    // tone deviation in Hz and symbol rate
-float signalDSP[256000];        //only 128000 used
+float signalDSP[256000];         //only 128000 used
 
 //----
 

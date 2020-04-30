@@ -277,7 +277,7 @@ void* startProcess (void * null) {
 
     while (fgets(buf, BUFSIZE, fp) != NULL) {
         // Do whatever you want here...
-        fprintf(stderr,"o-> %s", buf);
+        // fprintf(stderr,"o-> %s", buf);
     }
 
     if(pclose(fp))  {
@@ -505,8 +505,93 @@ void handleRRR(header* h,msg* m,qso* q) {
 }
 // --------------------------------------------------------------------------------------------------
 
-void handleEXCH(header* h,msg* m,qso* q) {
-    (TRACE>=0x02 ? fprintf(stderr,"%s:handleEXCH() handle EXCH\n",PROGRAMID) : _NOP);
+void handleCQ(header* h,msg* m,qso* q) {
+
+      (TRACE>=0x02 ? fprintf(stderr,"%s:handleCQ() handle CQ\n",PROGRAMID) : _NOP);
+
+      strcpy(q->hiscall,"");
+      strcpy(q->hisgrid,"");
+      strcpy(q->hissnr,"R-10");
+      strcpy(q->mycall,mycall);
+      strcpy(q->mygrid,mygrid);
+      strcpy(q->mysnr,(char*)"");
+      q->cnt=4;
+      q->myslot=h->slot;
+      q->hisslot=(q->hisslot + 1)%2;
+      strcpy(q->lastsent,"");
+      clearQueue();
+
+      sprintf(q->lastsent,"pift8 -m \"CQ %s %s\" -f %f -s %d",q->mycall,q->mygrid,freq,q->myslot);    //CQ mycall mygrid
+      (TRACE>=0x02 ? fprintf(stderr,"%s:handleCQ() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
+      pushQueue(q->myslot,q->lastsent);
+      q->FSM=0x04;
+
+      return;
+
+}
+// --------------------------------------------------------------------------------------------------
+
+void handleExch(header* h,msg* m,qso* q) {
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleExch() FSM(%d) QSO (%s(%d):%s(%d))\n",PROGRAMID,q->FSM,q->hiscall,q->hisslot,q->mycall,q->myslot) : _NOP);
+
+    for (int i=0;i<nmsg;i++) {
+        if (strcmp(m[i].t1,q->mycall)==0) {     //mycall hiscall hisgrid
+           strcpy(q->hiscall,m[i].t2);
+           strcpy(q->hisgrid,m[i].t3);
+           clearQueue();
+           sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->hissnr,freq,q->myslot);
+           (TRACE>=0x02 ? fprintf(stderr,"%s:handleExch() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
+           pushQueue(q->myslot,q->lastsent);
+           q->FSM=0x05;
+           return;
+        }
+    }
+
+    retryFT8(q);
+    return;
+}
+// --------------------------------------------------------------------------------------------------
+void handle73(header* h,msg* m,qso* q) {
+
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handle73() FSM(%d) QSO (%s(%d):%s(%d))\n",PROGRAMID,q->FSM,q->hiscall,q->hisslot,q->mycall,q->myslot) : _NOP);
+
+    for (int i=0;i<nmsg;i++) {
+        if (strcmp(m[i].t1,q->mycall)==0) {
+           if (strcmp(m[i].t2,q->hiscall) == 0) {    //mycall hiscall mysnr
+              strcpy(q->mysnr,m[i].t3);
+              clearQueue();
+              sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"RR73",freq,q->myslot);
+              (TRACE>=0x02 ? fprintf(stderr,"%s:handle73() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
+              pushQueue(q->myslot,q->lastsent);
+              q->FSM=0x06;
+
+              return;
+           }
+        }
+    }
+
+    retryFT8(q);
+    return;
+
+}
+// --------------------------------------------------------------------------------------------------
+void handleTU(header* h,msg* m,qso* q) {
+
+    (TRACE>=0x02 ? fprintf(stderr,"%s:handleEXCH() FSM(%d) QSO (%s(%d):%s(%d))\n",PROGRAMID,q->FSM,q->hiscall,q->hisslot,q->mycall,q->myslot) : _NOP);
+
+    for (int i=0;i<nmsg;i++) {
+        if (strcmp(m[i].t1,q->mycall)==0) {
+           if (strcmp(m[i].t2,q->hiscall) == 0) {    //mycall hiscall {R73 | RRR | RR73}
+              if (strcmp(m[i].t3,"RRR")==0 || strcmp(m[i].t3,"73")==0 || strcmp(m[i].t3,"R73")==0 || strcmp(m[i].t3,"RR73") ==0) {    //mycall hiscall {R73|73|RRR|RR73}
+                 q->FSM=0x00;
+                 clearQueue();
+                 return;
+              }
+           }
+        }
+    }
+
+    retryFT8(q);
     return;
 
 }
@@ -584,7 +669,7 @@ char buf[4];
         system("/bin/stty cbreak");        /* reacts to Ctl-C */
         system("/bin/stty -echo");         /* no echo */
         while (getWord(MSW,RUN)==true) {
-          c = getchar();
+          c = toupper(getchar());
           sprintf(inChar,"%c",c);
           setWord(&MSW,GUI,true);
         }
@@ -721,8 +806,11 @@ char   aux[32];
        (TRACE>=0x03 ? fprintf(stderr,"%s:parseHeader() parsed decoded=%s\n",PROGRAMID,aux) : _NOP);
        int decoded=atoi(aux);
 
-       fprintf(stderr,"\033[0;31m----[%s] (seq=%d slot=%d) (%d/%d) (%03d- %02d) active(%s)\033[0m\n",(char*)h->timestamp,seq,h->slot,status,brk,candidates,decoded,BOOL2CHAR(h->active));
-
+       if (q->FSM==0x00) {
+          fprintf(stderr,"\033[0;31m----[%s] (seq=%d slot=%d) (%d/%d) (%03d- %02d) active(%s)\033[0m\n",(char*)h->timestamp,seq,h->slot,status,brk,candidates,decoded,BOOL2CHAR(h->active));
+       } else {
+          fprintf(stderr,"\033[1;31m----[%s] (seq=%d slot=%d) (%d/%d) (%03d- %02d) active(%s)\033[0m\n",(char*)h->timestamp,seq,h->slot,status,brk,candidates,decoded,BOOL2CHAR(h->active));
+       }
        sendFT8(h);
 }
 //*----------------------------------------------------------------------------------------------------------------
@@ -833,7 +921,11 @@ char   mssg[128];
 
        if (strcmp("CQ",f.t1)==0) {
           m[j].CQ=true;
-          fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nCQ,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          if (q->FSM>0 && strcmp(q->hiscall,f.t2)==0) {
+             fprintf(stderr,"\033[1;33m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nCQ,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          } else {
+             fprintf(stderr,"\033[0;32m[%02d] %s %4d %4.1f %04d %s %s %s\033[0m\n",nCQ,f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          }
           nCQ++;
           j++;
           return j;
@@ -843,7 +935,11 @@ char   mssg[128];
 
        if (strcmp(mycall,f.t1)==0) { 
           j++;
-          fprintf(stderr,"\033[1;36m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          if (isQueue()==true) {
+             fprintf(stderr,"\033[1;36m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          } else {
+             fprintf(stderr,"\033[0;36m     %s %4d %4.1f %04d %s %s %s\033[0m\n",f.timestamp,f.snr,f.DT,f.offset,f.t1,f.t2,f.t3);
+          }
           return j;
        }
 
@@ -946,7 +1042,10 @@ int main(int argc, char** argv)
   FSMhandler[0] = handleStartQSO;
   FSMhandler[1] = handleReply;
   FSMhandler[2] = handleRRR;;
-  //FSMhandler[3] = handleRRR;
+  FSMhandler[3] = handleCQ;
+  FSMhandler[4] = handleExch;
+  FSMhandler[5] = handle73;
+  FSMhandler[6] = handleTU;
 
 
 // --- define my own coordinates 
@@ -992,15 +1091,21 @@ int main(int argc, char** argv)
        if (getWord(MSW,GUI)==true) {
           setWord(&MSW,GUI,false);
           if (ft8_qso->FSM == 0x00) {  // no hay QSO en curso
-             ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
-             (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
-             if (ft8_qso->nmsg>=0) {
-                (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+             if (strcmp(inChar,"C")!=0) {  
+                ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
+                (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+                if (ft8_qso->nmsg>=0) {
+                   (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
+                   qsoMachine(ft8_header,ft8_msg,ft8_qso);
+                }
+             } else {
+                (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s) start CQ\n",PROGRAMID,inChar) : _NOP);
+                ft8_qso->FSM=0x03;
                 qsoMachine(ft8_header,ft8_msg,ft8_qso);
              }
           }
        }
-   }
+    }
   }
 
 // --- Normal termination kills the child first and wait for its termination
