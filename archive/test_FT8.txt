@@ -1,0 +1,123 @@
+----[11:46:00] (seq=0 slot=0) (0/0) (019- 01) active(True)
+----[11:46:15] (seq=1 slot=1) (0/0) (015- 00) active(True)
+[00] 11:46:29  -10  0.2 0941 CQ LU9EKQ GF05
+----[11:46:30] (seq=2 slot=0) (0/0) (021- 01) active(True)
+----[11:46:45] (seq=3 slot=1) (0/0) (017- 00) active(True)
+[00] 11:46:59  -10  0.2 0941 CQ LU9EKQ GF05
+----[11:47:00] (seq=0 slot=0) (0/0) (020- 01) active(True)
+----[11:47:15] (seq=1 slot=1) (0/0) (013- 00) active(True)
+[00] 11:47:29  -10  0.1 0944 CQ LU9EKQ GF05
+----[11:47:30] (seq=2 slot=0) (0/0) (025- 01) active(True)
+----[11:47:45] (seq=3 slot=1) (0/0) (016- 00) active(True)
+[00] 11:47:59  -10  0.1 0944 CQ LU9EKQ GF05
+----[11:48:00] (seq=0 slot=0) (0/0) (020- 01) active(True)
+----[11:48:15] (seq=1 slot=1) (0/0) (010- 00) active(True)
+[00] 11:48:29  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:48:30] (seq=2 slot=0) (0/0) (021- 01) active(True)
+----[11:48:45] (seq=3 slot=1) (0/0) (019- 00) active(True)
+[00] 11:48:59  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:49:00] (seq=0 slot=0) (0/0) (021- 01) active(True)
+----[11:49:15] (seq=1 slot=1) (0/0) (012- 00) active(True)
+[00] 11:49:29  -10  0.1 0944 CQ LU9EKQ GF05
+----[11:49:30] (seq=2 slot=0) (0/0) (021- 01) active(True)
+----[11:49:45] (seq=3 slot=1) (0/0) (014- 00) active(True)
+[00] 11:49:59  -10  0.1 0944 CQ LU9EKQ GF05
+----[11:50:00] (seq=0 slot=0) (0/0) (026- 01) active(True)
+----[11:50:15] (seq=1 slot=1) (0/0) (021- 00) active(True)
+[00] 11:50:29  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:50:30] (seq=2 slot=0) (0/0) (020- 01) active(True)
+----[11:50:45] (seq=3 slot=1) (0/0) (015- 00) active(True)
+[00] 11:50:59  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:51:00] (seq=0 slot=0) (0/0) (026- 01) active(True)
+----[11:51:15] (seq=1 slot=1) (0/0) (016- 00) active(True)
+[00] 11:51:29  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:51:30] (seq=2 slot=0) (0/0) (014- 01) active(True)
+----[11:51:45] (seq=3 slot=1) (0/0) (013- 00) active(True)
+[00] 11:51:59  -10  0.3 0944 CQ LU9EKQ GF05
+----[11:52:00] (seq=0 slot=0) (0/0) (020- 01) active(True)
+----[11:52:15] (seq=1 slot=1) (0/0) (013- 00) active(True)
+[00] 11:52:30  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:52:30] (seq=2 slot=0) (0/0) (014- 01) active(True)
+----[11:52:45] (seq=3 slot=1) (0/0) (021- 00) active(True)
+[00] 11:53:00  -10  0.2 0944 CQ LU9EKQ GF05
+----[11:53:00] (seq=0 slot=0) (0/0) (022- 01) active(True)
+----[11:53:15] (seq=1 slot=1) (0/0) (021- 00) active(True)
+[00] 11:53:29  -10  0.5 0944 CQ LU9EKQ GF05
+----[11:53:30] (seq=2 slot=0) (0/0) (024- 01) active(True)
+Message LU9EKQ LU7DID GF05
+ slot=0
+Channel 14 CBSize 15806 UsermemSize 7903
+Using mbox device /dev/vcio.
+537404 Size NUM PAGES 132 PAGE_SIZE 4096
+BufferSize 7903 , cb 15806 user 7903
+Info:NTP find offset 1337379 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1337379 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1337379 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1337379 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 5= 1491975680
+Found PLL solution for frequency 14.1MHz : divider:106 VCO: 1492.0MHz
+Master PLLC Locked
+Info:NTP find offset 1337379 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 6= 500003320
+PCM prediv = 196
+PCM clk=4081 / 2702
+FSK Origin fsel 0
+Wait next slot
+Tx!
+FSK burst end Tx
+End of Tx
+----[11:53:45] (seq=3 slot=1) (0/0) (009- 01) active(True)
+     11:53:59  -10  0.2 0944 LU7DID LU9EKQ -16
+----[11:54:00] (seq=0 slot=0) (0/0) (023- 01) active(True)
+Message LU9EKQ LU7DID R-10
+ slot=0
+Channel 14 CBSize 15806 UsermemSize 7903
+Using mbox device /dev/vcio.
+537404 Size NUM PAGES 132 PAGE_SIZE 4096
+BufferSize 7903 , cb 15806 user 7903
+Info:NTP find offset 1327618 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1327618 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1327618 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1327618 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 5= 1491976761
+Found PLL solution for frequency 14.1MHz : divider:106 VCO: 1492.0MHz
+Master PLLC Locked
+Info:NTP find offset 1327618 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 6= 500003320
+PCM prediv = 196
+PCM clk=4081 / 2702
+FSK Origin fsel 0
+Wait next slot
+Tx!
+FSK burst end Tx
+End of Tx
+----[11:54:15] (seq=1 slot=1) (0/0) (016- 01) active(True)
+     11:54:29  -10  0.1 0947 LU7DID LU9EKQ RR73
+----[11:54:30] (seq=2 slot=0) (0/0) (016- 01) active(True)
+Message LU9EKQ LU7DID RR73
+ slot=0
+Channel 14 CBSize 15806 UsermemSize 7903
+Using mbox device /dev/vcio.
+537404 Size NUM PAGES 132 PAGE_SIZE 4096
+BufferSize 7903 , cb 15806 user 7903
+Info:NTP find offset 1317928 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1317928 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1317928 freq -434485 pps=0 ppm=-6.629715
+Info:NTP find offset 1317928 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 5= 1491976761
+Found PLL solution for frequency 14.1MHz : divider:106 VCO: 1492.0MHz
+Master PLLC Locked
+Info:NTP find offset 1317928 freq -434485 pps=0 ppm=-6.629715
+Freq PLL no 6= 500003320
+PCM prediv = 196
+PCM clk=4081 / 2702
+FSK Origin fsel 0
+Wait next slot
+Tx!
+FSK burst end Tx
+End of Tx
+----[11:54:45] (seq=3 slot=1) (0/0) (020- 01) active(True)
+[00] 11:54:59  -10  0.0 0947 CQ LU9EKQ GF05
+----[11:55:00] (seq=0 slot=0) (0/0) (023- 01) active(True)
+----[11:55:15] (seq=1 slot=1) (0/0) (017- 00) active(True)
+

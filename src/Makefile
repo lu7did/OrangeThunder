@@ -54,7 +54,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
 
-../bin/demo_decodeFT8     : lib/demo_decodeFT8.cpp lib/decodeFT8.h
+../bin/demo_decodeFT8     : lib/demo_decodeFT8.cpp lib/decodeFT8.h lib/cabrillo.h
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/demo_decodeFT8 ./lib/demo_decodeFT8.cpp ./lib/decodeFT8.h $(LDFLAGS)
 
 ../bin/decimator     : lib/decimator.cpp 

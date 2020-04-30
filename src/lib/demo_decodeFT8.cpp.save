@@ -40,7 +40,7 @@
 #include<stdio.h>
 #include<fcntl.h> 
 #include <sys/select.h>
-	#include <termios.h>
+#include <termios.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,8 +55,6 @@
 using namespace std;
 
 #include "/home/pi/OrangeThunder/src/lib/decodeFT8.h"
-#include "/home/pi/OrangeThunder/src/lib/cabrillo.h"
-#define  POPEN
 
 // --- IPC structures
 
@@ -86,7 +84,6 @@ struct qso {
       char  hisgrid[16];
       char  hissnr[16];
       int   hisslot;
-      int   offset;
       char  mycall[16];
       char  mygrid[16];
       char  mysnr[16];
@@ -96,7 +93,7 @@ struct qso {
 };
 struct Queue {
       int   slot;
-      char  message[1024];
+      char  message[256];
 };
 
 typedef void (*QSOCALL)(header* h,msg* m,qso* q);
@@ -119,7 +116,7 @@ qso        ft8_qso[1];
 int        nmsg=0;
 int        nCQ=0;
 
-Queue      queueFT8[1024];
+Queue      queueFT8[128];
 int        nextPush=0;
 int        nextPop=0;
 
@@ -132,17 +129,6 @@ const char   *PROGRAMID="demo_decodeFT8";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
-const char   *FT8="F8";
-const char   *RST="599";
-
-cabrillo*  l=nullptr;;
-// *----------------------------------------------------------------*
-// *                  GPIO support processing                       *
-// *----------------------------------------------------------------*
-// --- gpio object
-//gpioWrapper* g=nullptr;
-//char   *gpio_buffer;
-//void gpiochangePin();
 
 // *----------------------------------------------------------------*
 // *           Read commans from Std input while running            *
@@ -153,7 +139,7 @@ char      buff[128];
 
 
 //--------------------------[System Word Handler]---------------------------------------------------
-// getSSW Return status according with the setting of the argument bit onto the SW
+// getWord Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
 bool getWord (unsigned char SysWord, unsigned char v) {
 
@@ -162,7 +148,7 @@ bool getWord (unsigned char SysWord, unsigned char v) {
 }
 
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// setWord Sets a given bit of the system status Word (SSW)
 //--------------------------------------------------------------------------------------------------
 void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 
@@ -173,7 +159,7 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 
 }
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// trim a char* (left side)
 //--------------------------------------------------------------------------------------------------
 
 char *ltrim(char *s)
@@ -182,9 +168,8 @@ char *ltrim(char *s)
     return s;
 }
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// trim a char* (right side)
 //--------------------------------------------------------------------------------------------------
-
 char *rtrim(char *s)
 {
     char* back = s + strlen(s);
@@ -193,17 +178,18 @@ char *rtrim(char *s)
     return s;
 }
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// trim a char*
 //--------------------------------------------------------------------------------------------------
-
 char *trim(char *s)
 {
     return rtrim(ltrim(s)); 
 }
+// =================================================================================================
+//                                Queue Management routine
+// =================================================================================================
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// clearQueue() reset the queue
 //--------------------------------------------------------------------------------------------------
-
 void clearQueue() {
 
      nextPop=0;
@@ -213,9 +199,8 @@ void clearQueue() {
      return;
 }
 //--------------------------------------------------------------------------------------------------
-// setSSW Sets a given bit of the system status Word (SSW)
+// pushQueue push an element into the queue
 //--------------------------------------------------------------------------------------------------
-
 void pushQueue(int slot,char* cmd) {
 
      queueFT8[nextPush].slot=slot;
@@ -259,23 +244,10 @@ bool isQueue() {
 int peekQueue() {
     return nextPop;
 }
-//--------------------------------------------------------------------------------------------------
-// writeQSO in log if available
-//--------------------------------------------------------------------------------------------------
-void writeLog(header* h,msg* m, qso* q) {
 
-     if (l!=nullptr) {
-        time_t theTime = time(NULL);
-        struct tm *aTime = localtime(&theTime);
-           int year=aTime->tm_year+1900;
-           int month=aTime->tm_mon+1;
-           int day=aTime->tm_mday;
-           int hour=aTime->tm_hour;
-           int min=aTime->tm_min;
-           l->writeQSO(freq/1000,(char*)FT8,year,month,day,hour,min,q->hiscall,(char*)RST,q->hissnr,q->mycall,(char*)RST,q->hissnr);
-      }
-      return;
-}
+// ==================================================================================================
+//                              Process spawn 
+// ==================================================================================================
 //---------------------------------------------------------------------------------------------------
 // startProcess
 // thread to send information using FT8 frames over the air
@@ -285,6 +257,7 @@ void* startProcess (void * null) {
     (TRACE>=0x02 ? fprintf(stderr,"%s::startProcess() starting thread\n",PROGRAMID) : _NOP);
     char cmd[2048];
     char buf[4096];
+
 
     sprintf(cmd,"python /home/pi/OrangeThunder/bash/turnon.py 2>/dev/null && %s 2>/dev/null > /dev/null  && python /home/pi/OrangeThunder/bash/turnoff.py 2>/dev/null",pcmd);
     (TRACE>=0x02 ? fprintf(stderr,"%s::startProcess() cmd[%s]\n",PROGRAMID,cmd) : _NOP);
@@ -312,7 +285,6 @@ void* startProcess (void * null) {
     fthread=false;
     pthread_exit(NULL);
 }
-
 // --------------------------------------------------------------------------------------------------
 // sendFT8
 // send a frame pending on the queue
@@ -375,7 +347,7 @@ void retryFT8(qso* q) {
 
 // --------------------------------------------------------------------------------------------------
 
-void handleNOP(header* h,msg* m,qso* q) {
+void handleNOP(header h,msg* m,qso q) {
     (TRACE>=0x02 ? fprintf(stderr,"%s:handleNOP() do nothing hook\n",PROGRAMID) : _NOP);
     return;
 }
@@ -399,13 +371,12 @@ void handleStartQSO(header* h,msg* m,qso* q) {
       q->cnt=4;
       q->hisslot=m[q->nmsg].slot;
       q->myslot=(q->hisslot + 1)%2;
-      q->offset=m[q->nmsg].offset;
       (TRACE>=0x02 ?  fprintf(stderr,"%s:handleStartQSO() QSO created FSM(%d) [%s %s %s] (slot %d)->[%s %s %s] (slot %d) cnt(%d)\n",PROGRAMID,q->FSM,q->hiscall,q->hisgrid,q->hissnr,q->hisslot,q->mycall,q->mygrid,q->mysnr,q->myslot,q->cnt) : _NOP);
 
 //--- push a response in the message queue to start the QSO
 
       clearQueue();
-      sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d -o %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot,q->offset);
+      sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->mygrid,freq,q->myslot);
       (TRACE>=0x02 ? fprintf(stderr,"%s:handleStartQSO() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
       pushQueue(q->myslot,q->lastsent);
       return;
@@ -443,7 +414,7 @@ void handleReply(header* h,msg* m,qso* q) {
               strcpy(q->mysnr,m[i].t3);
               clearQueue();
               if (isQueue()==false) {
-                 sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d -o %d",q->hiscall,q->mycall,q->hissnr,freq,q->myslot,q->offset);
+                 sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->hissnr,freq,q->myslot);
                  pushQueue(q->myslot,q->lastsent);
                  (TRACE>=0x02 ? fprintf(stderr,"%s:handleReply() mycall hiscall SIG , reply(%s)\n",PROGRAMID,q->lastsent) : _NOP);
                  q->FSM=0x02;                         // advance to next stage in the machine
@@ -485,15 +456,13 @@ void handleRRR(header* h,msg* m,qso* q) {
              if (strcmp(m[i].t3,"RRR")==0 || strcmp(m[i].t3,"73")==0 || strcmp(m[i].t3,"R73")==0 || strcmp(m[i].t3,"RR73") ==0) {    //mycall hiscall {R73|73|RRR|RR73}
                  clearQueue();
                  if (isQueue()==false) {
-                    sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d -o %d",q->hiscall,q->mycall,"RR73",freq,q->myslot,q->offset);
+                    sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,"RR73",freq,q->myslot);
                     pushQueue(q->myslot,q->lastsent);
                     (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() mycall hiscall RRR, reply (%s) and finalize\n",PROGRAMID,q->lastsent) : _NOP);
-                    writeLog(h,m,q);
                     q->FSM=0x00;
                     return;
                  }
                  (TRACE>=0x02 ? fprintf(stderr,"%s:handleRRR() mycall hiscall *, retry (%s)\n",PROGRAMID,q->lastsent) : _NOP);
-               
                  retryFT8(q);
                  return;  
              }
@@ -542,13 +511,12 @@ void handleCQ(header* h,msg* m,qso* q) {
       strcpy(q->mygrid,mygrid);
       strcpy(q->mysnr,(char*)"");
       q->cnt=4;
-      q->offset=1240;
       q->myslot=h->slot;
       q->hisslot=(q->hisslot + 1)%2;
       strcpy(q->lastsent,"");
       clearQueue();
 
-      sprintf(q->lastsent,"pift8 -m \"CQ %s %s\" -f %f -s %d ",q->mycall,q->mygrid,freq,q->myslot);    //CQ mycall mygrid
+      sprintf(q->lastsent,"pift8 -m \"CQ %s %s\" -f %f -s %d",q->mycall,q->mygrid,freq,q->myslot);    //CQ mycall mygrid
       (TRACE>=0x02 ? fprintf(stderr,"%s:handleCQ() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
       pushQueue(q->myslot,q->lastsent);
       q->FSM=0x04;
@@ -566,7 +534,7 @@ void handleExch(header* h,msg* m,qso* q) {
            strcpy(q->hiscall,m[i].t2);
            strcpy(q->hisgrid,m[i].t3);
            clearQueue();
-           sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d ",q->hiscall,q->mycall,q->hissnr,freq,q->myslot);
+           sprintf(q->lastsent,"pift8 -m \"%s %s %s\" -f %f -s %d",q->hiscall,q->mycall,q->hissnr,freq,q->myslot);
            (TRACE>=0x02 ? fprintf(stderr,"%s:handleExch() FSM(%d) reply(%s)\n",PROGRAMID,q->FSM,q->lastsent) : _NOP);
            pushQueue(q->myslot,q->lastsent);
            q->FSM=0x05;
@@ -611,7 +579,6 @@ void handleTU(header* h,msg* m,qso* q) {
            if (strcmp(m[i].t2,q->hiscall) == 0) {    //mycall hiscall {R73 | RRR | RR73}
               if (strcmp(m[i].t3,"RRR")==0 || strcmp(m[i].t3,"73")==0 || strcmp(m[i].t3,"R73")==0 || strcmp(m[i].t3,"RR73") ==0) {    //mycall hiscall {R73|73|RRR|RR73}
                  q->FSM=0x00;
-                 writeLog(h,m,q);
                  clearQueue();
                  return;
               }
@@ -626,35 +593,11 @@ void handleTU(header* h,msg* m,qso* q) {
 
 // --------------------------------------------------------------------------------------------------
 
-void handleCancelQSO(header* h,msg* m,qso* q) {
-    (TRACE>=0x01 ? fprintf(stderr,"%s:handleHAL() handle cancel QSO behaviour\n",PROGRAMID) : _NOP);
-
-    q->FSM=0x00;
-    clearQueue();
-    strcpy(q->hiscall,"");
-    strcpy(q->hisgrid,"");
-    strcpy(q->hissnr,"R-10");
-    strcpy(q->mycall,mycall);
-    strcpy(q->mygrid,mygrid);
-    strcpy(q->mysnr,(char*)"");
-    q->cnt=4;
-    q->offset=1240;
-    q->myslot=0;
-    q->hisslot=1;
-    strcpy(q->lastsent,"");
-
-    return;
-
-}
-
-// --------------------------------------------------------------------------------------------------
-
 void handleHAL(header* h,msg* m,qso* q) {
     (TRACE>=0x00 ? fprintf(stderr,"%s:handleHAL() handle HAL behaviour\n",PROGRAMID) : _NOP);
     return;
 
 }
-
 
 // --------------------------------------------------------------------------------------------------
 // qsoMachine
@@ -1098,7 +1041,6 @@ int main(int argc, char** argv)
   FSMhandler[4] = handleExch;
   FSMhandler[5] = handle73;
   FSMhandler[6] = handleTU;
-  FSMhandler[7] = handleCancelQSO;
 
 
 // --- define my own coordinates 
@@ -1119,12 +1061,6 @@ int main(int argc, char** argv)
   r->setMode(MUSB);
   r->sr=12000;
   r->start();
-
-  l=new cabrillo(NULL);
-  strcpy(l->callsign,mycall);
-  strcpy(l->grid,mygrid);
-  l->TRACE=0x00;
-  l->start();
 
   setWord(&MSW,RUN,true);
   pthread_create(&t, NULL, &read_stdin, NULL);
@@ -1150,30 +1086,17 @@ int main(int argc, char** argv)
        if (getWord(MSW,GUI)==true) {
           setWord(&MSW,GUI,false);
           if (ft8_qso->FSM == 0x00) {  // no hay QSO en curso
-
-             if (strcmp(inChar,"C")==0) {   //GUI indicates start a CQ sequence
-                (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s) start CQ\n",PROGRAMID,inChar) : _NOP);
-                ft8_qso->FSM=0x03;
-                qsoMachine(ft8_header,ft8_msg,ft8_qso);
-             }
-
-             if (strcmp(inChar,"Z")==0) {          //GUI if there is an on-going QSO cancel it
-                if (ft8_qso->FSM>0x00) {           //Is there an on-going QSO
-		   ft8_qso->FSM=0x07;
-                   qsoMachine(ft8_header,ft8_msg,ft8_qso);
-                   (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to cancel request\n",PROGRAMID) : _NOP);
-                } else {
-                   (TRACE>=0x00 ? fprintf(stderr,"%s:main() Nothing to cancel, abandon\n",PROGRAMID) : _NOP);
-                }
-             }
-
-             if (strcmp(inChar,"C")!=0 && strcmp(inChar,"Z") != 0) { //some other command, likely a CQ line  
+             if (strcmp(inChar,"C")!=0) {  
                 ft8_qso->nmsg=findQSO(selectQSO(inChar),ft8_msg);
                 (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s)=%d\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
                 if (ft8_qso->nmsg>=0) {
                    (TRACE>=0x01 ? fprintf(stderr,"%s:main() Started response to CQ(%s) QSO(%d)\n",PROGRAMID,inChar,ft8_qso->nmsg) : _NOP);
                    qsoMachine(ft8_header,ft8_msg,ft8_qso);
                 }
+             } else {
+                (TRACE>=0x01 ? fprintf(stderr,"%s:main() GUI activity informed (%s) start CQ\n",PROGRAMID,inChar) : _NOP);
+                ft8_qso->FSM=0x03;
+                qsoMachine(ft8_header,ft8_msg,ft8_qso);
              }
           }
        }
