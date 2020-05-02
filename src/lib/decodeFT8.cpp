@@ -3,7 +3,7 @@
    Simple FT8 decoding program largely based after KGOBA/ft8_lib/decode_ft8.cpp
    This program can process live signals out of a radio source
    Everything works with a 12000 samples/sec.
-/*
+
  *-----------------------------------------------------------------------------
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
  * ----------------------------------------------------------------------------
@@ -250,7 +250,7 @@ void FT8ISR() {
       FT8process_counter--;
       if (FT8process_counter==0) {
          setWord(&FT8,FT8PROC,false);
-         (TRACE>=0x03 ? fprintf(stderr,"%s:FT8procISR() %s  Processing window expired \n",PROGRAMID,getTime) : _NOP);
+         (TRACE>=0x03 ? fprintf(stderr,"%s:FT8procISR() %s  Processing window expired \n",PROGRAMID,getTime()) : _NOP);
       }
    }
 }

@@ -78,7 +78,7 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 #ifdef Pi4D
 // --- OT4D specific includes
-#include "/home/pi/PixiePi/src/lib/DDS.h"
+//#include "/home/pi/PixiePi/src/lib/DDS.h"
 
 // --- Program initialization
 const char   *PROGRAMID="Pi4D";
@@ -151,8 +151,8 @@ char    *rtl_buffer;
 
 
 #ifdef Pi4D
-DDS*   dds=nullptr;
-
+//DDS*   dds=nullptr;
+//
 #endif
 
 // *----------------------------------------------------------------*
@@ -223,48 +223,17 @@ void setPTT(bool ptt) {
     (TRACE>=0x03 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
     if (ptt==true) {  //currently receiving now transmitting
 
-#ifdef Pi4D
-
-    // *---------------------------------------------*
-    // * if running with DDS it is destroyed while   *
-    // * transmitting because LO is not needed       *
-    // *---------------------------------------------*
-       if (dds!=nullptr) {
-          dds->stop();
-          delete(dds);
-          dds=nullptr;
-          (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) destroyed DDS object\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-       }
-#endif
-
-    // *---------------------------------------------*
     // * Set PTT into transmit mode                  *
     // *---------------------------------------------*
        (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
        if(g!=nullptr) {g->writePin(GPIO_PTT,1);}
        usleep(10000);
 
-#ifdef Pi4D
-
-       if (usb==nullptr) {
-          usb=new genSSB(SSBchangeVOX);  
-          usb->TRACE=TRACE;
-          usb->setFrequency(f);
-          usb->setSoundChannel(CHANNEL);
-          usb->setSoundSR(AFRATE);
-          usb->setSoundHW(HW);
-          usb->voxactive=voxactive;
-          usb->start();
-          (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) created USB object\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-       }
-
-#endif
-
-
     // *---------------------------------------------*
     // * Set transceiver into TX mode                *
     // *---------------------------------------------*
         usb->setPTT(ptt);
+        usleep(10000);
         return;
 
     }
@@ -273,40 +242,12 @@ void setPTT(bool ptt) {
 // * Establish PTT in receive mode               *
 // *---------------------------------------------*
 
-    if (usb!=nullptr) {
-       usb->setPTT(ptt);
-       usleep(10000);
-    }
-
-#ifdef Pi4D
-    if (usb!=nullptr) {
-         usb->stop();
-         delete(usb);
-         usb=nullptr;
-         (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) destroyed USB object\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-    }
-#endif
-
-    if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
+    usb->setPTT(ptt);
     usleep(10000);
 
-
-
-#ifdef Pi4D
-
-    if (dds==nullptr) {
-       dds=new DDS(changeDDS);
-       dds->TRACE=TRACE;
-       dds->gpio=GPIO_DDS;
-     //dds->power=DDS_MAXLEVEL;
-       dds->power=1;
-       dds->f=f;
-       dds->ppm=1000;
-       dds->start(f);
-       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() started DDS object\n",PROGRAMID) : _NOP);
-
-    }
-#endif
+    (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set GPIO as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
+    if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
+    usleep(10000);
 
     setWord(&MSW,PTT,ptt);
     (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
@@ -496,6 +437,9 @@ int main(int argc, char** argv)
   gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 
+  HW=(char*)malloc(16*sizeof(unsigned char));
+  sprintf(HW,"Loopback");
+
 #ifdef OT4D
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 #endif
@@ -587,7 +531,7 @@ int main(int argc, char** argv)
   }
 
   if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_COOLER) : _NOP);
      exit(16);
   }
 
@@ -623,30 +567,29 @@ int main(int argc, char** argv)
 
 #ifdef Pi4D
 // --- define DDS 
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RPITX dds controller interface\n",PROGRAMID) : _NOP);
-  dds=new DDS(changeDDS);
-  dds->TRACE=TRACE;
-  dds->gpio=GPIO_DDS;
+//  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RPITX dds controller interface\n",PROGRAMID) : _NOP);
+//  dds=new DDS(changeDDS);
+//  dds->TRACE=TRACE;
+//  dds->gpio=GPIO_DDS;
   //dds->power=DDS_MAXLEVEL;
-  dds->power=1;
-  dds->f=f;
-  dds->ppm=1000;
-  dds->start(f);
+//  dds->power=1;
+//  dds->f=f;
+//  dds->ppm=1000;
+//  dds->start(f);
 #endif
 
 // --- USB generator
 
-#ifdef OT4D 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
   usb=new genSSB(SSBchangeVOX);  
   usb->TRACE=TRACE;
   usb->setFrequency(f);
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
+  usb->stateDDS=true;
   usb->setSoundHW(HW);
   usb->voxactive=voxactive;
   usb->start();
-#endif
 
 // --- creation of CAT object
 
