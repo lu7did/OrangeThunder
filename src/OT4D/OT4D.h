@@ -100,6 +100,7 @@ char iniStr[100];
 long nIni;
 int  sIni,kIni;
 char iniSection[50];
+bool voxactive=false;
 
 // --- System control objects
 byte   TRACE=0x00;
@@ -229,6 +230,7 @@ void setPTT(bool ptt) {
           usb->setSoundChannel(CHANNEL);
           usb->setSoundSR(AFRATE);
           usb->setSoundHW(HW);
+          usb->voxactive=voxactive;
           usb->start();
           (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) created USB object\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
        }
@@ -265,7 +267,8 @@ void setPTT(bool ptt) {
           dds=new DDS(changeDDS);
           dds->TRACE=TRACE;
           dds->gpio=GPIO_DDS;
-          dds->power=DDS_MAXLEVEL;
+          //dds->power=DDS_MAXLEVEL;
+          dds->power=1;
           dds->f=f;
           dds->ppm=1000;
           dds->start(f);
@@ -412,6 +415,7 @@ Usage: [-f Frequency] [-v volume] [-p portname] [-t tracelevel] \n\
 -p            portname (default /tmp/ttyv0)\n\
 -f float      central frequency Hz(50 kHz to 1500 MHz),\n\
 -t            tracelevel (0 to 3)\n\
+-x            enable VOX control\n\
 -v            sound card volume (-10 to 30)\n\
 -?            help (this help).\n\
 \n",PROGRAMID,PROG_VERSION,PROG_BUILD);
@@ -475,7 +479,7 @@ int main(int argc, char** argv)
 //---------------------------------------------------------------------------------
    while(1)
 	{
-	int ax = getopt(argc, argv, "p:f:t:v:h");
+	int ax = getopt(argc, argv, "p:f:t:v:hx");
 	if(ax == -1) 
 	{
 	  if(anyargs) break;
@@ -493,11 +497,15 @@ int main(int argc, char** argv)
 	     f = atof(optarg);
   	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument frequency(%10f)\n",PROGRAMID,f) : _NOP);
 	     break;
-	case 'v': // SampleRate (Only needeed in IQ mode)
+	case 'v': // Volume
 	     vol = atoi(optarg);
 	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol) : _NOP);
              break;
-	case 't': // SampleRate (Only needeed in IQ mode)
+	case 'x': // voX
+	     voxactive=true;
+	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument vox(%s)\n",PROGRAMID,BOOL2CHAR(voxactive)) : _NOP);
+             break;
+	case 't': // tracelevel
 	     TRACE = atoi(optarg);
 	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
              break;
@@ -604,6 +612,7 @@ int main(int argc, char** argv)
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
+  usb->voxactive=voxactive;
   usb->start();
 
 
