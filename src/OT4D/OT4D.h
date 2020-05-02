@@ -60,6 +60,9 @@
 #include "/home/pi/PixiePi/src/lib/CAT817.h" 
 #include "/home/pi/OrangeThunder/src/lib/genVFO.h"
 
+// *********************************************************************************************************
+// * Personalization can be made either to the OrangeThunder project (OT4D) or PixiePi project (Pi4D)
+// *********************************************************************************************************
 // --- Program initialization
 #ifdef OT4D
 
@@ -91,7 +94,23 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 // --- IPC structures
 struct sigaction sigact;
 char   *HW;
+bool   bRetry=false;
+
+#ifdef OT4D
 float  f=14074000;
+bool voxactive=false;
+int    vol=10;
+#endif
+
+#ifdef Pi4D
+float  f=7074000;
+bool voxactive=true;
+int    vol=0;
+#endif
+
+
+
+
 int    anyargs=1;
 
 // --- Define INI related variables
@@ -100,12 +119,10 @@ char iniStr[100];
 long nIni;
 int  sIni,kIni;
 char iniSection[50];
-bool voxactive=false;
 
 // --- System control objects
-byte   TRACE=0x00;
+byte   TRACE=0x03;
 byte   MSW=0x00;
-int    vol=10;
 
 // *----------------------------------------------------------------*
 // *                  GPIO support processing                       *
@@ -188,16 +205,22 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 // ======================================================================================================================
 static void sighandler(int signum)
 {
+
    (TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum) : _NOP);
    setWord(&MSW,RUN,false);
-}
+   if (bRetry==true) {
+      (TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Re-entering SIG(%d), force!\n",PROGRAMID,signum) : _NOP);
+      exit(16);
+   }
 
+}
 // *---------------------------------------------------------------------------------------------------------------------
 // setPTT(boolean)
 // handle PTT variations
 // *---------------------------------------------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
+    (TRACE>=0x03 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
     if (ptt==true) {  //currently receiving now transmitting
 
 #ifdef Pi4D
@@ -239,52 +262,56 @@ void setPTT(bool ptt) {
 
 
     // *---------------------------------------------*
-    // * Set transceiver into transmit mode          *
+    // * Set transceiver into TX mode                *
     // *---------------------------------------------*
-       usb->setPTT(ptt);
+        usb->setPTT(ptt);
+        return;
 
-    } else {          //currently transmitting, now receiving
+    }
 
+// *---------------------------------------------*
+// * Establish PTT in receive mode               *
+// *---------------------------------------------*
+
+    if (usb!=nullptr) {
        usb->setPTT(ptt);
        usleep(10000);
+    }
 
 #ifdef Pi4D
-      if (usb!=nullptr) {
+    if (usb!=nullptr) {
          usb->stop();
          delete(usb);
          usb=nullptr;
          (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) destroyed USB object\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-      }
+    }
 #endif
 
-       if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
-       usleep(10000);
+    if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
+    usleep(10000);
+
 
 
 #ifdef Pi4D
 
-       if (dds==nullptr) {
-          dds=new DDS(changeDDS);
-          dds->TRACE=TRACE;
-          dds->gpio=GPIO_DDS;
-          //dds->power=DDS_MAXLEVEL;
-          dds->power=1;
-          dds->f=f;
-          dds->ppm=1000;
-          dds->start(f);
-       }
-#endif
+    if (dds==nullptr) {
+       dds=new DDS(changeDDS);
+       dds->TRACE=TRACE;
+       dds->gpio=GPIO_DDS;
+     //dds->power=DDS_MAXLEVEL;
+       dds->power=1;
+       dds->f=f;
+       dds->ppm=1000;
+       dds->start(f);
+       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() started DDS object\n",PROGRAMID) : _NOP);
+
     }
+#endif
 
     setWord(&MSW,PTT,ptt);
     (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
     return;
 }
-
-
-
-
-
 //---------------------------------------------------------------------------
 // CATchangeFreq()
 // CAT Callback when frequency changes
@@ -452,7 +479,6 @@ int main(int argc, char** argv)
 //---------------------------------------------------------------------------------
 
 #ifdef OT4D
-
   f=ini_getl("OT4D","FREQ",14074000,inifile);
   TRACE=ini_getl("OT4D","TRACE",2,inifile);
   vol=ini_getl("OT4D","VOL",10,inifile);
@@ -531,9 +557,11 @@ int main(int argc, char** argv)
 
 // --- ALSA loopback support 
 
+#ifdef OT4D
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID) : _NOP);
   HW=(char*)malloc(16*sizeof(unsigned char));
   sprintf(HW,SOUNDHW);
+#endif
 
 // --- gpio Wrapper creation
 
@@ -570,13 +598,14 @@ int main(int argc, char** argv)
 
   usleep(100000);
 
+#ifdef Pi4D
   // *---------------------------------------------*
   // * Set cooler ON mode                          *
   // *---------------------------------------------*
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
   if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
   usleep(10000);
-
+#endif
 
 
 #ifdef OT4D
@@ -598,13 +627,16 @@ int main(int argc, char** argv)
   dds=new DDS(changeDDS);
   dds->TRACE=TRACE;
   dds->gpio=GPIO_DDS;
-  dds->power=DDS_MAXLEVEL;
+  //dds->power=DDS_MAXLEVEL;
+  dds->power=1;
   dds->f=f;
   dds->ppm=1000;
   dds->start(f);
 #endif
 
-// --- USB generator 
+// --- USB generator
+
+#ifdef OT4D 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
   usb=new genSSB(SSBchangeVOX);  
   usb->TRACE=TRACE;
@@ -614,7 +646,7 @@ int main(int argc, char** argv)
   usb->setSoundHW(HW);
   usb->voxactive=voxactive;
   usb->start();
-
+#endif
 
 // --- creation of CAT object
 
@@ -636,6 +668,8 @@ int main(int argc, char** argv)
   vfo->TRACE=TRACE;
   vfo->FT817=FT817;
   vfo->MODE=cat->MODE;
+  vfo->setBand(VFOA,vfo->getBand(f));
+  vfo->setBand(VFOB,vfo->getBand(f));
   vfo->set(VFOA,f);
   vfo->set(VFOB,f);
   vfo->setSplit(false);
@@ -652,10 +686,14 @@ int main(int argc, char** argv)
   setWord(&MSW,RUN,true);
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() start operation\n",PROGRAMID) : _NOP);
 
+#ifdef OT4D
 // --- Cycle the PTT to check the interface  
-
   setPTT(true);
   sleep(ONESEC);
+#endif
+
+// -- Establish reception mode
+
   setPTT(false);
   
 
@@ -670,10 +708,10 @@ int main(int argc, char** argv)
     //*---------------------------------------------*
     cat->get();
 
+#ifdef OT4D
     //*---------------------------------------------*
     //* Process commands from rtl-sdr receiver      *
     //*---------------------------------------------*
-#ifdef OT4D
     if (getWord(rtl->MSW,RUN)==true) {
 
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
@@ -706,8 +744,11 @@ int main(int argc, char** argv)
 
   }
 
-// --- Normal termination kills the child first and wait for its termination
+
 #ifdef OT4D
+
+// --- Normal termination save configuration parameters
+
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() saving parameters\n",PROGRAMID) : _NOP);
   sprintf(iniStr,"%f",f);
   nIni = ini_puts("OT4D","FREQ",iniStr,inifile);
@@ -722,14 +763,16 @@ int main(int argc, char** argv)
   nIni = ini_puts("OT4D","PORT",iniStr,inifile);
 #endif
 
+// --- Normal termination kills the child first and wait for its termination
 
+#ifdef Pi4D
   // *---------------------------------------------*
   // * Set cooler ON mode                          *
   // *---------------------------------------------*
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler de-activation\n",PROGRAMID) : _NOP);
   if(g!=nullptr) {g->writePin(GPIO_COOLER,0);}
   usleep(10000);
-
+#endif
 
 // --- Stop all threads and child processes 
 
@@ -737,13 +780,20 @@ int main(int argc, char** argv)
 
   g->stop();
   cat->close();
-  usb->stop();
+
+  if (usb!=nullptr) {
+     usb->stop();
+  }
 
 #ifdef OT4D
-  rtl->stop();
+  if (rtl!=nullptr) {
+     rtl->stop();
+  }
 #endif
 
 #ifdef Pi4D
-  dds->stop();
+  if (dds!=nullptr) {
+     dds->stop();
+  }
 #endif
 }

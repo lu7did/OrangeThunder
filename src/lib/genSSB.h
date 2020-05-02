@@ -118,16 +118,27 @@ genSSB::genSSB(CALLBACK vox){
    stateVOX=false;
    statePTT=false;
    pid=0;
+
+#ifdef OT4D
    soundSR=48000;
    soundHW=(char*)malloc(16*sizeof(int));
-   setMode(MUSB);
-   setFrequency(FREQUENCY);
    setSoundChannel(CHANNEL);
    setSoundSR(AFRATE);
    strcpy(soundHW,SOUNDHW);
+#endif
+
+   setMode(MUSB);
+   setFrequency(FREQUENCY);
    sr=6000;
    vol=0;
+#ifdef OT4D
    voxactive=false;
+#endif
+
+#ifdef Pi4D
+   voxactive=true;
+#endif
+
    setWord(&MSW,RUN,false);
 
    //running=false;
@@ -252,6 +263,7 @@ char cmd_DEBUG[16];
    } else {
      sprintf(cmd_DEBUG," ");
    }
+   (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> debug set to (%s)\n",PROGRAMID,cmd_DEBUG) : _NOP);
 
    switch(this->mode) {
            case MCW:
@@ -280,8 +292,13 @@ char cmd_DEBUG[16];
    }
    (this->TRACE >= 0x00 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
-
+#ifdef OT4D
    sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
+#endif
+
+#ifdef Pi4D
+   sprintf(command,"arecord -c1 -r48000 -D hw:1 -fS16_LE - | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",cmd_DEBUG,this->sr,(int)f);
+#endif
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
