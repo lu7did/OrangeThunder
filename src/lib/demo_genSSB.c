@@ -30,6 +30,9 @@
  parameters to it during run-time.
 */
 
+#define Pi4D
+
+
 #include<unistd.h>
 #include<sys/wait.h>
 #include<sys/prctl.h>
@@ -51,14 +54,23 @@
 #define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
 #define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
 #define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
+#define BUFSIZE 1024
 
 // --- IPC structures
 
 genSSB* g=nullptr;
 struct  sigaction sigact;
 char    *buffer;
-char    *HW;
-float   SetFrequency=14074000;
+char    HW[32];
+
+#ifdef OT4D
+flost   f=14074000;
+#endif
+
+#ifdef Pi4D
+float   f=7074000;
+#endif
+
 byte    TRACE=0x02;
 byte    MSW=0x00;
 
@@ -76,7 +88,15 @@ long  catbaud=4800;
 
 const char   *PROGRAMID="demo_genSSB";
 const char   *PROG_VERSION="1.0";
-const char   *PROG_BUILD="00";
+
+#ifdef OT4D
+const char   *PROG_BUILD="00 {OT4D}";
+#endif 
+
+#ifdef Pi4D
+const char   *PROG_BUILD="00 {Pi4D}";
+#endif
+
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 //--------------------------[System Word Handler]---------------------------------------------------
@@ -132,11 +152,11 @@ void CATchangeFreq() {
 
   if (g->statePTT == true) {
      fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
-     cat->SetFrequency=SetFrequency;
+     cat->SetFrequency=f;
      return;
   }
 
-  fprintf(stderr,"%s:CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)SetFrequency);
+  fprintf(stderr,"%s:CATchangeFreq() Frequency set to SetFrequency(%d)\n",PROGRAMID,(int)f);
 
 }
 //-----------------------------------------------------------------------------------------------------------
@@ -202,7 +222,6 @@ void SSBchangeVOX() {
   fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(g->stateVOX));
   setPTT(g->stateVOX);
 
-
 }
 // ======================================================================================================================
 // MAIN
@@ -243,35 +262,39 @@ int main(int argc, char** argv)
   }
 
   gpioSetMode(GPIO_PTT, PI_OUTPUT);
-  usleep(100000);
+  usleep(10000);
 
   gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
-  usleep(100000);
+  usleep(10000);
 
   gpioWrite(GPIO_PTT, 0);
-  usleep(100000);
+  usleep(10000);
 
 
 // --- memory areas
 
   fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
-
   buffer=(char*)malloc(2048*sizeof(unsigned char));
-  HW=(char*)malloc(16*sizeof(unsigned char));
-  sprintf(HW,"Loopback");
 
+#ifdef OT4D
+  strcpy(HW,"hw:Loopback,1,0");
+#endif
+
+#ifdef Pi4D
+  strcpy(HW,"hw:1");
+#endif
 // --- USB generator 
 
   fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID);
 
   g=new genSSB(SSBchangeVOX);  
   g->TRACE=TRACE;
-  g->setFrequency(7074000);
-  //g->setFrequency(SetFrequency);
+  g->setFrequency(f);
   g->setSoundChannel(CHANNEL);
   g->setSoundSR(AFRATE);
   g->setSoundHW(HW);
-  g->voxactive=true;
+  g->vox=true;
+  g->dds=true;
 
   g->start();
 
@@ -286,7 +309,7 @@ int main(int argc, char** argv)
 
   cat->FT817=FT817;
   cat->POWER=7;
-  cat->SetFrequency=SetFrequency;
+  cat->SetFrequency=f;
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
 
@@ -304,7 +327,7 @@ int main(int argc, char** argv)
   
   {
     cat->get(); 
-    int nread=g->readpipe(buffer,1024);
+    int nread=g->readpipe(buffer,BUFSIZE);
     if (nread>0) {
        buffer[nread]=0x00;
        fprintf(stderr,"%s",(char*)buffer);
@@ -312,7 +335,7 @@ int main(int argc, char** argv)
   }
 
 // --- Normal termination kills the child first and wait for its termination
-  fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID);
+  fprintf(stderr,"%s:main() stop operations and terminate\n",PROGRAMID);
   g->stop();
 
 }

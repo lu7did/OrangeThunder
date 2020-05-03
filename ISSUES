@@ -1,4 +1,12 @@
 Issues:
 
-    No issues logged at this time
-    No support or requests to be honored while the project is being built
+Pending
+
+* Test OT4D as a digital USB transceiver.
+* Update README.md
+* Evolve OT hardware Version 2.0
+* Fork librpitx to preserve capability to change ModeIQ (needed by sendRF and overall DDS implementation).
+* HAL()
+
+
+  *** Please beware *** No support or requests to be honored while the project is being built

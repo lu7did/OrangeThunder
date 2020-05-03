@@ -1,4 +1,3 @@
-
 /*
  * OT4D 
  *-----------------------------------------------------------------------------
@@ -93,23 +92,19 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 // --- IPC structures
 struct sigaction sigact;
-char   *HW;
+char   HW[32];
 bool   bRetry=false;
+bool   vox=true;
 
 #ifdef OT4D
 float  f=14074000;
-bool voxactive=false;
 int    vol=10;
 #endif
 
 #ifdef Pi4D
 float  f=7074000;
-bool voxactive=true;
 int    vol=0;
 #endif
-
-
-
 
 int    anyargs=1;
 
@@ -149,11 +144,6 @@ rtlfm*  rtl=nullptr;
 char    *rtl_buffer;
 #endif
 
-
-#ifdef Pi4D
-//DDS*   dds=nullptr;
-//
-#endif
 
 // *----------------------------------------------------------------*
 // *             FT817 CAT Simulation support                       *
@@ -220,12 +210,13 @@ static void sighandler(int signum)
 // *---------------------------------------------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-    (TRACE>=0x03 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
     if (ptt==true) {  //currently receiving now transmitting
 
+    // *---------------------------------------------*
     // * Set PTT into transmit mode                  *
     // *---------------------------------------------*
-       (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
        if(g!=nullptr) {g->writePin(GPIO_PTT,1);}
        usleep(10000);
 
@@ -245,12 +236,12 @@ void setPTT(bool ptt) {
     usb->setPTT(ptt);
     usleep(10000);
 
-    (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set GPIO as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set GPIO as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
     if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
     usleep(10000);
 
     setWord(&MSW,PTT,ptt);
-    (TRACE>=0x01 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
     return;
 }
 //---------------------------------------------------------------------------
@@ -338,17 +329,6 @@ void changeSNR() {
 #endif
 
 }
-
-// ======================================================================================================================
-// DDS upcall change of frequency
-// ======================================================================================================================
-#ifdef Pi4D
-void changeDDS(float f) {
-
-
-}
-
-#endif
 // ======================================================================================================================
 // VOX upcall signal
 // ======================================================================================================================
@@ -356,7 +336,6 @@ void SSBchangeVOX() {
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX)) : _NOP);
   setPTT(usb->stateVOX);
-
 
 }
 // ======================================================================================================================
@@ -437,8 +416,16 @@ int main(int argc, char** argv)
   gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 
-  HW=(char*)malloc(16*sizeof(unsigned char));
-  sprintf(HW,"Loopback");
+
+#ifdef OT4D
+strcpy(HW,"hw:Loopback,1,0");
+#endif
+
+#ifdef Pi4D
+strcpy(HW,"hw:1");
+#endif
+
+
 
 #ifdef OT4D
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
@@ -472,8 +459,8 @@ int main(int argc, char** argv)
 	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol) : _NOP);
              break;
 	case 'x': // voX
-	     voxactive=true;
-	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument vox(%s)\n",PROGRAMID,BOOL2CHAR(voxactive)) : _NOP);
+	     vox=true;
+	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument vox(%s)\n",PROGRAMID,BOOL2CHAR(vox)) : _NOP);
              break;
 	case 't': // tracelevel
 	     TRACE = atoi(optarg);
@@ -499,14 +486,6 @@ int main(int argc, char** argv)
 	}/* end while getopt() */
 
 
-// --- ALSA loopback support 
-
-#ifdef OT4D
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main() initialize ALSA parameters\n",PROGRAMID) : _NOP);
-  HW=(char*)malloc(16*sizeof(unsigned char));
-  sprintf(HW,SOUNDHW);
-#endif
-
 // --- gpio Wrapper creation
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
@@ -530,17 +509,19 @@ int main(int argc, char** argv)
      exit(16);
   }
 
+#ifdef Pi4D
   if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
      (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_COOLER) : _NOP);
      exit(16);
   }
+#endif
 
   if (g->start() == -1) {
      (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
      exit(8);
   }
 
-  usleep(100000);
+  usleep(1000);
 
 #ifdef Pi4D
   // *---------------------------------------------*
@@ -565,19 +546,6 @@ int main(int argc, char** argv)
 
 #endif
 
-#ifdef Pi4D
-// --- define DDS 
-//  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RPITX dds controller interface\n",PROGRAMID) : _NOP);
-//  dds=new DDS(changeDDS);
-//  dds->TRACE=TRACE;
-//  dds->gpio=GPIO_DDS;
-  //dds->power=DDS_MAXLEVEL;
-//  dds->power=1;
-//  dds->f=f;
-//  dds->ppm=1000;
-//  dds->start(f);
-#endif
-
 // --- USB generator
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
@@ -586,10 +554,17 @@ int main(int argc, char** argv)
   usb->setFrequency(f);
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
-  //usb->stateDDS=true;
   usb->setSoundHW(HW);
-  usb->voxactive=voxactive;
+  usb->vox=vox;
+#ifdef OT4D
+  usb->dds=false;
+#endif
+#ifdef Pi4D
+  usb->dds=true;
+#endif
+
   usb->start();
+
 
 // --- creation of CAT object
 
@@ -738,9 +713,4 @@ int main(int argc, char** argv)
   }
 #endif
 
-#ifdef Pi4D
-//  if (dds!=nullptr) {
-//     dds->stop();
-//  }
-#endif
 }

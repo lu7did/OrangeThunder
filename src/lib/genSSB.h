@@ -44,7 +44,7 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val);
 class genSSB
 {
   public: 
-  
+
          genSSB(CALLBACK vox);
 
 // --- public methods
@@ -76,12 +76,13 @@ CALLBACK changeVOX=NULL;
       int		  mode;
       int                 soundChannel;
       int                 soundSR;
-      char*               soundHW;
+      char                soundHW[64];
       int                 ptt_fifo = -1;
       int		  result;
       bool                stateVOX;
       bool                statePTT;
-      bool                voxactive = false;
+      bool                dds;
+      bool                vox;
       byte                MSW = 0;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
@@ -107,44 +108,43 @@ private:
 //---------------------------------------------------------------------------------------------------
 // genSSB CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-genSSB::genSSB(CALLBACK vox){
+genSSB::genSSB(CALLBACK v){
 
 // -- VOX callback
 
-   if (vox!=NULL) {changeVOX=vox;}
+   if (v!=NULL) {changeVOX=v;}
 
 // --- initial definitions
 
    stateVOX=false;
    statePTT=false;
+   dds=false;
+   vox=false;
    pid=0;
 
-#ifdef OT4D
    soundSR=48000;
-   soundHW=(char*)malloc(16*sizeof(int));
-   setSoundChannel(CHANNEL);
-   setSoundSR(AFRATE);
-   strcpy(soundHW,SOUNDHW);
-#endif
+   setSoundChannel(1);
+   setSoundSR(48000);
 
    setMode(MUSB);
    setFrequency(FREQUENCY);
    sr=6000;
    vol=0;
+
+   sprintf(PTTON,"PTT=1\n");
+   sprintf(PTTOFF,"PTT=0\n");
+
 #ifdef OT4D
-   voxactive=false;
+   sprintf(soundHW,"%s",(char*)"hw:Loopback,1,0");
 #endif
 
 #ifdef Pi4D
-   voxactive=true;
+   sprintf(soundHW,"%s",(char*)"hw:1");
 #endif
 
    setWord(&MSW,RUN,false);
 
-   //running=false;
-
-   sprintf(PTTON,"PTT=1\n");
-   sprintf(PTTOFF,"PTT=0\n");
+// --- Initialize command duct with genSSB
 
    (this->TRACE>=0x02 ? fprintf(stderr,"%s::genSSB() Making FIFO...\n",PROGRAMID) : _NOP);
    result = mkfifo("/tmp/ptt_fifo", 0666);		//(This will fail if the fifo already exists in the system from the app previously running, this is fine)
@@ -201,19 +201,18 @@ void genSSB::setFrequency(float f) {
 //--------------------------------------------------------------------------------------------------
 void genSSB::setMode(byte m) {
 
-if ( m == this->mode) {
-   return;
-}
-
+   if ( m == this->mode) {
+      return;
+   }
 
    this->mode=m;
    if (getWord(MSW,RUN) == false) {
       return;
    }
 
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%s)\n",PROGRAMID,MODE) : _NOP);
-   this->stop();
-   this->start();
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%s), ignored actually\n",PROGRAMID,MODE) : _NOP);
+   //this->stop();
+   //this->start();
    return;
 }
 //---------------------------------------------------------------------------------------------------
@@ -293,13 +292,21 @@ char cmd_DEBUG[16];
    }
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
-#ifdef OT4D
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-#endif
+   char strVOX[32];
+   if (vox==true) {
+      sprintf(strVOX,"%s",(char*)"-x -v 2");
+   } else {
+      sprintf(strVOX,"%s",(char*)"-x -v 2");
+   }
 
-#ifdef Pi4D
-   sprintf(command,"arecord -c1 -r48000 -D hw:1 -fS16_LE - | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",cmd_DEBUG,this->sr,(int)f);
-#endif
+   char strDDS[32];
+   if (dds==true) {
+      sprintf(strDDS,"%s",(char*)"-d ");
+   } else {
+      sprintf(strDDS,"%s",(char*)" ");
+   }
+
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE -   | genSSB %s %s %s | sudo sendRF -i /dev/stdin -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,strDDS,strVOX,cmd_DEBUG,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
@@ -330,8 +337,6 @@ char cmd_DEBUG[16];
   }
 
   setWord(&MSW,RUN,true);
-
-
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -369,7 +374,7 @@ int genSSB::readpipe(char* buffer,int len) {
     }
      buffer[rc]=0x00;
      if (strcmp(buffer,"VOX=1\n")==0) {
-        if (voxactive==true) {
+        if (vox==true) {
            this->stateVOX=true;
            if ( changeVOX!=NULL ) {changeVOX();}
            (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
@@ -379,7 +384,7 @@ int genSSB::readpipe(char* buffer,int len) {
     }
 
     if (strcmp(buffer,"VOX=0\n")==0) {
-       if ( voxactive==true) {
+       if (vox==true) {
           this->stateVOX=false;
           if(changeVOX!=NULL) {changeVOX();}
           (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=0 signal from child\n") : _NOP);
