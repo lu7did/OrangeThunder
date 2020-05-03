@@ -159,41 +159,6 @@ echo 'blacklist dvb_usb_rtl28xxu' | sudo tee --append /etc/modprobe.d/blacklist-
 sudo apt-get install pulseaudio pavucontrol mplayer -y
 ```
 
-### CSDR
-
-```
-sudo apt-get install libfftw3-dev -y
-cd ~
-git clone https://github.com/simonyiszk/csdr
-cd csdr
-```
-
-
-The Makefile can be opened with "sudo nano Makefile"
-
-```
--march=armv8-a
--mtune=cortex-a53
--mfpu=neon-fp-armv8.
-```
-
-Also under PARAMS_RASPI set:
-
-```
--mcpu=cortex-a53
--mfpu=neon-fp-armv8.
-```
-
-```
-make
-sudo make install
-```
-
-### ncat
-
-```
-sudo apt-get install nmap -y
-```
 
 ### ntp Daemon
 
@@ -280,6 +245,10 @@ pulseaudio -k
 ```
 
 ### socat
+
+### F5OEO's librpitx
+
+A modified version of librpitx (iqdmasync.h) is contained in this package and needed to successfully compile the proyect.
 
 ### PixiePi
 
@@ -461,8 +430,13 @@ the **socat** program at the execution script.
 
 ![Alt Text](docs/OrangeThunder_Prototype.jpeg?raw=true "Hardware Prototype")
 ![Alt Text](docs/OrangeThunder.jpg?raw=true "Hardware Prototype Schematic")
+![Alt Text](docs/OT_hardwarebox.jpg?raw=true "Hardware Prototype Box")
 
 
+### 3D Printer STL files
+
+Preliminary files, pending finalization and fine adjustment, can be found at
+[The Thingiverse](https://www.thingiverse.com/thing:4335388)
 
 
 ### PWM Peripheral:
