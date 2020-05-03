@@ -1,13 +1,14 @@
 //--------------------------------------------------------------------------------------------------
-// genSSB transmitter handler   (HEADER CLASS)
+// genSSB transmitter   (HEADER CLASS)
 // wrapper to call genSSB from an object managing different extended functionalities
-// can be used to manage DDS services as well
 //--------------------------------------------------------------------------------------------------
 // Este es el firmware del diseÃ±o de SSB para PixiePi
 // receive class implementation of a simple USB receiver
 // Solo para uso de radioaficionados, prohibido su utilizacion comercial
 // Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //--------------------------------------------------------------------------------------------------
+
+#ifndef genSSB_h
 #define genSSB_h
 
 #define _NOP        (byte)0
@@ -51,76 +52,38 @@ class genSSB
 CALLBACK changeVOX=NULL;
     void start();
     void stop();
-
-
      int readpipe(char* buffer,int len);
-
     void setFrequency(float f);
-    void setPower(int p);
-
     void setSoundChannel(int c);
     void setSoundSR(int sr);
     void setSoundHW(char* hw);
-
     void setPTT(bool v);
     void setMode(byte m);
      int openPipe();
 
-    void launch_DDS();
-    void launch_receiver();
-    void launch_sender();
-
-
-    float* RFBuffer;
-    int    RFlen=4096;
-
-    pid_t killChild(pid_t pid);
-
 // -- public attributes
 
       byte                TRACE=0x00;
-      pid_t               pid_receiver = 0;
-      pid_t               pid_sender = 0;
-      pid_t               pid_dds = 0;
+      pid_t               pid = 0;
       int                 status;
 
-      //int                 inpipefd[2];
-      //int                 outpipefd[2];
-
-
-      int                 instdout_receiver[2];
-      int                 instderr_receiver[2];
-      int                 outstdin_receiver[2];
-
-      int                 instdout_sender[2];
-      int                 instderr_sender[2];
-      int                 outstdin_sender[2];
-
-      int                 instdout_dds[2];
-      int                 instderr_dds[2];
-      int                 outstdin_dds[2];
+      int                 inpipefd[2];
+      int                 outpipefd[2];
 
       float               f;
       int                 sr;
-      int		  mode;
-
       int                 vol;
+      int		  mode;
       int                 soundChannel;
       int                 soundSR;
       char*               soundHW;
-
       int                 ptt_fifo = -1;
       int		  result;
-
       bool                stateVOX;
       bool                statePTT;
-      bool                stateDDS;
-      int                 dds_drive=7;
-
       bool                voxactive = false;
       byte                MSW = 0;
 //-------------------- GLOBAL VARIABLES ----------------------------
-
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
@@ -140,6 +103,7 @@ private:
 
 };
 
+#endif
 //---------------------------------------------------------------------------------------------------
 // genSSB CLASS Implementation
 //--------------------------------------------------------------------------------------------------
@@ -153,27 +117,31 @@ genSSB::genSSB(CALLBACK vox){
 
    stateVOX=false;
    statePTT=false;
-   stateDDS=false;
+   pid=0;
 
-   dds_drive=7;
-
-   pid_receiver=0;
-   pid_sender=0;
-   pid_dds=0;
- 
+#ifdef OT4D
    soundSR=48000;
    soundHW=(char*)malloc(16*sizeof(int));
-   RFBuffer=(float*)malloc(16384*sizeof(float));
    setSoundChannel(CHANNEL);
    setSoundSR(AFRATE);
    strcpy(soundHW,SOUNDHW);
+#endif
 
    setMode(MUSB);
    setFrequency(FREQUENCY);
    sr=6000;
    vol=0;
+#ifdef OT4D
    voxactive=false;
+#endif
+
+#ifdef Pi4D
+   voxactive=true;
+#endif
+
    setWord(&MSW,RUN,false);
+
+   //running=false;
 
    sprintf(PTTON,"PTT=1\n");
    sprintf(PTTOFF,"PTT=0\n");
@@ -186,11 +154,9 @@ genSSB::genSSB(CALLBACK vox){
       (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Error during of command FIFO(%s), aborting\n",PROGRAMID,PTT_FIFO) : _NOP);
       exit(16);
    }
-}
-void genSSB::setSoundSR(int s) {
 
-   this->sr=s;
 }
+
 //---------------------------------------------------------------------------------------------------
 // setSoundChannel CLASS Implementation
 //--------------------------------------------------------------------------------------------------
@@ -201,12 +167,12 @@ void genSSB::setSoundChannel(int c) {
 
 }
 //---------------------------------------------------------------------------------------------------
-// setPower CLASS Implementation
+// setSoundSR CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-void genSSB::setPower(int p) {
+void genSSB::setSoundSR(int sr) {
 
-   this->dds_drive=p;
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setPower() Power level(%d)\n",PROGRAMID,this->dds_drive) : _NOP);
+   this->soundSR=sr;
+   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundSR() Sound card sample rate(%d)\n",PROGRAMID,this->soundSR) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -235,9 +201,10 @@ void genSSB::setFrequency(float f) {
 //--------------------------------------------------------------------------------------------------
 void genSSB::setMode(byte m) {
 
-   if ( m == this->mode) {
-      return;
-   }
+if ( m == this->mode) {
+   return;
+}
+
 
    this->mode=m;
    if (getWord(MSW,RUN) == false) {
@@ -249,71 +216,39 @@ void genSSB::setMode(byte m) {
    this->start();
    return;
 }
-
 //---------------------------------------------------------------------------------------------------
 // start operations (fork processes) Implementation
 //--------------------------------------------------------------------------------------------------
 void genSSB::start() {
 
-  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting receiver sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-  launch_receiver();
-
-  if (this->statePTT==false) {        //it's on receive mode
-     if (this->stateDDS==true) {      //needs to operate DDS
-        (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting DDS sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-        launch_DDS();
-     }
-     return;
-  }
-  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting sender sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-  launch_sender();
-  setWord(&MSW,RUN,true);
-
-  return;
-}
-//---------------------------------------------------------------------------------------------------
-// launch receiver operations (fork processes) Implementation
-//--------------------------------------------------------------------------------------------------
-void genSSB::launch_receiver() {
-
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_receiver() starting receiver sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-
-  if (pid_receiver != 0) {
-     pid_receiver=killChild(pid_receiver);
-     (TRACE>=0x01 ? fprintf(stderr,"%s::launch_receiver() found receiver process, killed!\n",PROGRAMID) : _NOP);
-  }
 
 char   command[256];
 // --- create pipes
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch() starting tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
+  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
 
-  pipe(instderr_receiver);
-  fcntl(instderr_receiver[1],F_SETFL,O_NONBLOCK);
-  fcntl(instderr_receiver[0],F_SETFL,O_NONBLOCK);
+  pipe(inpipefd);
+  fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
+  fcntl(inpipefd[0],F_SETFL,O_NONBLOCK);
 
-  pipe(instdout_receiver);
-  fcntl(instdout_receiver[1],F_SETFL,O_NONBLOCK);
-  fcntl(instdout_receiver[0],F_SETFL,O_NONBLOCK);
-
-  pipe(outstdin_receiver);
-  fcntl(outstdin_receiver[0],F_SETFL,O_NONBLOCK);
-  fcntl(outstdin_receiver[1],F_SETFL,O_NONBLOCK);
+  pipe(outpipefd);
+  fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
+  //fcntl(outpipefd[1],F_SETFL,O_NONBLOCK);
 
 // --- launch pipe
 
-  pid_receiver = fork();
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_receiver() starting pid(%d)\n",PROGRAMID,pid_receiver) : _NOP);
+  pid = fork();
+  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting pid(%d)\n",PROGRAMID,pid) : _NOP);
 
-  if (pid_receiver == 0)
+
+  if (pid == 0)
   {
 
 // --- This is executed by the child only, output is being redirected
+    (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid) : _NOP);
 
-    (TRACE>=0x02 ? fprintf(stderr,"%s::launch_receiver() <CHILD> thread pid(%d)\n",PROGRAMID,pid_receiver) : _NOP);
-
-    dup2(outstdin_receiver[0], STDIN_FILENO);
-    dup2(instdout_receiver[1], STDOUT_FILENO);
-    dup2(instderr_receiver[1], STDERR_FILENO);
+    dup2(outpipefd[0], STDIN_FILENO);
+    dup2(inpipefd[1], STDOUT_FILENO);
+    dup2(inpipefd[1], STDERR_FILENO);
 
 // --- ask kernel to deliver SIGTERM in case the parent dies
 
@@ -329,7 +264,7 @@ char cmd_DEBUG[16];
    } else {
      sprintf(cmd_DEBUG," ");
    }
-   (TRACE>=0x02 ? fprintf(stderr,"%s::launch_receiver() <CHILD> debug set to (%s)\n",PROGRAMID,cmd_DEBUG) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> debug set to (%s)\n",PROGRAMID,cmd_DEBUG) : _NOP);
 
    switch(this->mode) {
            case MCW:
@@ -356,20 +291,16 @@ char cmd_DEBUG[16];
 		   }
 
    }
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::launch_receiver() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
-
-//*----- Differential execution (consolidate later thru configuration parameters passed at run time (OPTIMIZATION NEEDED)
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
 #ifdef OT4D
-//   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG);
+   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
 #endif
 
 #ifdef Pi4D
-   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG);
+   sprintf(command,"arecord -c1 -r48000 -D hw:1 -fS16_LE - | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",cmd_DEBUG,this->sr,(int)f);
 #endif
-
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::launch_receiver() cmd[%s]\n",PROGRAMID,command) : _NOP);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
 
@@ -389,7 +320,7 @@ char cmd_DEBUG[16];
 // can be handled (e.g. you can respawn the child process).
 // *******************************************************************************************************
 
-  (TRACE>=0x02 ? fprintf(stderr,"%s::launch_receiver() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid_receiver) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
   ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
   if (ptt_fifo != -1) {
      (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
@@ -398,171 +329,8 @@ char cmd_DEBUG[16];
      exit(16);
   }
 
-}
-//---------------------------------------------------------------------------------------------------
-// launch receiver operations (fork processes) Implementation
-//--------------------------------------------------------------------------------------------------
-pid_t genSSB::killChild(pid_t pid) {
+  setWord(&MSW,RUN,true);
 
-int stat;
-
-  if (pid==0) {
-     return (pid_t)0;
-  }
-
-  (TRACE>=0x01 ? fprintf(stderr,"%s::killChild() killing PID(%d)\n",PROGRAMID,pid) : _NOP);
-   kill(pid,SIGKILL);
-   int cpid=waitpid(pid,&stat,0);
-  (TRACE>=0x01 ? fprintf(stderr,"%s::killChild() killed PID(%d)\n",PROGRAMID,pid) : _NOP);
-   return (pid_t)0;
-}
-//---------------------------------------------------------------------------------------------------
-// launch receiver operations (fork processes) Implementation
-//--------------------------------------------------------------------------------------------------
-void genSSB::launch_sender() {
-
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_sender() starting receiver sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-  if (pid_sender != 0) {
-     pid_sender=killChild(pid_sender);
-     (TRACE>=0x01 ? fprintf(stderr,"%s::launch_sender() found receiver process, killed!\n",PROGRAMID) : _NOP);
-  }
-
-char   command[256];
-// --- create pipes
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_sender() starting tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-
-  pipe(instderr_sender);
-  fcntl(instderr_sender[1],F_SETFL,O_NONBLOCK);
-  fcntl(instderr_sender[0],F_SETFL,O_NONBLOCK);
-
-  pipe(instdout_sender);
-  fcntl(instdout_sender[1],F_SETFL,O_NONBLOCK);
-  fcntl(instdout_sender[0],F_SETFL,O_NONBLOCK);
-
-  pipe(outstdin_sender);
-  fcntl(outstdin_sender[0],F_SETFL,O_NONBLOCK);
-  fcntl(outstdin_sender[1],F_SETFL,O_NONBLOCK);
-
-// --- launch pipe
-
-  pid_sender = fork();
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_sender() starting pid(%d)\n",PROGRAMID,pid_sender) : _NOP);
-
-  if (pid_sender == 0)
-  {
-
-// --- This is executed by the child only, output is being redirected
-
-    (TRACE>=0x02 ? fprintf(stderr,"%s::launch_receiver() <CHILD> thread pid(%d)\n",PROGRAMID,pid_sender) : _NOP);
-
-    dup2(outstdin_sender[0], STDIN_FILENO);
-    dup2(instdout_sender[1], STDOUT_FILENO);
-    dup2(instderr_sender[1], STDERR_FILENO);
-
-// --- ask kernel to deliver SIGTERM in case the parent dies
-
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
-
-//*----- Differential execution (consolidate later thru configuration parameters passed at run time (OPTIMIZATION NEEDED)
-
-    sprintf(command,"sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->sr,(int)f);
-//   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-//   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG);
-
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::launch_sender() cmd[%s]\n",PROGRAMID,command) : _NOP);
-
-// --- process being launch 
-
-    execl(getenv("SHELL"),"sh","-c",command,NULL);
-
-// --- Nothing below this line should be executed by child process. If so, 
-// --- it means that the execl function wasn't successfull, so lets exit:
-
-    exit(1);
-  }
-
-// ******************************************************************************************************
-// The code below will be executed only by parent. You can write and read
-// from the child using pipefd descriptors, and you can send signals to 
-// the process using its pid by kill() function. If the child process will
-// exit unexpectedly, the parent process will obtain SIGCHLD signal that
-// can be handled (e.g. you can respawn the child process).
-// *******************************************************************************************************
-
-
-}
-//---------------------------------------------------------------------------------------------------
-// launch receiver operations (fork processes) Implementation
-//--------------------------------------------------------------------------------------------------
-void genSSB::launch_DDS() {
-
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_DDS() starting receiver sub process tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-  if (pid_dds != 0) {
-     pid_dds=killChild(pid_dds);
-     (TRACE>=0x01 ? fprintf(stderr,"%s::launch_DDS() found receiver process, killed!\n",PROGRAMID) : _NOP);
-  }
-
-char   command[256];
-// --- create pipes
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_DDS() starting tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
-
-  pipe(instderr_dds);
-  fcntl(instderr_dds[1],F_SETFL,O_NONBLOCK);
-  fcntl(instderr_dds[0],F_SETFL,O_NONBLOCK);
-
-  pipe(instdout_dds);
-  fcntl(instdout_dds[1],F_SETFL,O_NONBLOCK);
-  fcntl(instdout_dds[0],F_SETFL,O_NONBLOCK);
-
-  pipe(outstdin_dds);
-  fcntl(outstdin_dds[0],F_SETFL,O_NONBLOCK);
-  fcntl(outstdin_dds[1],F_SETFL,O_NONBLOCK);
-
-// --- launch pipe
-
-  pid_dds = fork();
-  (TRACE>=0x01 ? fprintf(stderr,"%s::launch_sender() starting pid(%d)\n",PROGRAMID,pid_dds) : _NOP);
-
-  if (pid_dds == 0)
-  {
-
-// --- This is executed by the child only, output is being redirected
-
-    (TRACE>=0x02 ? fprintf(stderr,"%s::launch_DDS() <CHILD> thread pid(%d)\n",PROGRAMID,pid_dds) : _NOP);
-
-    dup2(outstdin_dds[0], STDIN_FILENO);
-    dup2(instdout_dds[1], STDOUT_FILENO);
-    dup2(instderr_dds[1], STDERR_FILENO);
-
-// --- ask kernel to deliver SIGTERM in case the parent dies
-
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
-
-//*----- Differential execution (consolidate later thru configuration parameters passed at run time (OPTIMIZATION NEEDED)
-
-    sprintf(command,"sudo tune -f %d ",(int)f);
-//   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s | sudo sendiq -i /dev/stdin -s %d -f %d -t float ",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG,this->sr,(int)f);
-//   sprintf(command,"arecord -c%d -r%d -D hw:%s,1,0 -fS16_LE -   | genSSB %s",this->soundChannel,this->soundSR,this->soundHW,cmd_DEBUG);
-
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::launch_DDS() cmd[%s]\n",PROGRAMID,command) : _NOP);
-
-// --- process being launch 
-
-    execl(getenv("SHELL"),"sh","-c",command,NULL);
-
-// --- Nothing below this line should be executed by child process. If so, 
-// --- it means that the execl function wasn't successfull, so lets exit:
-
-    exit(1);
-  }
-
-// ******************************************************************************************************
-// The code below will be executed only by parent. You can write and read
-// from the child using pipefd descriptors, and you can send signals to 
-// the process using its pid by kill() function. If the child process will
-// exit unexpectedly, the parent process will obtain SIGCHLD signal that
-// can be handled (e.g. you can respawn the child process).
-// *******************************************************************************************************
 
 
 }
@@ -581,54 +349,33 @@ void genSSB::setPTT(bool v) {
   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setPTT() setPTT(%s)\n",PROGRAMID,BOOL2CHAR(v)) : _NOP);
   setWord(&MSW,PTT,v);
   if (v==true) {
-     if (pid_dds != 0) {
-        killChild(pid_dds);
-     }
-     this->launch_sender();
-     //write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
+     write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
   } else {
-    if (pid_sender != 0) {
-       killChild(pid_sender);
-    }
-    this->launch_DDS();
-    //write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
+     write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
   }
   this->statePTT=v;
 }
+
 //---------------------------------------------------------------------------------------------------
 // readpipe CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 int genSSB::readpipe(char* buffer,int len) {
-//
-// --- If PTT=true back to back from receiver to iqsend for transmission
-//
-int nfread=0;
-int nbread=0;
 
-    nfread=read(instdout_receiver[0],RFBuffer,RFlen);
+   
+    int rc=read(inpipefd[0],buffer,len);
 
-    if (nfread>0) {
-       if (getWord(MSW,PTT)==true) {
-          write(outstdin_sender[1],RFBuffer,nfread);
-       }
-    }
-
-// --- Now process commands from genSSB thru standard error of that process
-
-    nbread=read(instderr_receiver[0],buffer,len);
-    if (nbread<=0) {
+    if (rc<=0) {
        return 0;
     }
- 
-    buffer[nbread]=0x00;
-    if (strcmp(buffer,"VOX=1\n")==0) {
-       if (voxactive==true) {
-          this->stateVOX=true;
-          if ( changeVOX!=NULL ) {changeVOX(); };
-          (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
-       } else {
-         stateVOX=false;
-       }
+     buffer[rc]=0x00;
+     if (strcmp(buffer,"VOX=1\n")==0) {
+        if (voxactive==true) {
+           this->stateVOX=true;
+           if ( changeVOX!=NULL ) {changeVOX();}
+           (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
+        } else {
+          stateVOX=false;
+        }
     }
 
     if (strcmp(buffer,"VOX=0\n")==0) {
@@ -640,11 +387,13 @@ int nbread=0;
          this->stateVOX=false;
        }
     }
-    return nbread;
+
+    return rc;
+
 }
-// ---------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------
 // stop CLASS Implementation
-// --------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 void genSSB::stop() {
 
 // --- Normal termination kills the child first and wait for its termination
@@ -654,12 +403,8 @@ void genSSB::stop() {
   }
 
   close(ptt_fifo);
-
-
-  killChild(pid_sender);
-  killChild(pid_dds);
-  killChild(pid_sender);
-
+  kill(pid, SIGKILL); //send SIGKILL signal to the child process
+  waitpid(pid, &status, 0);
   setWord(&MSW,RUN,false);
   (this->TRACE >=0x01 ? fprintf(stderr,"%s::stop() process terminated\n",PROGRAMID) : _NOP);
 

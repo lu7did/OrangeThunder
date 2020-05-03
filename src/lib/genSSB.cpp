@@ -108,7 +108,7 @@ float    agc_alpha=AGC_ALPHA;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=AGC_GAIN;;
 
-//int      vox_timeout=2;
+//int      vox_timeout=3;
 int      vox_timeout=VOX_TIMEOUT;
 int      gpio_ptt=GPIO_PTT;
 
@@ -149,7 +149,7 @@ void timer_exec()
 {
   if (TVOX!=0) {
      TVOX--;
-     (TRACE>=0x03 ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
+     (TRACE>=0x04 ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
      if(TVOX==0) {
        fVOX=1;
        (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
@@ -323,6 +323,9 @@ int main(int argc, char* argv[])
 FILE *iqfile=NULL;
 FILE *outfile=NULL;
 
+        autoPTT=true;
+        vox_timeout=2;
+
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
 
@@ -358,8 +361,7 @@ float   gain=1.0;
 
         setWord(&MSW,PTT,false);
    int  j=0;
-   int  k=0;
-        (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): Starting main loop\n",PROGRAMID) : _NOP); 
+        (TRACE >= 0x01 ? fprintf(stderr,"%s:main(): Starting main loop VOX(%s) Timeout(%d)\n",PROGRAMID,BOOL2CHAR(autoPTT),vox_timeout) : _NOP); 
 
 	while(getWord(MSW,RUN)==true)
 	{
@@ -368,82 +370,82 @@ float   gain=1.0;
 
            cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
            j++;
-           (TRACE >= 0x03 ? fprintf(stderr,"%s:main() read command buffer len(%d)\n",PROGRAMID,cmd_length) : _NOP);
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
-              (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received data from command pipe (%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP);
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-                 (TRACE >= 0x02 ? fprintf (stderr,"%s:main() Received command(PTT=1) thru command pipe\n",PROGRAMID) : _NOP);
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-                 (TRACE>=0x02 ? fprintf (stderr,"%s:main() Received command(PTT=0) thru command pipe\n",PROGRAMID) : _NOP);
                  setPTT(false);
                }
-           }else;
+           } else;
 
-// --- end of command processing
+// --- end of command processing, read signal samples
 
-           (TRACE>=0x03 ? fprintf(stderr,"%s:main() About to read sound buffer (%d)\n",PROGRAMID,k) : _NOP);
            nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
-           k=k+nbread;;
-           if(TRACE>=0x03) { if (k%100000) {fprintf(stderr,"%s:main() Keep alive tick (%d) len(%d)\n",PROGRAMID,k,nbread);}}
 
 // --- Processing AGC results on  incoming signal
 
            if (gain<mingain) {
+              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
               mingain=gain;
            }
 
            if (gain>maxgain) {
+              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
               maxgain=gain;
-              thrgain=maxgain*0.50;
+              thrgain=maxgain*0.70;
            }
 
-           if (vox_timeout > 0) {
-              if (gain<thrgain) {
-                 if (TVOX==0) {
+           if (vox_timeout > 0) {  //Is the timeout activated?
+              if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
+                 if (TVOX==0) {    //Is the timer counter idle
                     fprintf(stderr,"VOX=1\n\n");
                  }
-                 TVOX=vox_timeout;
-                 if (autoPTT == true) {
-                    ((TRACE>=0x02 && getWord(MSW,PTT)==false) ? fprintf(stderr,"%s:main() autoPTT activated\n",PROGRAMID) : _NOP);
-                    setWord(&MSW,PTT,true);
+                 TVOX=vox_timeout; //Refresh the timeout
+
+                 if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
+                    if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
+                       Fout[0]=1111.0;
+                       Fout[1]=1111.0;
+                       fwrite(Fout, sizeof(float), 2, outfile) ;
+                       usleep(100);
+                    }
+                    setWord(&MSW,PTT,true); //Signal PTT as ON
                  }
               }
 
-              if (fVOX==1) {
-                 fVOX=0;
-                 fprintf(stderr,"VOX=0\n");
-                 if (autoPTT==true) {
-                    ((TRACE>=0x02 && getWord(MSW,PTT)==true) ? fprintf(stderr,"%s:main() autoPTT deactivated\n",PROGRAMID) : _NOP);
-                    setWord(&MSW,PTT,false);
+              if (fVOX==1) {  //Has the timer reach zero?
+                 fVOX=0;      //Clear Mark
+                 fprintf(stderr,"VOX=0\n"); //and inform VOX is down
+                 if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
+                    if (getWord(MSW,PTT)==true) { //Signal RF Generator the mode is now FREQ_A
+                       Fout[0]=2222.0;
+                       Fout[1]=2222.0;
+                       fwrite(Fout, sizeof(float), 2, outfile) ;
+                       usleep(100);
+                    }
+                    setWord(&MSW,PTT,false); // Signal the PTT as OFF
                  }
               }
            }
 
 
-           (TRACE>=0x03 ? fprintf(stderr,"%s:main() Processed SSB signal gain(%g) nbread(%d)\n",PROGRAMID,gain,nbread) : _NOP);
-           
-	   if(nbread>0) {
-              (TRACE>=0x03 ? fprintf(stderr,"%s:main() generate I/Q signal\n",PROGRAMID) : _NOP);
+	   if(nbread>0) { // now process the audio samples into an I/Q signal
 	      numSamplesLow=usb->generate(buffer_i16,nbread,Ibuffer,Qbuffer);
               if (getWord(MSW,PTT)==true) {
                  for (int i=0;i<numSamplesLow;i++) {
                      Fout[2*i]=Ibuffer[i];
                      Fout[(2*i)+1]=Qbuffer[i];
                  }
-                 if(k%20000 && TRACE>=0x03) {fprintf(stderr,"%s:main() PTT is active so data to sendiq\n",PROGRAMID);} 
               } else {
                  for (int i=0;i<numSamplesLow;i++) {
                      Fout[2*i]=0.0;
                      Fout[(2*i)+1]=0.0;
                  }
-                 if(k%20000 && TRACE>=0x03) {fprintf(stderr,"%s:main() PTT is inactive so <NUL> is sent to sendiq\n",PROGRAMID);} 
-
               }
-              fwrite(Fout, sizeof(float), numSamplesLow*2, outfile) ;
-              usleep(1000);
+              fwrite(Fout, sizeof(float), numSamplesLow*2, outfile) ;  //Send it
+              usleep(100);
            } else {
    	      fprintf(stderr,"EOF=1\n");
               setWord(&MSW,RUN,false);

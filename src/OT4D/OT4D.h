@@ -586,7 +586,7 @@ int main(int argc, char** argv)
   usb->setFrequency(f);
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
-  usb->stateDDS=true;
+  //usb->stateDDS=true;
   usb->setSoundHW(HW);
   usb->voxactive=voxactive;
   usb->start();
@@ -674,6 +674,13 @@ int main(int argc, char** argv)
     }
 #endif
 
+    if (getWord(usb->MSW,RUN)==true) {
+    int nread=usb->readpipe(usb_buffer,BUFSIZE);
+        if (nread>0) {
+           usb_buffer[nread]=0x00;
+           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
+        }
+    }
     //*---------------------------------------------*
     //* Process signals and messages from GPIO      *
     //*---------------------------------------------*
@@ -723,10 +730,7 @@ int main(int argc, char** argv)
 
   g->stop();
   cat->close();
-
-  if (usb!=nullptr) {
-     usb->stop();
-  }
+  usb->stop();
 
 #ifdef OT4D
   if (rtl!=nullptr) {
@@ -735,8 +739,8 @@ int main(int argc, char** argv)
 #endif
 
 #ifdef Pi4D
-  if (dds!=nullptr) {
-     dds->stop();
-  }
+//  if (dds!=nullptr) {
+//     dds->stop();
+//  }
 #endif
 }

@@ -55,12 +55,12 @@
 // --- IPC structures
 
 genSSB* g=nullptr;
-struct sigaction sigact;
-char   *buffer;
-char   *HW;
-float  SetFrequency=14074000;
-byte   TRACE=0x02;
-byte   MSW=0x00;
+struct  sigaction sigact;
+char    *buffer;
+char    *HW;
+float   SetFrequency=14074000;
+byte    TRACE=0x02;
+byte    MSW=0x00;
 
 // --- CAT object
 
@@ -267,10 +267,11 @@ int main(int argc, char** argv)
   g=new genSSB(SSBchangeVOX);  
   g->TRACE=TRACE;
   g->setFrequency(7074000);
-  g->setFrequency(SetFrequency);
+  //g->setFrequency(SetFrequency);
   g->setSoundChannel(CHANNEL);
   g->setSoundSR(AFRATE);
   g->setSoundHW(HW);
+  g->voxactive=true;
 
   g->start();
 
