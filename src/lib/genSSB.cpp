@@ -70,7 +70,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-//#include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "/home/pi/PixiePi/src/lib/SSB.h"
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
@@ -83,7 +82,6 @@ const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 
-byte     TRACE=0x00;
 typedef unsigned char byte;
 typedef bool boolean;
 
@@ -92,15 +90,18 @@ int      cmd_length;
 int      cmd_FD = UNDEFINED;
 int      cmd_result;
 
-//float    SetFrequency=FREQUENCY;
-//float    SampleRate=IQSR;
-//char*    FileName=NULL;
-//int      Decimation=DECIMATION;
 int      ax;
 
 byte     MSW=0;
+byte     TRACE=0x00;
+
 byte     fVOX=0;
 long int TVOX=0;
+bool     fquiet=false;
+bool     fdds=false;
+
+FILE *iqfile=NULL;
+FILE *outfile=NULL;
 
 float    agc_reference=AGC_REF;
 float    agc_max=AGC_MAX;
@@ -108,7 +109,6 @@ float    agc_alpha=AGC_ALPHA;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=AGC_GAIN;;
 
-//int      vox_timeout=3;
 int      vox_timeout=VOX_TIMEOUT;
 int      gpio_ptt=GPIO_PTT;
 
@@ -193,7 +193,9 @@ fprintf(stderr,"%s %s [%s]\n\
 Usage:  \n\
 -p            PTT GPIO port (default none)\n\
 -a            agc threshold level (default none)\n\
--d            auto PTT with VOX\n\
+-d            enable DDS operation (default none)\n\
+-x            enable auto PTT on VOX (default none)\n\
+-q            quiet operation (default none)\n\
 -v            VOX activated timeout in secs (default 0 )\n\
 -t            DEbug level (0=no debug, 2=max debug)\n\
 -?            help (this help).\n\
@@ -207,9 +209,26 @@ Usage:  \n\
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-  
-     setWord(&MSW,PTT,ptt);
-    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+
+   if (ptt==true) {
+     if (getWord(MSW,PTT)==false && fdds==true) {                // Signal RF generator now is I/Q mode
+        Fout[0]=1111.0;
+        Fout[1]=1111.0;
+        fwrite(Fout, sizeof(float), 2, outfile) ;
+        usleep(100);
+      }
+      setWord(&MSW,PTT,true); //Signal PTT as ON
+      return;
+   }
+
+   if (getWord(MSW,PTT)==true && fdds==true) { //Signal RF Generator the mode is now FREQ_A (only if dds mode allowed)
+      Fout[0]=2222.0;
+      Fout[1]=2222.0;
+      fwrite(Fout, sizeof(float), 2, outfile) ;
+      usleep(100);
+   }
+   setWord(&MSW,PTT,false); // Signal the PTT as OFF
 
 }
 //---------------------------------------------------------------------------------
@@ -242,7 +261,7 @@ int main(int argc, char* argv[])
         (TRACE >= 0x02 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
 	while(1)
 	{
-		ax = getopt(argc, argv, "a:v:p:dt:");
+		ax = getopt(argc, argv, "a:v:p:dxqt:");
                 if(ax == -1) 
 		{
 			if(ax) break;
@@ -256,40 +275,33 @@ int main(int argc, char* argv[])
 			agc_max = atof(optarg);
                         if (agc_max>0.0) {
 	                   agc_thr=agc_max*AGC_LEVEL;
-	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s: AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
+	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s:Args() AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
   	                } else {
 	  	           agc_max=0.0;
 		 	   agc_thr=0.0;
-	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s: AGC max invalid\n",PROGRAMID) : _NOP);
+	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s:Args() AGC max invalid\n",PROGRAMID) : _NOP);
 		        }
 			break;
-
-
                 case 't': // Debug level
                         TRACE = atoi(optarg);
-                        if (TRACE >=0x00 && TRACE <= 0x03) {
-                           (TRACE>=0x01 ? fprintf(stderr,"%s: Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
-                        } else {
-                           (TRACE>=0x01 ? fprintf(stderr,"%s: Invalid debug level informed, ignored TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
-                           TRACE=0x00;
-                        }
+                        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
                         break;
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
-		        if (vox_timeout > VOX_MIN && vox_timeout <= VOX_MAX) {
-   		           (TRACE>=0x01 ? fprintf(stderr,"%s: VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
-		        } else {
-	    		   (TRACE>=0x01 ? fprintf(stderr,"%s: invalid VOX timeout\n",PROGRAMID) : _NOP);
-                        }
+   		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
 			break;
-		case 'd': // autoPTT
-			autoPTT=true;
-  		        (TRACE>=0x01 ? fprintf(stderr,"%s: auto PTT enabled VOX timeout(%d) secs\n",PROGRAMID,vox_timeout) : _NOP);
+		case 'q': // go quiet
+			fquiet=true;
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() quiet operation (no messages)\n",PROGRAMID) : _NOP);
+			break;
+		case 'd': // go quiet
+			fdds=true;
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() DDS operation enabled\n",PROGRAMID) : _NOP);
 			break;
 		case 'p': //GPIO PTT
 			gpio_ptt  = atoi(optarg);
 		        if (gpio_ptt > 0) {
-   		           (TRACE>=0x01 ? fprintf(stderr,"%s: PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
+   		           (TRACE>=0x01 ? fprintf(stderr,"%s:Args() PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
 		        } else {
 	    		   (TRACE>=0x01 ? fprintf(stderr,"%s: invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
                         }
@@ -319,12 +331,6 @@ int main(int argc, char* argv[])
            sa.sa_handler = terminate;
            sigaction(i, &sa, NULL);
         }
-
-FILE *iqfile=NULL;
-FILE *outfile=NULL;
-
-        autoPTT=true;
-        vox_timeout=2;
 
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
@@ -400,36 +406,22 @@ float   gain=1.0;
            if (vox_timeout > 0) {  //Is the timeout activated?
               if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
                  if (TVOX==0) {    //Is the timer counter idle
-                    fprintf(stderr,"VOX=1\n\n");
+                    (fquiet==true ? fprintf(stderr,"VOX=1\n\n") : _NOP) ;
                  }
                  TVOX=vox_timeout; //Refresh the timeout
-
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
-                    if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
-                       Fout[0]=1111.0;
-                       Fout[1]=1111.0;
-                       fwrite(Fout, sizeof(float), 2, outfile) ;
-                       usleep(100);
-                    }
-                    setWord(&MSW,PTT,true); //Signal PTT as ON
+                    setPTT(true);
                  }
               }
 
               if (fVOX==1) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
-                 fprintf(stderr,"VOX=0\n"); //and inform VOX is down
+                 (fquiet==true ? fprintf(stderr,"VOX=0\n") : _NOP) ; //and inform VOX is down
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
-                    if (getWord(MSW,PTT)==true) { //Signal RF Generator the mode is now FREQ_A
-                       Fout[0]=2222.0;
-                       Fout[1]=2222.0;
-                       fwrite(Fout, sizeof(float), 2, outfile) ;
-                       usleep(100);
-                    }
-                    setWord(&MSW,PTT,false); // Signal the PTT as OFF
+                    setPTT(false);
                  }
               }
            }
-
 
 	   if(nbread>0) { // now process the audio samples into an I/Q signal
 	      numSamplesLow=usb->generate(buffer_i16,nbread,Ibuffer,Qbuffer);

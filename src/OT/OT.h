@@ -51,6 +51,22 @@
 #define BOOL2CHAR(x)  (x==true ? "True" : "False")
 
 
+//*--- AGC performance parameters
+
+#define AGC_REF          1.0
+#define AGC_MAX          5.0
+#define AGC_ALPHA        0.5
+#define AGC_GAIN         1.0
+#define AGC_LEVEL       0.80
+
+//*--- VOX performance paramenters
+
+#define VOX_TIMEOUT      2.0
+#define VOX_MIN          0.0
+#define VOX_MAX         10.0
+
+
+
 #define ONESEC       1
 
 #define CHANNEL      1
@@ -99,6 +115,7 @@
 #define RUN       0B00100000
 #define RETRY     0B01000000
 #define BCK       0B10000000
+#define QUIET     0B10000000
 
 #define MLSB      0x00
 #define MUSB      0x01
