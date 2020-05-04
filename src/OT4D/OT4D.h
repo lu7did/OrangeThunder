@@ -53,11 +53,11 @@
 #include <unistd.h>
 
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
-#include "/home/pi/OrangeThunder/src/OT/OT.h"
-#include "/home/pi/OrangeThunder/src/lib/gpioWrapper.h"
-#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
-#include "/home/pi/PixiePi/src/lib/CAT817.h" 
-#include "/home/pi/OrangeThunder/src/lib/genVFO.h"
+#include "../OT/OT.h"
+#include "../lib/gpioWrapper.h"
+#include "../lib/genSSB.h"
+#include "../lib/CAT817.h" 
+#include "../lib/genVFO.h"
 
 // *********************************************************************************************************
 // * Personalization can be made either to the OrangeThunder project (OT4D) or PixiePi project (Pi4D)
@@ -66,7 +66,7 @@
 #ifdef OT4D
 
 // --- OT4D specific includes
-#include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
+#include "../lib/rtlfm.h"
 
 
 const char   *PROGRAMID="OT4D";

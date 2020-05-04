@@ -44,7 +44,7 @@
 #include<string.h>
 #include<stdio.h>
 #include<fcntl.h> 
-#include "/home/pi/OrangeThunder/src/lib/rtlfm.h"
+#include "rtlfm.h"
 
 // --- IPC structures
 

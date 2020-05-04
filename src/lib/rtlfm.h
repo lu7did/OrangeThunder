@@ -27,7 +27,7 @@
 #include <fstream>
 using namespace std;
 
-#include "/home/pi/OrangeThunder/src/OT/OT.h"
+#include "../OT/OT.h"
 #define MLSB   0x00
 #define MUSB   0x01
 #define MCW    0x02

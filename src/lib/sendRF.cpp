@@ -120,6 +120,8 @@ int main(int argc, char* argv[])
 	enum {typeiq_i16,typeiq_u8,typeiq_float,typeiq_double};
 	int InputType=typeiq_float;
 	int Decimation=1;
+      float driveDDS=1.0;
+      float f=14074000.0;
         bool fdds=false;
 	while(1)
 	{
@@ -136,6 +138,11 @@ int main(int argc, char* argv[])
 		{
 		case 'i': // File name
 			FileName = optarg;
+			break;
+                case 'l': // File name
+			driveDDS=atof(optarg);
+                        if(driveDDS<0) {driveDDS=0.0;}
+                        if(driveDDS>7) {driveDDS=7.0;}
 			break;
                 case 'd': // File name
 			fdds = true;
@@ -244,10 +251,29 @@ int main(int argc, char* argv[])
                                 iqtest.ModeIQ=MODE_FREQ_A;
                              }
                           }
+                          if (IQBuffer[i*2]==3333.0){  //this is a bogus command to change the carrier level
+                             driveDDS=IQBuffer[i*2+1];
+                             IQBuffer[i*2]=0.0;
+                             IQBuffer[i*2+1]=0.0;
+                          } 
+
+                          if (IQBuffer[i*2]==4444.0){  //this is a bogus command to change the frequency
+                             SetFrequency=IQBuffer[i*2+1];
+
+                             iqtest.clkgpio::disableclk(4);
+                             iqtest.clkgpio::SetAdvancedPllMode(true);
+                             iqtest.clkgpio::SetCenterFrequency(SetFrequency,SampleRate);
+                             iqtest.clkgpio::SetFrequency(0);
+                             iqtest.clkgpio::enableclk(4);
+
+                             IQBuffer[i*2]=0.0;
+                             IQBuffer[i*2+1]=0.0;
+                          } 
+
  
 		          if (iqtest.ModeIQ==MODE_FREQ_A) {  //if into Frequency-Amplitude mode then only drive a constant carrier
                              IQBuffer[i*2]=10.0;
-                             IQBuffer[i*2+1]=1.0;
+                             IQBuffer[i*2+1]=driveDDS;
                           }
 		          CIQBuffer[CplxSampleNumber++]=std::complex<float>(IQBuffer[i*2],IQBuffer[i*2+1]);
                       } //endfor

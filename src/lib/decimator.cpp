@@ -72,9 +72,9 @@
 
 //#include "/home/pi/PixiePi/src/lib/SSB.h"
 #include "/home/pi/librpitx/src/librpitx.h"
-#include "/home/pi/OrangeThunder/src/OT/OT.h"
-#include "/home/pi/OrangeThunder/src/OT4D/transceiver.h"
-#include "/home/pi/PixiePi/src/lib/Decimator.h"
+#include "../OT/OT.h"
+#include "../OT4D/transceiver.h"
+#include "Decimator.h"
 
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="decimator";

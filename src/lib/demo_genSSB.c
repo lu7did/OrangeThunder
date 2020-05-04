@@ -42,9 +42,9 @@
 #include<stdio.h>
 #include<fcntl.h> 
 #include <pigpio.h>
-#include "/home/pi/OrangeThunder/src/lib/genSSB.h"
-#include "/home/pi/PixiePi/src/lib/RPI.h" 
-#include "/home/pi/PixiePi/src/lib/CAT817.h" 
+#include "genSSB.h"
+//#include "/home/pi/PixiePi/src/lib/RPI.h" 
+#include "CAT817.h" 
 
 
 //#define BOOL2CHAR(g)  (g==true ? "True" : "False")
