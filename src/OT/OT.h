@@ -81,6 +81,9 @@
 #define GPIO_COOLER 19
 #define GPIO_AUX    20
 #define GPIO_PA     21
+#define GPIO_CLK    17
+#define GPIO_DT     18
+#define GPIO_SW     27
 
 #define GPIO_IN      0
 #define GPIO_OUT     1

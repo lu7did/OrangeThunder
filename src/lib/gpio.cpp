@@ -351,13 +351,46 @@ int    j=0;
   
    }
 
+// *--------------------------[Rotary Encoder Interrupt Handler]--------------------------------------
+// * Interrupt handler for Rotary Encoder CW and CCW control
+// *--------------------------------------------------------------------------------------------------
+void updateEncoders(int gpio, int level, uint32_t tick)
+{
+        if (level != 0) {  //ignore non falling part of the interruption
+           return;
+        }
+
+        int clkState=gpioRead(GPIO_CLK);
+        int dtState= gpioRead(GPIO_DT);
+
+        endEncoder = std::chrono::system_clock::now();
+        int lapEncoder=std::chrono::duration_cast<std::chrono::milliseconds>(endEncoder - startEncoder).count();
+
+        if ( lapEncoder  < MINENCLAP )  {
+             (TRACE>=0x02 ? fprintf(stderr,"Encoder: ignore pulse too close from last\n",PROGRAMID) : _NOP);
+             return;
+        }
+
+        if (dtState != clkState) {
+          counter++;
+          fprintf(stderr,"ENC=-1\n");
+        } else {
+          counter--;
+          fprintf(stderr,"ENC=+1\n");
+        }
+
+        clkLastState=clkState;        
+        startEncoder = std::chrono::system_clock::now();
+
+}
+
 // *--------------------------------------------------------------------------------
 // * parse arguments
 // *--------------------------------------------------------------------------------
 
 
         while ( 1 ) {
-             int opt = getopt(argc, argv, "p:v:hq");
+             int opt = getopt(argc, argv, "p:v:e:hq");
              if(opt == -1) {
    	       if(anyargs) break;
 	       else opt='h'; //print usage and exit
@@ -376,6 +409,11 @@ int    j=0;
 			q = true;
                         (TRACE >= 0x01 ? fprintf(stderr,"%s  QUIT=%s\n",PROGRAMID,BOOL2CHAR(q)) : _NOP);
 			break; }
+                case 'e': {
+                        encoder=true;
+                        (TRACE >= 0x01 ? fprintf(stderr,"%s  ENCODER=%s\n",BOOL2CHAR(encoder),optarg) : _NOP);
+                        break;
+                        }
 		case 'v': {
 			TRACE = (byte)(atoi(optarg));
                         (TRACE >= 0x01 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
@@ -419,6 +457,19 @@ int    j=0;
 
    int rc=gpioSetSignalFunc(SIGTERM,(gpioSignalFunc_t)gpioSIGTERM);
    rc=gpioSetSignalFunc(SIGINT,(gpioSignalFunc_t)gpioSIGTERM);
+
+   if (encoder==true) {
+      gpioSetMode(GPIO_CLK, PI_INPUT);
+      gpioSetPullUpDown(ENCODER_CLK,PI_PUD_UP);
+      usleep(10000);
+
+      gpioSetISRFunc(GPIO_CLK, FALLING_EDGE,0,updateEncoders);
+      gpioSetMode(GPIO_DT, PI_INPUT);
+      gpioSetPullUpDown(GPIO_DT,PI_PUD_UP);
+      usleep(10000);
+      (TRACE>=0x02 ? fprintf(stderr,"%s:main() Enabled encoder processing\n",PROGRAMID);
+   }
+
 
 
    int ngpio=0;

@@ -31,6 +31,7 @@ using namespace std;
 typedef unsigned char byte;
 typedef bool boolean;
 typedef void (*CALLBACKPIN)(int pin,int state);
+typedef void (*CALLBACKENC)(int clk,int dt,int state);
 
 bool getWord (unsigned char SysWord, unsigned char v);
 void setWord(unsigned char* SysWord,unsigned char v, bool val);
@@ -57,10 +58,13 @@ class gpioWrapper
 // --- public methods
 
 CALLBACKPIN changePin=NULL;
+CALLBACKENC changeEncoder=NULL;
+
      int start();
     void stop();
      int readpipe(char* buffer,int len);
      int setPin(int pin, int mode, int pullup,int longpush);
+     int setEncoder(int c,int d);
     void writePin(int pin, int v);
      int openPipe();
 
@@ -75,6 +79,9 @@ CALLBACKPIN changePin=NULL;
       int                 inpipefd[2];
       int                 outpipefd[2];
 
+      boolean             encoder=false;
+      int                 clk;
+      int                 dt;
       byte                MSW = 0;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="gpio";
@@ -173,8 +180,17 @@ char cmd[16];
    } else {
       sprintf(cmd," ");
    }
+
+char charEncoder[8];
+
+   if (this->encoder==true) {
+      sprintf(charEncoder," -e ");
+   } else {
+      sprintf(charEncoder," "); 
+
+   }
       
-   sprintf(command,"sudo gpio %s %s",ports,cmd);
+   sprintf(command,"sudo gpio %s %s %s ",ports,cmd,charEncoder);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
@@ -204,6 +220,16 @@ char cmd[16];
 int  gpioWrapper::openPipe() {
 
      return -1;
+}
+//---------------------------------------------------------------------------------------------------
+// define encoder operations (fork processes) Implementation
+//--------------------------------------------------------------------------------------------------
+int gpioWrapper::setEncoder(int c, int d) {
+
+     this->encoder=true;
+     this->clk=c;
+     this->dt=d;
+     return 0;
 }
 //---------------------------------------------------------------------------------------------------
 // setPin CLASS Implementation
@@ -240,9 +266,30 @@ int gpioWrapper::readpipe(char* buffer,int len) {
     }
     buffer[rc]=0x00;
 
+    if (strcmp(buffer,"ENC=+1\n")==0) {
+       if (changeEncoder != NULL) {
+          changeEncoder(clk,dt,1);
+       }
+    }
+    if (strcmp(buffer,"ENC=-1\n")==0) {
+       if (changeEncoder != NULL) {
+          changeEncoder(clk,dt,-1);
+       }
+    }
+
+    if (strcmp(buffer,"GPIO27=0\n")==0) {
+       if (changePin != NULL) {
+          changePin(27,0);
+       }
+    }
     if (strcmp(buffer,"GPIO20=0\n")==0) {
        if (changePin != NULL) {
           changePin(20,0);
+       }
+    }
+    if (strcmp(buffer,"GPIO27=1\n")==0) {
+       if (changePin != NULL) {
+          changePin(27,1);
        }
     }
     if (strcmp(buffer,"GPIO20=1\n")==0) {
