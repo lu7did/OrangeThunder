@@ -64,7 +64,7 @@ CALLBACKENC changeEncoder=NULL;
     void stop();
      int readpipe(char* buffer,int len);
      int setPin(int pin, int mode, int pullup,int longpush);
-     int setEncoder(int c,int d);
+     int setEncoder(CALLBACKENC e);
     void writePin(int pin, int v);
      int openPipe();
 
@@ -190,7 +190,7 @@ char charEncoder[8];
 
    }
       
-   sprintf(command,"sudo gpio %s %s %s ",ports,cmd,charEncoder);
+   sprintf(command,"sudo gpioWrapper %s %s %s ",ports,cmd,charEncoder);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
@@ -224,11 +224,14 @@ int  gpioWrapper::openPipe() {
 //---------------------------------------------------------------------------------------------------
 // define encoder operations (fork processes) Implementation
 //--------------------------------------------------------------------------------------------------
-int gpioWrapper::setEncoder(int c, int d) {
+int gpioWrapper::setEncoder(CALLBACKENC e) {
 
+     if (e==NULL) {
+        (TRACE>=0x00 ? fprintf(stderr,"%s::setEncodeer invalid upcall procedure given, ignored\n",PROGRAMID) : _NOP);
+        return -1;
+     }
+     this->changeEncoder=e;
      this->encoder=true;
-     this->clk=c;
-     this->dt=d;
      return 0;
 }
 //---------------------------------------------------------------------------------------------------
@@ -264,7 +267,15 @@ int gpioWrapper::readpipe(char* buffer,int len) {
     if (rc<=0) {
        return 0;
     }
-    buffer[rc]=0x00;
+
+    if (strcmp(&buffer[rc-1],"\n")==0) {
+       buffer[rc-1]=0x00;
+    } else {
+       buffer[rc]=0x00;
+    }
+
+    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::readpipe() received pipe message from gpio handler(%s)\n",PROGRAMID,buffer) : _NOP);
+
 
     if (strcmp(buffer,"ENC=+1\n")==0) {
        if (changeEncoder != NULL) {

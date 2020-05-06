@@ -1,5 +1,5 @@
 /*
-   gpio.cpp
+   gpioWrapper.cpp
 
 */ 
 /*
@@ -82,7 +82,7 @@ auto     startPush=std::chrono::system_clock::now();
 auto     endPush=std::chrono::system_clock::now();
 
 
-const char   *PROGRAMID="gpio";
+const char   *PROGRAMID="gpioWrapper";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";

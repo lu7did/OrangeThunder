@@ -144,4 +144,7 @@ typedef void (*CALLBACK)();
 // GPIO pins
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 
+#define MINSWPUSH  10
+#define MAXSWPUSH  2000
+#define MINENCLAP   2
 
