@@ -43,8 +43,6 @@ struct gpio_state
         bool     pullup;
         bool     longpush;
 };
-
-
 //---------------------------------------------------------------------------------------------------
 // gpio CLASS
 //---------------------------------------------------------------------------------------------------
@@ -277,36 +275,47 @@ int gpioWrapper::readpipe(char* buffer,int len) {
     (this->TRACE >= 0x01 ? fprintf(stderr,"%s::readpipe() received pipe message from gpio handler(%s)\n",PROGRAMID,buffer) : _NOP);
 
 
-    if (strcmp(buffer,"ENC=+1\n")==0) {
+    if (strcmp(buffer,"ENC=+1")==0) {
        if (changeEncoder != NULL) {
           changeEncoder(clk,dt,1);
        }
+       return 0;
     }
-    if (strcmp(buffer,"ENC=-1\n")==0) {
+    if (strcmp(buffer,"ENC=-1")==0) {
        if (changeEncoder != NULL) {
           changeEncoder(clk,dt,-1);
        }
+       return 0;
     }
 
-    if (strcmp(buffer,"GPIO27=0\n")==0) {
-       if (changePin != NULL) {
-          changePin(27,0);
-       }
+    char *gpio = strstr(buffer,"GPIO");
+    if (gpio==NULL) {
+       return 0;
     }
-    if (strcmp(buffer,"GPIO20=0\n")==0) {
-       if (changePin != NULL) {
-          changePin(20,0);
-       }
+
+    gpio=gpio+4;
+
+    char *equal =strstr(buffer,"=");
+    if (equal==NULL) {
+       return 0;
     }
-    if (strcmp(buffer,"GPIO27=1\n")==0) {
-       if (changePin != NULL) {
-          changePin(27,1);
-       }
-    }
-    if (strcmp(buffer,"GPIO20=1\n")==0) {
-       if (changePin != NULL) {
-          changePin(20,1);
-       }
+
+    equal[0]=0x00;
+    equal++;
+
+    char pinnum[8];
+    char pinstate[8];
+
+    strcpy(pinnum,gpio);
+    strcpy(pinstate,equal);
+    (TRACE>=0x03 ? fprintf(stderr,"%s:readpipe() GPIO CRUDE pin(%s) state(%s)\n",PROGRAMID,pinnum,pinstate) : _NOP);
+
+    int pin = atoi(pinnum);
+    int state=atoi(pinstate);
+
+    (TRACE>=0x03 ? fprintf(stderr,"%s:readpipe() GPIO PARSE pin(%d) state(%d)\n",PROGRAMID,pin,state) : _NOP);
+    if (changePin != NULL) {
+       changePin(pin,state);
     }
 
     return rc;

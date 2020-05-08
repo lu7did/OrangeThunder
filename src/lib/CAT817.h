@@ -644,6 +644,10 @@ void CAT817::open(char* port, int speed) {
 //*-------------------------------------------------------------------------
 void CAT817::get() {
 
+    if (this->active==false) {
+       (this->TRACE>=0x03 ? fprintf(stderr, "%s::get() Unable to process request, serial port problem(%d)\n",this->PROGRAMID,this->serial_port) : _NOP);
+       return;
+    }
     char  buf[16];
     //this->TRACE=0x02;
     if (this->serial_port < 0) {

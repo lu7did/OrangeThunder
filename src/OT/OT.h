@@ -69,9 +69,13 @@
 
 #define ONESEC       1
 
+//*--- Sound related definitions
+
 #define CHANNEL      1
 #define SOUNDHW    "Loopback"
 #define AFRATE   48000
+
+//*--- Define GPIO constants
 
 #define MAXGPIO 	32
 
@@ -119,6 +123,17 @@
 #define RETRY     0B01000000
 #define BCK       0B10000000
 #define QUIET     0B10000000
+
+//*--- GUI System Word (GSW)
+
+#define ECW       0B00000001
+#define ECCW      0B00000010
+#define FSW       0B00000100
+#define FSWL      0B00001000
+#define FAUX      0B00010000
+#define FAUXL     0B00100000
+#define FGUI      0B01000000
+#define FBLINK    0B10000000
 
 #define MLSB      0x00
 #define MUSB      0x01
