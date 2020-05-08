@@ -82,7 +82,7 @@ CALLBACKENC changeEncoder=NULL;
       int                 dt;
       byte                MSW = 0;
 //-------------------- GLOBAL VARIABLES ----------------------------
-const char   *PROGRAMID="gpio";
+const char   *PROGRAMID="gpioWrapper";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
@@ -189,7 +189,7 @@ char charEncoder[8];
    }
       
    sprintf(command,"sudo gpioWrapper %s %s %s ",ports,cmd,charEncoder);
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
+   (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
 
@@ -272,7 +272,7 @@ int gpioWrapper::readpipe(char* buffer,int len) {
        buffer[rc]=0x00;
     }
 
-    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::readpipe() received pipe message from gpio handler(%s)\n",PROGRAMID,buffer) : _NOP);
+    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::readpipe() received pipe message from gpio handler(%s)\n",PROGRAMID,buffer) : _NOP);
 
 
     if (strcmp(buffer,"ENC=+1")==0) {

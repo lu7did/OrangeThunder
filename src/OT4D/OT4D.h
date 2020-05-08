@@ -93,7 +93,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 // --- IPC structures
 struct sigaction sigact;
 char   HW[32];
-bool   bRetry=false;
 bool   vox=true;
 
 #ifdef OT4D
@@ -198,10 +197,11 @@ static void sighandler(int signum)
 
    (TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum) : _NOP);
    setWord(&MSW,RUN,false);
-   if (bRetry==true) {
+   if (getWord(MSW,RETRY)==true) {
       (TRACE >= 0x00 ? fprintf(stderr, "\n%s:sighandler() Re-entering SIG(%d), force!\n",PROGRAMID,signum) : _NOP);
       exit(16);
    }
+   setWord(&MSW,RETRY,true);
 
 }
 // *---------------------------------------------------------------------------------------------------------------------

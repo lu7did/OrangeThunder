@@ -410,24 +410,24 @@ int    j=0;
 		case 'p': {
                         int p=parseport(optarg,&gpio[0]);
                         if (p==-1) {
- 			  (TRACE >= 0x01 ? fprintf(stderr,"%s  port(?) invalid, ignored!\n",PROGRAMID) : _NOP);
+ 			  (TRACE >= 0x02 ? fprintf(stderr,"%s  port(?) invalid, ignored!\n",PROGRAMID) : _NOP);
                         } else {
                           gpio[p].active=true;
-                          (TRACE >= 0x01 ? fprintf(stderr,"%s  port=[%d,%s,%s] set\n",PROGRAMID,p,BOOL2CHAR(gpio[p].mode),BOOL2CHAR(gpio[p].pullup)) : _NOP);
+                          (TRACE >= 0x02 ? fprintf(stderr,"%s  port=[%d,%s,%s] set\n",PROGRAMID,p,BOOL2CHAR(gpio[p].mode),BOOL2CHAR(gpio[p].pullup)) : _NOP);
                         }
 			break; }
 		case 'q': {
 			q = true;
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  QUIT=%s\n",PROGRAMID,BOOL2CHAR(q)) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  QUIT=%s\n",PROGRAMID,BOOL2CHAR(q)) : _NOP);
 			break; }
                 case 'e': {
                         encoder=true;
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  ENCODER=%s\n",PROGRAMID,BOOL2CHAR(encoder)) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  ENCODER=%s\n",PROGRAMID,BOOL2CHAR(encoder)) : _NOP);
                         break;
                         }
 		case 'v': {
 			TRACE = (byte)(atoi(optarg));
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
 			break; }
 		case 'h':
 		default: {

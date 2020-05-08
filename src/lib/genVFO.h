@@ -88,15 +88,18 @@ class genVFO
       float get();
 
       byte  vfo=VFOA;      
+
       byte  FT817=0x00;
-      byte  MODE=MUSB;
       byte  TRACE=0x00;
+      byte  MODE=MUSB;
 
       void  setSplit(bool b);
       float setPTT(bool b);
 
       void setRIT(byte v,bool b);
       void setRIT(bool b);
+
+      void swapVFO();
 
       int  getBand(float f);
       void setBand(byte band);
@@ -115,6 +118,9 @@ class genVFO
       float updateRIT(byte v,int dir);
       float updateRIT(int dir);
 
+      float valueRIT(byte v);
+      float valueRIT();
+
       bool  getSplit();
       bool  getRIT(byte v);
       bool  getRIT();
@@ -122,7 +128,7 @@ class genVFO
       long int code2step(byte b);
       byte step2code(long int s);
 
-      FSTR     vfostr[VFOMAX];
+      FSTR vfostr[VFOMAX];
       CALLBACK changeVFO=NULL;
 
   
@@ -321,6 +327,16 @@ void genVFO::setStep(byte v, byte s) {
 
    return;
 }
+
+void genVFO::swapVFO() {
+
+   if (this->vfo==VFOA) {
+      this->vfo = VFOB;
+      return;
+   }
+   this->vfo=VFOA;
+   return;
+}
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
@@ -418,32 +434,68 @@ float genVFO::up() {
 float genVFO::down() {
    return this->update(-1);
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::valueRIT(byte v) {
 
-float genVFO::updateRIT(byte v,int dir) {
+   if (v<0 || v>VFOMAX) {
+      return 0.0;
+   }
 
-    float r=rit[v]+(dir*VFO_STEP_100Hz);
-    if ((f[v]+r > hiFreq[band[v]]*1000) || (f[v]+r < loFreq[band[v]]*1000)) {
-       (this->TRACE>=0x02 ? fprintf(stderr,"%s::updateRIT() ** out of band **VFO[%s] dir[%d] r[%f]->[%f] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,rit[v],r,f[v],f[v]+rit[v]) : _NOP);     
-       return f[v]+rit[v];
-    }
-   (this->TRACE>=0x02 ? fprintf(stderr,"%s::updateRIT() VFO[%s] dir[%d] r[%f]->[%f] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,rit[v],r,f[v],f[v]+r) : _NOP);     
-    rit[v]=r;
-    return f[v]+rit[v];
+   if (this->getRIT(v)==false) {
+      return 0.0;
+   }
+
+   return rit[v];
 
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::valueRIT() {
+   return valueRIT(this->vfo);
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::updateRIT(byte v,int dir) {
+
+    if (v<0 || v>VFOMAX) {
+       return 0.0;
+    }
+float d=dir*VFO_STEP_100Hz;
+
+    if ( abs(rit[v]+d)>999.0 ){
+       return rit[v];
+    }
+    rit[v]=rit[v]+d;
+    return rit[v];
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 float genVFO::updateRIT(int dir) {
 
    return updateRIT(vfo,dir);
 }
-
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 bool  genVFO::getSplit() {
 
     return getWord(FT817,SPLIT);
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 bool  genVFO::getRIT(byte v) {
 
     return getWord(FT817,RIT);
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 bool  genVFO::getRIT() {
 
     return getRIT(vfo);

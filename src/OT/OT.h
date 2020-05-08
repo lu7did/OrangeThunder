@@ -135,6 +135,11 @@
 #define FGUI      0B01000000
 #define FBLINK    0B10000000
 
+
+//*--- Signal Control Word (SSW)
+#define FVFO      0B00000001
+
+
 #define MLSB      0x00
 #define MUSB      0x01
 #define MCW       0x02
