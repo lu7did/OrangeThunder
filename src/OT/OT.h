@@ -138,7 +138,7 @@
 
 //*--- Signal Control Word (SSW)
 #define FVFO      0B00000001
-
+#define FBCK      0B00000010
 
 #define MLSB      0x00
 #define MUSB      0x01
@@ -168,3 +168,4 @@ typedef void (*CALLBACK)();
 #define MAXSWPUSH  2000
 #define MINENCLAP   2
 
+#define BACKLIGHT  15000

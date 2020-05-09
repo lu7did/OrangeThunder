@@ -2,6 +2,7 @@
 //* Callback timer System Class   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
 //* this is part of the PixiePi platform
+//* Excerpts from StackOverflow forum response Mikael Persson May,24,2019
 //* Only for ham radio usages
 //* Copyright 2018,2020 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
