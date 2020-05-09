@@ -139,6 +139,8 @@
 //*--- Signal Control Word (SSW)
 #define FVFO      0B00000001
 #define FBCK      0B00000010
+#define FSAVE     0B00000100
+
 
 #define MLSB      0x00
 #define MUSB      0x01
