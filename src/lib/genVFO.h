@@ -108,7 +108,7 @@ class genVFO
       void setStep(byte v,byte s);
       void setStep(byte s);
 
-      char* vfo2str(byte v);
+      void vfo2str(byte v,char* b);
 
       float up();
       float down();
@@ -133,6 +133,7 @@ class genVFO
       byte step2code(long int s);
 
       FSTR vfostr[VFOMAX];
+
       CALLBACK changeVFO=NULL;
       CALLBACK changeMode=NULL;
       CALLBACK changeStatus=NULL;
@@ -145,7 +146,7 @@ const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
-
+      char*   buffer;
 
       void f2str(float f, FSTR* v);
 
@@ -163,7 +164,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
       float fmin[VFOMAX];
       float fmax[VFOMAX];
       byte  band[VFOMAX];
-      byte  mode[VFOMAX];
 
 };
 
@@ -173,23 +173,19 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 //*---------------------------------------------------------------------------------------------------
 genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
 {
-  
-  if (df!=NULL) {this->changeVFO=df;}   //* Callback of change VFO frequency
-  if (dm!=NULL) {this->changeMode=dm;}
-  if (ds!=NULL) {this->changeStatus=ds;}
+
+  buffer=(char*)malloc(128);
 
   setWord(&FT817,VFO,VFOA);
   setWord(&FT817,PTT,0);
   setWord(&FT817,RIT,false);
   setWord(&FT817,SPLIT,false);
-  //setWord(&FT817,SHIFT,false);
 
   for (int i=0;i<VFOMAX;i++) {
 
      step[i]=VFO_STEP_100Hz;
      rit[i]=0.0;
      shift[i]=600.0;
-     mode[i]=MCW;
 
   }
 
@@ -208,7 +204,16 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
   this->set(VFOB,14074000);
   this->vfo=VFOA;
   this->setPTT(false);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() Initialization completed\n",PROGRAMID) : _NOP);   
+
+
+  if (df!=NULL) {this->changeVFO=df;}   //* Callback of change VFO frequency
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeVFO initialized\n",PROGRAMID) : _NOP);   
+
+  if (dm!=NULL) {this->changeMode=dm;}
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeMode initialized\n",PROGRAMID) : _NOP);   
+
+  if (ds!=NULL) {this->changeStatus=ds;}
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeStatus initialized\n",PROGRAMID) : _NOP);   
 
 }
 //*---------------------------------------------------------------------------------------------------
@@ -216,7 +221,7 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
 //*---------------------------------------------------------------------------------------------------
 byte genVFO::getMode(byte v){
    if (v!=VFOA && v!=VFOB) {return VFOA;}
-   return this->mode[v];
+   return this->MODE;
 }
 byte genVFO::getMode() {
      return getMode(this->vfo);
@@ -226,7 +231,7 @@ void genVFO::setMode(byte v,byte m) {
    if (m!=MCW && m!=MCWR && m!=MDIG) {
       return;
    }
-   mode[v]=m;
+   this->MODE=m;
    if (changeMode!=NULL) {changeMode();}
 }
 void genVFO::setMode(byte m) {
@@ -237,14 +242,17 @@ void genVFO::setMode(byte m) {
 //*---------------------------------------------------------------------------------------------------
 void genVFO::set(byte v,float freq) {
 
+
    if (v!=VFOA && v!=VFOB) {return;}
+   this->vfo2str(v,buffer);
+
    if (freq<loFreq[band[v]]*1000 || freq>hiFreq[band[v]]*1000) {
-      (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] **ERROR** freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,vfo2str(v),freq,fmin[v],fmax[v],band[v]) : _NOP);   
+      (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] **ERROR** freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,buffer,freq,fmin[v],fmax[v],band[v]) : _NOP);   
       return;
    }
    f[v]=freq;  
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,vfo2str(v),f[v],fmin[v],fmax[v],band[v]) : _NOP);   
-   if (changeVFO!=NULL) {changeVFO();}
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,buffer,f[v],fmin[v],fmax[v],band[v]) : _NOP);   
+   if (this->changeVFO!=NULL) {this->changeVFO();}
    return ;
 }
 //*---------------------------------------------------------------------------------------------------
@@ -278,7 +286,8 @@ float genVFO::get() {
 
 void genVFO::setSplit(bool b) {
    setWord(&FT817,SPLIT,b);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,vfo2str(this->vfo),BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
+  this->vfo2str(this->vfo,buffer);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
    if (changeStatus!=NULL) {changeStatus();}
    return;
 }
@@ -292,7 +301,8 @@ void genVFO::setRIT(byte v,bool b) {
    }
 
    setWord(&FT817,RIT,b);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,vfo2str(v),BOOL2CHAR(getWord(FT817,RIT)),rit[v]) : _NOP);   
+   this->vfo2str(v,buffer);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,RIT)),rit[v]) : _NOP);   
    if (changeStatus!=NULL) {changeStatus();}
    return;
 }
@@ -308,6 +318,7 @@ float genVFO::setPTT(bool b) {
 byte  v;
 float o;
 
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()\n",PROGRAMID) : _NOP);   
 
    if (getWord(FT817,SPLIT)==true) {
       (vfo==VFOA ? v=VFOB : v=VFOA);
@@ -355,7 +366,8 @@ void genVFO::setStep(byte v, byte s) {
       return;
    }
    step[v]=stepList[s];
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setStep() VFO[%s] Code[%d] Step[%f]\n",PROGRAMID,vfo2str(v),s,step[v]) : _NOP);   
+  this->vfo2str(v,buffer);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setStep() VFO[%s] Code[%d] Step[%f]\n",PROGRAMID,buffer,s,step[v]) : _NOP);   
   if (changeStatus!=NULL) {changeStatus();}
   return;
 }
@@ -385,9 +397,11 @@ void genVFO::setStep(byte s) {
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
-char* genVFO::vfo2str(byte v) {
-   return (v==VFOA ? (char*)"VfoA" : (char*)"VfoB");
+void genVFO::vfo2str(byte v,char* b) {
+char p[128];
+   (v == VFOA ? sprintf(p,"%s","VfoA")  : sprintf(p,"%s","VfoB"));
+   sprintf(b,p);
+   return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
@@ -395,12 +409,12 @@ char* genVFO::vfo2str(byte v) {
 
 void genVFO::setBand(byte v,byte band) {
 
-  //this->set(v,loFreq[band]*1000);
   this->band[v]=band;
   this->fmin[v]=loFreq[band]*1000;
   this->fmax[v]=hiFreq[band]*1000;
   this->set(v,fmin[v]);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setBand() VFO[%s] Code[%d] fmin[%f fmax[%f] f[%f]\n",PROGRAMID,vfo2str(v),band,loFreq[band]*1000,hiFreq[band]*1000,f[v]) : _NOP);   
+  this->vfo2str(v,buffer);
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setBand() VFO[%s] Code[%d] fmin[%f fmax[%f] f[%f]\n",PROGRAMID,buffer,band,loFreq[band]*1000,hiFreq[band]*1000,f[v]) : _NOP);   
    return;
 }
 
@@ -410,7 +424,7 @@ void genVFO::setBand(byte v,byte band) {
 
 void genVFO::setBand(byte band) {
 
-   this->setBand(vfo,band);
+   this->setBand(this->vfo,band);
    return;
 }
 //*---------------------------------------------------------------------------------------------------
@@ -447,7 +461,8 @@ float genVFO::update(byte v,int dir) {
       f[v]=fmin[v];
    }
 
-   (this->TRACE>=0x02 ? fprintf(stderr,"%s::update() VFO[%s] dir[%d] f[%f]->[%f]\n",PROGRAMID,vfo2str(v),dir,freq,f[v]) : _NOP);     
+   this->vfo2str(v,buffer);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::update() VFO[%s] dir[%d] f[%f]->[%f]\n",PROGRAMID,buffer,dir,freq,f[v]) : _NOP);     
    if (changeVFO!=NULL) {changeVFO();}
    return f[v];
 }
