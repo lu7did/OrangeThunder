@@ -287,8 +287,8 @@ void CATchangeStatus() {
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
 
-  if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
-     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false") : _NOP);
+  if (getWord(cat->FT817,RITX) != getWord(FT817,RITX)) {        // RIT Changed
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RITX) ? "true" : "false") : _NOP);
   }
 
   if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed
@@ -582,7 +582,7 @@ strcpy(HW,"hw:1");
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
 
-  vfo=new genVFO(NULL);
+  vfo=new genVFO(NULL,NULL,NULL);
   vfo->TRACE=TRACE;
   vfo->FT817=FT817;
   vfo->MODE=cat->MODE;

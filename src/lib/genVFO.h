@@ -109,6 +109,7 @@ class genVFO
       void setStep(byte s);
 
       void vfo2str(byte v,char* b);
+      void code2mode(byte m,char* s);
 
       float up();
       float down();
@@ -178,7 +179,7 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
 
   setWord(&FT817,VFO,VFOA);
   setWord(&FT817,PTT,0);
-  setWord(&FT817,RIT,false);
+  setWord(&FT817,RITX,false);
   setWord(&FT817,SPLIT,false);
 
   for (int i=0;i<VFOMAX;i++) {
@@ -194,8 +195,8 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
   setBand(VFOA,getBand(14000000));
   setBand(VFOB,getBand(14000000));
 
-  this->setRIT(VFOA,getWord(FT817,RIT));
-  this->setRIT(VFOB,getWord(FT817,RIT));
+  this->setRIT(VFOA,getWord(FT817,RITX));
+  this->setRIT(VFOB,getWord(FT817,RITX));
 
   this->MODE=MUSB;
 
@@ -214,6 +215,25 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
 
   if (ds!=NULL) {this->changeStatus=ds;}
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeStatus initialized\n",PROGRAMID) : _NOP);   
+
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation (mode support)
+//*---------------------------------------------------------------------------------------------------
+void genVFO::code2mode(byte m,char* s) {
+
+     switch(m) {
+       case  MCW  : {strcpy(s,"cw"); break;}
+       case  MCWR : {strcpy(s,"cwr"); break;}
+       case  MUSB : {strcpy(s,"usb"); break;}
+       case  MLSB : {strcpy(s,"lsb"); break;}
+       case  MAM  : {strcpy(s,"am"); break;}
+       case  MFM  : {strcpy(s,"fm"); break;}
+       case  MDIG : {strcpy(s,"dig"); break;}
+       case  MPKT : {strcpy(s,"pkt"); break;}
+    default : {strcpy(s,"cw"); break;}
+     }
+    return;
 
 }
 //*---------------------------------------------------------------------------------------------------
@@ -300,9 +320,9 @@ void genVFO::setRIT(byte v,bool b) {
      return;
    }
 
-   setWord(&FT817,RIT,b);
+   setWord(&FT817,RITX,b);
    this->vfo2str(v,buffer);
-  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,RIT)),rit[v]) : _NOP);   
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,RITX)),rit[v]) : _NOP);   
    if (changeStatus!=NULL) {changeStatus();}
    return;
 }
@@ -329,7 +349,7 @@ float o;
 
    if (b==false) {   // compute reception frequency
       vfo=v;
-      (getWord(FT817,RIT)==true ? o=rit[vfo] : o=0.0);
+      (getWord(FT817,RITX)==true ? o=rit[vfo] : o=0.0);
       setWord(&FT817,PTT,false);
       o=o+f[vfo];
       (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
@@ -545,7 +565,7 @@ bool  genVFO::getSplit() {
 //*---------------------------------------------------------------------------------------------------
 bool  genVFO::getRIT(byte v) {
 
-    return getWord(FT817,RIT);
+    return getWord(FT817,RITX);
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation

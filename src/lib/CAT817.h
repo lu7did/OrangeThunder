@@ -67,7 +67,7 @@ typedef void (*CALLBACK)();
 #define AGC    0B01000000
 //#define TXONLY 0B00100000
 #define SHIFT  0B00100000
-#define RIT    0B00010000
+#define RITX   0B00010000
 #define LOCK   0B00001000
 #define PTT    0B00000100
 #define SPLIT  0B00000010
@@ -347,11 +347,11 @@ void CAT817::processCAT(byte* rxBuffer) {
        sendStatus();
        return;}
       case 0x05: { //* RIT status flip
-       if(getWord(FT817,RIT)==true) {
-         setWord(&FT817,RIT,false);
+       if(getWord(FT817,RITX)==true) {
+         setWord(&FT817,RITX,false);
          BCDBuf[0]=0xF0;
        } else {
-         setWord(&FT817,RIT,true);
+         setWord(&FT817,RITX,true);
          BCDBuf[0]=0x00;
        }
        hex2str(&buffer[0],&BCDBuf[0],1);
@@ -419,12 +419,12 @@ void CAT817::processCAT(byte* rxBuffer) {
        sendStatus();
        return; }
       case 0x85: {      //* Turn the RIT off
-       if(getWord(FT817,RIT)==false) {
+       if(getWord(FT817,RITX)==false) {
          BCDBuf[0]=0xF0;
        } else {
          BCDBuf[0]=0x00;
        }
-       setWord(&FT817,RIT,false);
+       setWord(&FT817,RITX,false);
        hex2str(&buffer[0],&BCDBuf[0],1);
        (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x85 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],1);

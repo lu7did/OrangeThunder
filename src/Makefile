@@ -50,7 +50,7 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(GCC) -o ../bin/demo_gpio ./lib/demo_gpio.c $(CFLAGS)
 
 ../bin/gpioWrapper	: lib/gpioWrapper.cpp
-	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/gpioWrapper ./lib/gpioWrapper.cpp $(LDFLAGS)
+	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -g -o ../bin/gpioWrapper ./lib/gpioWrapper.cpp $(LDFLAGS)
 
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)

@@ -186,8 +186,8 @@ void CATchangeStatus() {
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
 
-  if (getWord(cat->FT817,RIT) != getWord(FT817,RIT)) {        // RIT Changed
-     fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RIT) ? "true" : "false");
+  if (getWord(cat->FT817,RITX) != getWord(FT817,RITX)) {        // RIT Changed
+     fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RITX) ? "true" : "false");
   }
 
   if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed

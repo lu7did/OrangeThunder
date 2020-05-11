@@ -81,6 +81,8 @@
 
 #define GPIO_DDS     4
 #define GPIO_PTT    12
+#define GPIO_LEFT   13
+#define GPIO_RIGHT  15
 #define GPIO_KEYER  16
 #define GPIO_COOLER 19
 #define GPIO_AUX    20
@@ -118,7 +120,7 @@
 #define GUI       0B00000010
 #define PTT       0B00000100
 #define VOX       0B00001000   //redefinition VOX == DRF
-#define RIT       0B00010000   //redefinition DOG == RIT
+#define COOLER    0B00010000   //redefinition DOG == RIT
 #define RUN       0B00100000
 #define RETRY     0B01000000
 #define BCK       0B10000000
@@ -140,7 +142,8 @@
 #define FVFO      0B00000001
 #define FBCK      0B00000010
 #define FSAVE     0B00000100
-
+#define FKEYUP    0B00001000
+#define FKEYDOWN  0B00010000
 
 #define MLSB      0x00
 #define MUSB      0x01
