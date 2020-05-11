@@ -166,6 +166,7 @@ typedef void (*CALLBACK)();
 #define MAXSWPUSH  2000
 
 #define DDS_MAXLEVEL 7
+
 // GPIO pins
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 
@@ -174,3 +175,35 @@ typedef void (*CALLBACK)();
 #define MINENCLAP   2
 
 #define BACKLIGHT  15000
+
+
+#define KEYER_STRAIGHT 0
+#define KEYER_MODE_A 1
+#define KEYER_MODE_B 2
+
+#define KEYER_SPEED 20
+#define KEYER_SIDETONE_FREQUENCY 600
+#define KEYER_SIDETONE_GAIN 5
+#define KEYER_SIDETONE_ENVELOPE 5
+#define KEYER_SPACING 0
+#define KEYER_LOW 0
+#define KEYER_HIGH 1
+#define KEYER_BRK 20
+
+#define KEY_DOWN 0x01
+#define KEY_UP 0x00
+
+#define NSEC_PER_SEC (1000000000)
+enum {
+    CHECK = 0,
+    PREDOT,
+    PREDASH,
+    SENDDOT,
+    SENDDASH,
+    DOTDELAY,
+    DASHDELAY,
+    DOTHELD,
+    DASHHELD,
+    LETTERSPACE,
+    EXITLOOP
+};

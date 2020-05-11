@@ -48,7 +48,10 @@
 typedef unsigned char byte;
 typedef bool boolean;
 typedef void (*CALLBACK)();
-
+typedef void (*CALLBACK_FREQ)(float f);
+typedef void (*CALLBACK_RIT)(float f);
+typedef void (*CALLBACK_MODE)(byte m);
+typedef void (*CALLBACK_STAT)(byte s);
 bool getWord (unsigned char SysWord, unsigned char v);
 void setWord(unsigned char* SysWord,unsigned char v, bool val);
 
@@ -79,7 +82,7 @@ class genVFO
 {
   public: 
   
-      genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds);
+      genVFO(CALLBACK_FREQ df,CALLBACK_RIT dr,CALLBACK_MODE dm,CALLBACK_STAT ds);
 
       void set(byte v,float freq);
       void set(float freq);
@@ -135,9 +138,10 @@ class genVFO
 
       FSTR vfostr[VFOMAX];
 
-      CALLBACK changeVFO=NULL;
-      CALLBACK changeMode=NULL;
-      CALLBACK changeStatus=NULL;
+      CALLBACK_FREQ changeVFO=NULL;
+      CALLBACK_MODE changeMode=NULL;
+      CALLBACK_STAT changeStatus=NULL;
+      CALLBACK_RIT  changeRIT=NULL;
 
   
   private:
@@ -172,7 +176,7 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 //*---------------------------------------------------------------------------------------------------
 //* VFO CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
+genVFO::genVFO(CALLBACK_FREQ df,CALLBACK_RIT dr, CALLBACK_MODE dm,CALLBACK_STAT ds)
 {
 
   buffer=(char*)malloc(128);
@@ -216,6 +220,9 @@ genVFO::genVFO(CALLBACK df,CALLBACK dm,CALLBACK ds)
   if (ds!=NULL) {this->changeStatus=ds;}
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeStatus initialized\n",PROGRAMID) : _NOP);   
 
+  if (dr!=NULL) {this->changeRIT=dr;}
+  (this->TRACE>=0x02 ? fprintf(stderr,"%s::genVFO() changeRIT initialized\n",PROGRAMID) : _NOP);   
+
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation (mode support)
@@ -243,16 +250,18 @@ byte genVFO::getMode(byte v){
    if (v!=VFOA && v!=VFOB) {return VFOA;}
    return this->MODE;
 }
+
 byte genVFO::getMode() {
      return getMode(this->vfo);
 }
+
 void genVFO::setMode(byte v,byte m) {
    if (v!=VFOA && v!=VFOB) {return;}
    if (m!=MCW && m!=MCWR && m!=MDIG) {
       return;
    }
    this->MODE=m;
-   if (changeMode!=NULL) {changeMode();}
+   if (changeMode!=NULL) {changeMode(m);}
 }
 void genVFO::setMode(byte m) {
    return this->setMode(this->vfo,m);
@@ -272,7 +281,7 @@ void genVFO::set(byte v,float freq) {
    }
    f[v]=freq;  
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::set() VFO[%s] freq(%f) fmin(%f) fmax(%f) band(%d)\n",PROGRAMID,buffer,f[v],fmin[v],fmax[v],band[v]) : _NOP);   
-   if (this->changeVFO!=NULL) {this->changeVFO();}
+   if (this->changeVFO!=NULL) {this->changeVFO(freq);}
    return ;
 }
 //*---------------------------------------------------------------------------------------------------
@@ -303,27 +312,30 @@ float genVFO::get() {
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 void genVFO::setSplit(bool b) {
+byte S=0x00;
    setWord(&FT817,SPLIT,b);
   this->vfo2str(this->vfo,buffer);
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
-   if (changeStatus!=NULL) {changeStatus();}
+   setWord(&S,SPLIT,b);
+   if (changeStatus!=NULL) {changeStatus(S);}
    return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
-
 void genVFO::setRIT(byte v,bool b) {
+byte S=0x00;
    if(v !=VFOA && v != VFOB) {
      return;
    }
 
    setWord(&FT817,RITX,b);
+   setWord(&S,RITX,b);
    this->vfo2str(v,buffer);
+
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,RITX)),rit[v]) : _NOP);   
-   if (changeStatus!=NULL) {changeStatus();}
+   if (changeStatus!=NULL) {changeStatus(S);}
    return;
 }
 void genVFO::setRIT(bool b) {
@@ -337,6 +349,7 @@ float genVFO::setPTT(bool b) {
 
 byte  v;
 float o;
+byte  S=0x00;
 
    (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()\n",PROGRAMID) : _NOP);   
 
@@ -353,7 +366,8 @@ float o;
       setWord(&FT817,PTT,false);
       o=o+f[vfo];
       (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
-      if (changeStatus!=NULL) {changeStatus();}
+      setWord(&S,PTT,false);
+      if (changeStatus!=NULL) {changeStatus(S);}
       return o;
    }
 
@@ -370,14 +384,17 @@ float o;
    }
    o=f[vfo]+s;
    setWord(&FT817,PTT,b);
+   setWord(&S,PTT,b);
+
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
-  if (changeStatus!=NULL) {changeStatus();}
+  if (changeStatus!=NULL) {changeStatus(S);}
   return o;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
 void genVFO::setStep(byte v, byte s) {
+byte S=0x00;
 
    if (v!=VFOA && v!=VFOB) {
       return;
@@ -388,22 +405,24 @@ void genVFO::setStep(byte v, byte s) {
    step[v]=stepList[s];
   this->vfo2str(v,buffer);
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setStep() VFO[%s] Code[%d] Step[%f]\n",PROGRAMID,buffer,s,step[v]) : _NOP);   
-  if (changeStatus!=NULL) {changeStatus();}
+  //if (changeStatus!=NULL) {changeStatus(S);}
   return;
 }
 //*------------------------------------------------------------------------------------------------------
 //* Flip VFOA/VFOB
 //*------------------------------------------------------------------------------------------------------
 void genVFO::swapVFO() {
+byte S=0x00;
 
    if (this->vfo==VFOA) {
       this->vfo = VFOB;
-      if (changeStatus!=NULL) {changeStatus();}
+      setWord(&S,VFO,this->vfo);
+      if (changeStatus!=NULL) {changeStatus(S);}
       return;
    }
    this->vfo=VFOA;
-   if (changeStatus!=NULL) {changeStatus();}
-
+   setWord(&S,VFO,this->vfo);
+   if (changeStatus!=NULL) {changeStatus(S);}
    return;
 }
 //*---------------------------------------------------------------------------------------------------
@@ -483,7 +502,7 @@ float genVFO::update(byte v,int dir) {
 
    this->vfo2str(v,buffer);
    (this->TRACE>=0x02 ? fprintf(stderr,"%s::update() VFO[%s] dir[%d] f[%f]->[%f]\n",PROGRAMID,buffer,dir,freq,f[v]) : _NOP);     
-   if (changeVFO!=NULL) {changeVFO();}
+   if (changeVFO!=NULL) {changeVFO(f[v]);}
    return f[v];
 }
 //*---------------------------------------------------------------------------------------------------
@@ -543,7 +562,7 @@ float d=dir*VFO_STEP_100Hz;
     } else {
       rit[v]=rit[v]+d;
     }
-    if (changeVFO!=NULL) {changeVFO();}
+    if (changeRIT!=NULL) {changeRIT(rit[v]);}
     return rit[v];
 }
 //*---------------------------------------------------------------------------------------------------
