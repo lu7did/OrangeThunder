@@ -14,6 +14,9 @@
 #define VFOB    1
 #define VFOMAX  2
 
+#define GODOWN  0
+#define GOUP    1
+
 #define  VLF    0
 #define  LF     1
 #define  B160M  2
@@ -103,6 +106,7 @@ class genVFO
       void setRIT(bool b);
 
       void swapVFO();
+      void setVFO(byte v);
 
       int  getBand(float f);
       void setBand(byte band);
@@ -119,6 +123,9 @@ class genVFO
       float update(int dir);
       float update(byte v,int dir);
 
+      bool  getLock();
+      void  setLock(bool f);
+
       float updateRIT(byte v,int dir);
       float updateRIT(int dir);
 
@@ -134,7 +141,8 @@ class genVFO
       byte  getMode();
       byte  getMode(byte m);
       long int code2step(byte b);
-      byte step2code(long int s);
+      byte  step2code(long int s);
+      byte  vfodir=GODOWN;
 
       FSTR vfostr[VFOMAX];
 
@@ -169,7 +177,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
       float fmin[VFOMAX];
       float fmax[VFOMAX];
       byte  band[VFOMAX];
-
 };
 
 #endif
@@ -191,9 +198,9 @@ genVFO::genVFO(CALLBACK_FREQ df,CALLBACK_RIT dr, CALLBACK_MODE dm,CALLBACK_STAT 
      step[i]=VFO_STEP_100Hz;
      rit[i]=0.0;
      shift[i]=600.0;
-
   }
 
+  this->vfodir=GODOWN;
   this->setSplit(getWord(FT817,SPLIT));
 
   setBand(VFOA,getBand(14000000));
@@ -263,8 +270,27 @@ void genVFO::setMode(byte v,byte m) {
    this->MODE=m;
    if (changeMode!=NULL) {changeMode(m);}
 }
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
 void genVFO::setMode(byte m) {
    return this->setMode(this->vfo,m);
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+bool genVFO::getLock() {
+   return getWord(FT817,LOCK);
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+void genVFO::setLock(bool f) {
+    setWord(&FT817,LOCK,f);
+byte S=0x00;
+    setWord(&S,LOCK,true);
+    if (changeStatus!=NULL) {changeStatus(S);}
+    return;
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
@@ -317,7 +343,7 @@ byte S=0x00;
    setWord(&FT817,SPLIT,b);
   this->vfo2str(this->vfo,buffer);
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
-   setWord(&S,SPLIT,b);
+   setWord(&S,SPLIT,true);
    if (changeStatus!=NULL) {changeStatus(S);}
    return;
 }
@@ -331,7 +357,7 @@ byte S=0x00;
    }
 
    setWord(&FT817,RITX,b);
-   setWord(&S,RITX,b);
+   setWord(&S,RITX,true);
    this->vfo2str(v,buffer);
 
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setRIT() VFO[%s] RIT[%s] RitOffset[%f]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,RITX)),rit[v]) : _NOP);   
@@ -366,7 +392,7 @@ byte  S=0x00;
       setWord(&FT817,PTT,false);
       o=o+f[vfo];
       (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
-      setWord(&S,PTT,false);
+      setWord(&S,PTT,true);
       if (changeStatus!=NULL) {changeStatus(S);}
       return o;
    }
@@ -384,7 +410,7 @@ byte  S=0x00;
    }
    o=f[vfo]+s;
    setWord(&FT817,PTT,b);
-   setWord(&S,PTT,b);
+   setWord(&S,PTT,true);
 
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
   if (changeStatus!=NULL) {changeStatus(S);}
@@ -411,17 +437,30 @@ byte S=0x00;
 //*------------------------------------------------------------------------------------------------------
 //* Flip VFOA/VFOB
 //*------------------------------------------------------------------------------------------------------
+void genVFO::setVFO(byte v) {
+byte S=0x00;
+
+     if (v!=VFOA && v!=VFOB) { return; }
+     this->vfo=v;
+     (v==VFOA ? setWord(&FT817,VFO,VFOA) : setWord(&FT817,VFO,VFOB));
+     setWord(&S,VFO,true);
+     if (changeStatus!=NULL) {changeStatus(S);}
+     return;
+}
+//*------------------------------------------------------------------------------------------------------
+//* Flip VFOA/VFOB
+//*------------------------------------------------------------------------------------------------------
 void genVFO::swapVFO() {
 byte S=0x00;
 
    if (this->vfo==VFOA) {
       this->vfo = VFOB;
-      setWord(&S,VFO,this->vfo);
+      setWord(&S,VFO,true);
       if (changeStatus!=NULL) {changeStatus(S);}
       return;
    }
    this->vfo=VFOA;
-   setWord(&S,VFO,this->vfo);
+   setWord(&S,VFO,true);
    if (changeStatus!=NULL) {changeStatus(S);}
    return;
 }
@@ -500,6 +539,7 @@ float genVFO::update(byte v,int dir) {
       f[v]=fmin[v];
    }
 
+   (dir>=0 ? vfodir=GOUP : vfodir=GODOWN);
    this->vfo2str(v,buffer);
    (this->TRACE>=0x02 ? fprintf(stderr,"%s::update() VFO[%s] dir[%d] f[%f]->[%f]\n",PROGRAMID,buffer,dir,freq,f[v]) : _NOP);     
    if (changeVFO!=NULL) {changeVFO(f[v]);}

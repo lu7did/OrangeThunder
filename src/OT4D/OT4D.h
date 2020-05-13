@@ -251,12 +251,12 @@ void setPTT(bool ptt) {
 void CATchangeFreq() {
 
   if (usb->statePTT == true) {
-     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency) : _NOP);
-     cat->SetFrequency=f;
+     (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->f) : _NOP);
+     cat->f=f;
      return;
   }
 
-  cat->SetFrequency=f;
+  cat->f=f;
   (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f) : _NOP);
 
 }
@@ -573,7 +573,7 @@ strcpy(HW,"hw:1");
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
   cat->FT817=FT817;
   cat->POWER=DDS_MAXLEVEL;
-  cat->SetFrequency=f;
+  cat->f=f;
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
   cat->open(port,catbaud);
@@ -582,7 +582,7 @@ strcpy(HW,"hw:1");
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
 
-  vfo=new genVFO(NULL,NULL,NULL);
+  vfo=new genVFO(NULL,NULL,NULL,NULL);
   vfo->TRACE=TRACE;
   vfo->FT817=FT817;
   vfo->MODE=cat->MODE;

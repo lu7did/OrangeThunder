@@ -120,7 +120,7 @@ class CAT817
 
       byte bufChar[128];
       int  bufLen=0;
-      float SetFrequency;
+      float f;
     
       int  n=0;
       byte rxBuffer[128];
@@ -300,8 +300,8 @@ void CAT817::processCAT(byte* rxBuffer) {
 
     switch(rxBuffer[4]) {
       case 0x01:  {       //* Set Frequency
-       int f=BCD2Dec(&rxBuffer[0]);
-       SetFrequency=f;
+       int freq=BCD2Dec(&rxBuffer[0]);
+       this->f=freq;
        BCDBuf[4]=0x01;
        hex2str(&buffer[0],&BCDBuf[0],1);
        (TRACE>=0x01 ? fprintf(stderr,"%s::processCAT() Command 0x01 Resp(%s)\n",this->PROGRAMID,(char*) &buffer[0]) : _NOP);
@@ -314,8 +314,8 @@ void CAT817::processCAT(byte* rxBuffer) {
        sendStatus();
        return;}
       case 0x03:  {        //* Get Frequency and Mode
-       int f=(int)SetFrequency;
-       dec2BCD(&BCDBuf[0],f);
+       int freq=(int)f;
+       dec2BCD(&BCDBuf[0],freq);
        BCDBuf[4]=MODE;
        hex2str(&buffer[0],&BCDBuf[0],5);
        (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x03 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
@@ -474,12 +474,12 @@ void CAT817::processCAT(byte* rxBuffer) {
        offsetBuf[0]=0x00;
        offsetBuf[1]=0x00;
        offsetBuf[4]=0xF5;
-       int f=BCD2Dec(&offsetBuf[0]);
-       f=f/10;
+       int ofs=BCD2Dec(&offsetBuf[0]);
+       ofs=ofs/10;
        if (rxBuffer[0]==0x00) {
-          RITOFS=+f;
+          RITOFS=+ofs;
        } else {
-          RITOFS=(-1)*f;
+          RITOFS=(-1)*ofs;
        }
        (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0xF5 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
        BCDBuf[0]=0x00;

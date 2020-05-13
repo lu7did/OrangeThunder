@@ -151,8 +151,8 @@ void setPTT(bool ptt) {
 void CATchangeFreq() {
 
   if (g->statePTT == true) {
-     fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->SetFrequency);
-     cat->SetFrequency=f;
+     fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->f);
+     cat->f=f;
      return;
   }
 
@@ -309,7 +309,7 @@ int main(int argc, char** argv)
 
   cat->FT817=FT817;
   cat->POWER=7;
-  cat->SetFrequency=f;
+  cat->f=f;
   cat->MODE=MUSB;
   cat->TRACE=TRACE;
 

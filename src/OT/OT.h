@@ -194,16 +194,3 @@ typedef void (*CALLBACK)();
 #define KEY_UP 0x00
 
 #define NSEC_PER_SEC (1000000000)
-enum {
-    CHECK = 0,
-    PREDOT,
-    PREDASH,
-    SENDDOT,
-    SENDDASH,
-    DOTDELAY,
-    DASHDELAY,
-    DOTHELD,
-    DASHHELD,
-    LETTERSPACE,
-    EXITLOOP
-};
