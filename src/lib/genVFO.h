@@ -101,7 +101,7 @@ class genVFO
 
       void  setSplit(bool b);
       float setPTT(bool b);
-
+      bool  getPTT();
       void setRIT(byte v,bool b);
       void setRIT(bool b);
 
@@ -341,7 +341,7 @@ float genVFO::get() {
 void genVFO::setSplit(bool b) {
 byte S=0x00;
    setWord(&FT817,SPLIT,b);
-  this->vfo2str(this->vfo,buffer);
+   this->vfo2str(this->vfo,buffer);
   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSplit() VFO[%s] Split[%s]\n",PROGRAMID,buffer,BOOL2CHAR(getWord(FT817,SPLIT))) : _NOP);   
    setWord(&S,SPLIT,true);
    if (changeStatus!=NULL) {changeStatus(S);}
@@ -367,6 +367,12 @@ byte S=0x00;
 void genVFO::setRIT(bool b) {
    this->setRIT(vfo,b);
    return;
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+bool genVFO::getPTT() {
+   return getWord(FT817,PTT);
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
