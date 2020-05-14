@@ -98,25 +98,26 @@ class genVFO
       byte  FT817=0x00;
       byte  TRACE=0x00;
       byte  MODE=MUSB;
+      byte  POWER=7;
 
       void  setSplit(bool b);
       float setPTT(bool b);
       bool  getPTT();
-      void setRIT(byte v,bool b);
-      void setRIT(bool b);
+      void  setRIT(byte v,bool b);
+      void  setRIT(bool b);
 
-      void swapVFO();
-      void setVFO(byte v);
+      void  swapVFO();
+      void  setVFO(byte v);
 
-      int  getBand(float f);
-      void setBand(byte band);
-      void setBand(byte v,byte band);
+      int   getBand(float f);
+      void  setBand(byte band);
+      void  setBand(byte v,byte band);
 
-      void setStep(byte v,byte s);
-      void setStep(byte s);
+      void  setStep(byte v,byte s);
+      void  setStep(byte s);
 
-      void vfo2str(byte v,char* b);
-      void code2mode(byte m,char* s);
+      void  vfo2str(byte v,char* b);
+      void  code2mode(byte m,char* s);
 
       float up();
       float down();
@@ -265,6 +266,7 @@ byte genVFO::getMode() {
 void genVFO::setMode(byte v,byte m) {
    if (v!=VFOA && v!=VFOB) {return;}
    if (m!=MCW && m!=MCWR && m!=MDIG) {
+      if (changeMode!=NULL) {changeMode(this->getMode(this->vfo));}
       return;
    }
    this->MODE=m;

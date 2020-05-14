@@ -318,7 +318,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        dec2BCD(&BCDBuf[0],freq);
        BCDBuf[4]=MODE;
        hex2str(&buffer[0],&BCDBuf[0],5);
-       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x03 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0x03 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],5);
        return;}
       case 0x00: {   //* LOCK status flip
@@ -442,7 +442,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        sendSerial(&BCDBuf[0],1);
        sendStatus();
        return; }
-      case 0xBB:  {     //* falta controlar que sea solo dirección 0x55
+      case 0xBB:  {     //* only address 0x55 is supported the rest is answered nominally without modifications
        if (rxBuffer[1]==0x55) {
           BCDBuf[0]=0x80;
           BCDBuf[1]=0x00;
@@ -450,7 +450,7 @@ void CAT817::processCAT(byte* rxBuffer) {
              BCDBuf[0]=BCDBuf[0] | 0x01;
           }
           hex2str(&buffer[0],&BCDBuf[0],2);
-          (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0xBB Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
+          (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0xBB Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
           sendSerial(&BCDBuf[0],2);
           return;
        } 
@@ -492,6 +492,7 @@ void CAT817::processCAT(byte* rxBuffer) {
           float prng= (float)std::rand();
           float pmax= (float)RAND_MAX;
           RX  = (SMETERMAX*(float(prng/pmax)));
+          if (RX<0x06) { RX=0x06; }  // this is actually a simulation to keep the indicator alive, no signals below S6 are realistic on HF....
        } else {
           RX  = METER;
        }
@@ -520,7 +521,7 @@ void CAT817::processCAT(byte* rxBuffer) {
 
        BCDBuf[0]=((int)RX & 0x0f) | 0x00;     //* Either fake level or extracted from receiver
        hex2str(&buffer[0],&BCDBuf[0],1);
-       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0xE7 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0xE7 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],1);
        return;}
 
@@ -663,7 +664,7 @@ void CAT817::get() {
        if (n==5) {
           char buffer[18];
           hex2str(&buffer[0],&rxBuffer[0],n);
-          (TRACE>=0x02 ? fprintf (stderr,"%s::get() Received Serial hex2str (%s)\n",PROGRAMID,(char*) &buffer[0]) : _NOP);
+          (TRACE>=0x03 ? fprintf (stderr,"%s::get() Received Serial hex2str (%s)\n",PROGRAMID,(char*) &buffer[0]) : _NOP);
           processCAT(&rxBuffer[0]);
           fflush (stdout) ;
           n=0;
