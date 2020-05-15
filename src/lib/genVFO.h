@@ -1,4 +1,4 @@
-//*--------------------------------------------------------------------------------------------------
+//*-------------------------------------------------------------------------------------------------
 //* VFO Management Class   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
 //* Este es el firmware del diseÃ±o de VFO  para la plataforma OrangeThunder
@@ -389,9 +389,9 @@ byte  S=0x00;
 
    if (getWord(FT817,SPLIT)==true) {
       (vfo==VFOA ? v=VFOB : v=VFOA);
-    } else {
+   } else {
        v=vfo;
-    }
+   }
 
 
    if (b==false) {   // compute reception frequency
@@ -402,6 +402,7 @@ byte  S=0x00;
       (this->TRACE>=0x02 ? fprintf(stderr,"%s::setPTT()  PTT[%s] frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
       setWord(&S,PTT,true);
       if (changeStatus!=NULL) {changeStatus(S);}
+      (this->TRACE>=0x03 ? fprintf(stderr,"%s::setPTT()  PTT[%s] returning frequency(%f)\n",PROGRAMID,BOOL2CHAR(getWord(FT817,PTT)),o) : _NOP);   
       return o;
    }
 
