@@ -84,7 +84,7 @@
 #define GPIO_LEFT   13
 #define GPIO_RIGHT  15
 #define GPIO_KEYER  16
-#define GPIO_COOLER 19
+#define GPIO_COOLER 24
 #define GPIO_AUX    20
 #define GPIO_PA     21
 #define GPIO_CLK    17

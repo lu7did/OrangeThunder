@@ -115,6 +115,8 @@ class genVFO
 
       void  setStep(byte v,byte s);
       void  setStep(byte s);
+      byte  getStep(byte v);
+      byte  getStep();
 
       void  vfo2str(byte v,char* b);
       void  code2mode(byte m,char* s);
@@ -429,6 +431,17 @@ byte  S=0x00;
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
 //*---------------------------------------------------------------------------------------------------
+byte genVFO::getStep(byte v) {
+   if (v!=VFOA && v!=VFOB) {
+      return 3;
+   }
+   return step[v];
+}
+//*-------
+byte genVFO::getStep(){
+   return this->getStep(this->vfo);
+}
+//*-------
 void genVFO::setStep(byte v, byte s) {
 byte S=0x00;
 
