@@ -119,6 +119,11 @@ class genVFO
       void  vfo2str(byte v,char* b);
       void  code2mode(byte m,char* s);
 
+      float getShift(byte v);
+      float getShift();
+      void  setShift(float s);
+      void  setShift(byte v,float s);
+
       float up();
       float down();
       float update(int dir);
@@ -265,10 +270,6 @@ byte genVFO::getMode() {
 
 void genVFO::setMode(byte v,byte m) {
    if (v!=VFOA && v!=VFOB) {return;}
-   if (m!=MCW && m!=MCWR && m!=MDIG) {
-      if (changeMode!=NULL) {changeMode(this->getMode(this->vfo));}
-      return;
-   }
    this->MODE=m;
    if (changeMode!=NULL) {changeMode(m);}
 }
@@ -589,6 +590,38 @@ float genVFO::valueRIT(byte v) {
 
    return rit[v];
 
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::getShift() {
+   return this->getShift(this->vfo);
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+float genVFO::getShift(byte v) {
+   if (v<0 || v>VFOMAX) {
+      return 0.0;
+   }
+   return shift[v];
+
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+void genVFO::setShift(byte v,float s) {
+   if (v<0 || v>VFOMAX) {
+      return;
+   }
+
+   shift[v]=s;
+}
+//*---------------------------------------------------------------------------------------------------
+//* CLASS Implementation
+//*---------------------------------------------------------------------------------------------------
+void genVFO::setShift(float s) {
+   this->setShift(this->vfo,s);
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation
