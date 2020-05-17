@@ -627,6 +627,7 @@ void genVFO::setShift(byte v,float s) {
    if (v<0 || v>VFOMAX) {
       return;
    }
+   if (s<600 || s>800) {return;}
 
    shift[v]=s;
 }
