@@ -209,10 +209,10 @@ Usage:  \n\
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
    if (ptt==true) {
-     if (getWord(MSW,PTT)==false && fdds==true) {                // Signal RF generator now is I/Q mode
+     if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
         Fout[0]=1111.0;
         Fout[1]=1111.0;
         fwrite(Fout, sizeof(float), 2, outfile) ;
@@ -294,7 +294,11 @@ int main(int argc, char* argv[])
 			fquiet=true;
   		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() quiet operation (no messages)\n",PROGRAMID) : _NOP);
 			break;
-		case 'd': // go quiet
+		case 'x': // go quiet
+			autoPTT=true;
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() auto PTT set\n",PROGRAMID) : _NOP);
+			break;
+		case 'd': // DDS mode
 			fdds=true;
   		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() DDS operation enabled\n",PROGRAMID) : _NOP);
 			break;
@@ -379,9 +383,11 @@ float   gain=1.0;
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(false);
                }
            } else;
@@ -393,12 +399,12 @@ float   gain=1.0;
 // --- Processing AGC results on  incoming signal
 
            if (gain<mingain) {
-              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
               mingain=gain;
            }
 
            if (gain>maxgain) {
-              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
               maxgain=gain;
               thrgain=maxgain*0.70;
            }
@@ -407,6 +413,7 @@ float   gain=1.0;
               if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
                  if (TVOX==0) {    //Is the timer counter idle
                     (fquiet==true ? fprintf(stderr,"VOX=1\n\n") : _NOP) ;
+                    (TRACE>=0x02 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
                  }
                  TVOX=vox_timeout; //Refresh the timeout
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
@@ -417,6 +424,7 @@ float   gain=1.0;
               if (fVOX==1) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
                  (fquiet==true ? fprintf(stderr,"VOX=0\n") : _NOP) ; //and inform VOX is down
+                 (TRACE>=0x02 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
                     setPTT(false);
                  }

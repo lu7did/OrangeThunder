@@ -296,7 +296,7 @@ char cmd_DEBUG[16];
    if (vox==true) {
       sprintf(strVOX,"%s",(char*)"-x -v 2");
    } else {
-      sprintf(strVOX,"%s",(char*)"-x -v 2");
+      sprintf(strVOX,"%s",(char*)" ");
    }
 
    char strDDS[32];
@@ -306,7 +306,7 @@ char cmd_DEBUG[16];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE -   | genSSB %s %s %s | sudo sendRF -i /dev/stdin -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,strDDS,strVOX,cmd_DEBUG,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE -   | genSSB %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,strDDS,strVOX,cmd_DEBUG,strDDS,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
@@ -377,7 +377,7 @@ int genSSB::readpipe(char* buffer,int len) {
         if (vox==true) {
            this->stateVOX=true;
            if ( changeVOX!=NULL ) {changeVOX();}
-           (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
         } else {
           stateVOX=false;
         }

@@ -630,8 +630,8 @@ void CAT817::close() {
 //* open the serial link and enable the CAT operation if successful
 //*-------------------------------------------------------------------------
 void CAT817::open(char* port, int speed) {
-    if ((serial_port = serialOpen (port, speed)) < 0)
-    {
+
+    if ((serial_port = serialOpen (port, speed)) < 0) {
        (TRACE>=0x00 ? fprintf (stderr, "%s::open() Unable to open serial device: %s rc(%s)\n",this->PROGRAMID, port, strerror (errno)) : _NOP) ;
        this->active=false;
        return ;

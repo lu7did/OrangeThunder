@@ -76,8 +76,7 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 #endif
 
 #ifdef Pi4D
-// --- OT4D specific includes
-//#include "/home/pi/PixiePi/src/lib/DDS.h"
+#include "/home/pi/PixiePi/src/lib/LCDLib.h"
 
 // --- Program initialization
 const char   *PROGRAMID="Pi4D";
@@ -85,10 +84,15 @@ const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
+LCDLib *lcd;
+char*  LCD_Buffer;
+int    lcd_light;
+
 #endif
 // *************************************************************************************************
 // *                           Common Memory definitions                                           *
 // *************************************************************************************************
+char   timestr[16];
 
 // --- IPC structures
 struct sigaction sigact;
@@ -115,7 +119,7 @@ int  sIni,kIni;
 char iniSection[50];
 
 // --- System control objects
-byte   TRACE=0x03;
+byte   TRACE=0x02;
 byte   MSW=0x00;
 
 // *----------------------------------------------------------------*
@@ -329,6 +333,20 @@ void changeSNR() {
 #endif
 
 }
+//--------------------------------------------------------------------------------------------------
+// returns the time in a string format
+//--------------------------------------------------------------------------------------------------
+char* getTime() {
+
+       time_t theTime = time(NULL);
+       struct tm *aTime = localtime(&theTime);
+       int hour=aTime->tm_hour;
+       int min=aTime->tm_min;
+       int sec=aTime->tm_sec;
+       sprintf(timestr,"%02d:%02d:%02d",hour,min,sec);
+       return (char*) &timestr;
+
+}
 // ======================================================================================================================
 // VOX upcall signal
 // ======================================================================================================================
@@ -380,6 +398,11 @@ int main(int argc, char** argv)
 
   fprintf(stderr,"%s version %s build(%s) %s tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT,TRACE);
 
+  if (getuid()) {
+      fprintf(stderr,"%s:main() %s\n",PROGRAMID,"This program must be run using sudo to acquire root privileges, terminating!");
+      exit(16);
+  }
+
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
   sigact.sa_flags = 0;
@@ -399,6 +422,7 @@ int main(int argc, char** argv)
 //---------------------------------------------------------------------------------
 
 #ifdef OT4D
+
   f=ini_getl("OT4D","FREQ",14074000,inifile);
   TRACE=ini_getl("OT4D","TRACE",2,inifile);
   vol=ini_getl("OT4D","VOL",10,inifile);
@@ -408,6 +432,7 @@ int main(int argc, char** argv)
   (TRACE>=0x02 ? fprintf(stderr,"%s:main()  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main()    VOL=%d\n",PROGRAMID,vol) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main()   PORT=%s\n",PROGRAMID,port) : _NOP);
+
 #endif
 
 // --- memory areas
@@ -423,6 +448,28 @@ strcpy(HW,"hw:Loopback,1,0");
 
 #ifdef Pi4D
 strcpy(HW,"hw:1");
+
+
+// *-----------------------------------------------------------------------------------------
+// * Setup LCD Display 
+// *-----------------------------------------------------------------------------------------
+    LCD_Buffer=(char*) malloc(32);
+    lcd=new LCDLib(NULL);
+
+    lcd->begin(16,2);
+    lcd->clear();
+    lcd->createChar(0,TX);
+    lcd_light=LCD_ON;
+    lcd->backlight(true);
+    lcd->setCursor(0,0);
+  
+    fprintf(stderr,"%s %s:main() LCD display turned on\n",getTime(),PROGRAMID);
+    sprintf(LCD_Buffer,"%s %s(%s)",PROGRAMID,PROG_VERSION,PROG_BUILD);
+    lcd->println(0,0,LCD_Buffer);
+
+//    sprintf(LCD_Buffer,"%s %s %d",callsign,locator,WSPRPower);
+//    lcd->println(0,1,LCD_Buffer);
+
 #endif
 
 
@@ -492,36 +539,36 @@ strcpy(HW,"hw:1");
   g=new gpioWrapper(gpiochangePin);
   g->TRACE=TRACE;
 
-  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
-     exit(16);
-  }
-  if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-     exit(16);
-  }
+//  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
+//     exit(16);
+//  }
+//  if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+//     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
+//     exit(16);
+//  }
+//  if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+//     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
+//     exit(16);
+//  }
+//  if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
+//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
+//     exit(16);
+//  }
 
 #ifdef Pi4D
-  if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_COOLER) : _NOP);
-     exit(16);
-  }
+//  if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
+//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_COOLER) : _NOP);
+//     exit(16);
+//  }
 #endif
 
-  if (g->start() == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
-     exit(8);
-  }
+//  if (g->start() == -1) {
+//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
+//     exit(8);
+//  }
 
-  usleep(1000);
+//  usleep(1000);
 
 #ifdef Pi4D
   // *---------------------------------------------*
@@ -630,14 +677,14 @@ strcpy(HW,"hw:1");
     //*---------------------------------------------*
     //* Process commands from rtl-sdr receiver      *
     //*---------------------------------------------*
-    if (getWord(rtl->MSW,RUN)==true) {
-
-    int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
-        if (rtl_read>0) {
-           rtl_buffer[rtl_read]=0x00;
-           (TRACE>=0x01 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
-        }
-    }
+//    if (getWord(rtl->MSW,RUN)==true) {
+//
+//    int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
+//        if (rtl_read>0) {
+//           rtl_buffer[rtl_read]=0x00;
+//           (TRACE>=0x01 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
+//        }
+//    }
 
     if (getWord(rtl->MSW,RUN)==true) {
 
@@ -659,14 +706,16 @@ strcpy(HW,"hw:1");
     //*---------------------------------------------*
     //* Process signals and messages from GPIO      *
     //*---------------------------------------------*
-    if (getWord(g->MSW,RUN)==true) {
-    int gpio_read=g->readpipe(gpio_buffer,BUFSIZE);
-        if (gpio_read>0) {
-           gpio_buffer[gpio_read]=0x00;
-           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)gpio_buffer) : _NOP);
-        }
-    }
+//    if (getWord(g->MSW,RUN)==true) {
+//   int gpio_read=g->readpipe(gpio_buffer,BUFSIZE);
+//       if (gpio_read>0) {
+//           gpio_buffer[gpio_read]=0x00;
+//           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)gpio_buffer) : _NOP);
+//        }
+//    }
 
+
+//* -------------------
   }
 
 
@@ -697,6 +746,14 @@ strcpy(HW,"hw:1");
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler de-activation\n",PROGRAMID) : _NOP);
   if(g!=nullptr) {g->writePin(GPIO_COOLER,0);}
   usleep(10000);
+
+//*--- Turn off LCD
+
+  lcd->backlight(false);
+  lcd->setCursor(0,0);
+  lcd->clear();
+
+
 #endif
 
 // --- Stop all threads and child processes 
@@ -708,9 +765,11 @@ strcpy(HW,"hw:1");
   usb->stop();
 
 #ifdef OT4D
+
   if (rtl!=nullptr) {
      rtl->stop();
   }
+
 #endif
 
 }
