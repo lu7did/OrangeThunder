@@ -437,6 +437,8 @@ int main(int argc, char** argv)
 
 // --- memory areas
 
+  TRACE=0x02;
+
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID) : _NOP);
   gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
@@ -536,7 +538,7 @@ strcpy(HW,"hw:1");
 // --- gpio Wrapper creation
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
-  g=new gpioWrapper(gpiochangePin);
+  g=new gpioWrapper(NULL);
   g->TRACE=TRACE;
 
 //  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
@@ -563,10 +565,10 @@ strcpy(HW,"hw:1");
 //  }
 #endif
 
-//  if (g->start() == -1) {
-//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
-//     exit(8);
-//  }
+  if (g->start() == -1) {
+     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
+     exit(8);
+  }
 
 //  usleep(1000);
 

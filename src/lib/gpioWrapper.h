@@ -110,14 +110,6 @@ gpioWrapper::gpioWrapper(CALLBACKPIN p){
 //--------------------------------------------------------------------------------------------------
 int gpioWrapper::start() {
 
-// ******************************************************************************************************
-// The code below will be executed only by parent. You can write and read
-// from the child using pipefd descriptors, and you can send signals to 
-// the process using its pid by kill() function. If the child process will
-// exit unexpectedly, the parent process will obtain SIGCHLD signal that
-// can be handled (e.g. you can respawn the child process).
-// *******************************************************************************************************
-
   setWord(&MSW,RUN,true);
   return 0;
 }
@@ -136,11 +128,14 @@ char buffer[256];
        return;
     }
 
-    sprintf(buffer,"gpio write %d %d",pin,v);
-    system(buffer);
+    if (getWord(MSW,RUN)==false) {
+       return;
+    }
 
-    (TRACE>=0x02 ? fprintf(stderr,"%s::writePin write pin(%d) value(%d) command(%s)\n",PROGRAMID,pin,v,buffer) : _NOP);
-//    (TRACE>=0x02 ? fprintf(stderr,"%s::writePin **FAKE** write pin(%d) value(%d) command(%s)\n",PROGRAMID,pin,v,buffer) : _NOP);
+    sprintf(buffer,"gpio write %d %d",pin,v);
+    int rc=system(buffer);
+
+    (TRACE>=0x00 ? fprintf(stderr,"%s::writePin write pin(%d) value(%d) command(%s) rc(%d)\n",PROGRAMID,pin,v,buffer,rc) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------

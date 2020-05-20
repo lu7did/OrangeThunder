@@ -223,7 +223,7 @@ void genSSB::start() {
 
 char   command[256];
 // --- create pipes
-  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
+  (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d) DDS(%s)\n",PROGRAMID,TRACE,BOOL2CHAR(dds)) : _NOP);
 
   pipe(inpipefd);
   fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
@@ -263,8 +263,8 @@ char cmd_DEBUG[16];
    } else {
      sprintf(cmd_DEBUG," ");
    }
-   (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> debug set to (%s)\n",PROGRAMID,cmd_DEBUG) : _NOP);
 
+   (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> debug set to (%s)\n",PROGRAMID,cmd_DEBUG) : _NOP);
    switch(this->mode) {
            case MCW:
            case MCWR: 
@@ -373,7 +373,14 @@ int genSSB::readpipe(char* buffer,int len) {
        return 0;
     }
      buffer[rc]=0x00;
-     if (strcmp(buffer,"VOX=1\n")==0) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
+
+
+    char * token = strtok(buffer, "\n");
+   // loop through the string to extract all other tokens
+   while( token != NULL ) {
+
+     if (strcmp(token,"VOX=1")==0) {
         if (vox==true) {
            this->stateVOX=true;
            if ( changeVOX!=NULL ) {changeVOX();}
@@ -383,7 +390,7 @@ int genSSB::readpipe(char* buffer,int len) {
         }
     }
 
-    if (strcmp(buffer,"VOX=0\n")==0) {
+    if (strcmp(token,"VOX=0")==0) {
        if (vox==true) {
           this->stateVOX=false;
           if(changeVOX!=NULL) {changeVOX();}
@@ -392,6 +399,10 @@ int genSSB::readpipe(char* buffer,int len) {
          this->stateVOX=false;
        }
     }
+   (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() parsed token(%s)\n",token) : _NOP);
+    printf( " %s\n", token ); //printing each token
+    token = strtok(NULL, " ");
+   }
 
     return rc;
 

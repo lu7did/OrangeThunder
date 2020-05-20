@@ -152,7 +152,7 @@ void timer_exec()
      (TRACE>=0x04 ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
      if(TVOX==0) {
        fVOX=1;
-       (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
+       (TRACE>=0x04 ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
      }
   }
 }
@@ -209,7 +209,7 @@ Usage:  \n\
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-   (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x04 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
@@ -248,17 +248,17 @@ int main(int argc, char* argv[])
         timer_start(timer_exec,100);
         (TRACE>=0x00 ? fprintf(stderr,"%s %s [%s] tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE) : _NOP);;
         cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
+        (TRACE >= 0x04 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
 
         cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
         if (cmd_FD != -1) {
-           (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
+           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
            setWord(&MSW,RUN,true);
         } else {
-           (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
+           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
            exit(16);
         }
-        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
+        (TRACE >= 0x04 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:v:p:dxqt:");
@@ -275,39 +275,39 @@ int main(int argc, char* argv[])
 			agc_max = atof(optarg);
                         if (agc_max>0.0) {
 	                   agc_thr=agc_max*AGC_LEVEL;
-	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s:Args() AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
+	  		   (TRACE >= 0x00 ? fprintf(stderr,"%s:Args() AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
   	                } else {
 	  	           agc_max=0.0;
 		 	   agc_thr=0.0;
-	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s:Args() AGC max invalid\n",PROGRAMID) : _NOP);
+	  		   (TRACE >= 0x00 ? fprintf(stderr,"%s:Args() AGC max invalid\n",PROGRAMID) : _NOP);
 		        }
 			break;
                 case 't': // Debug level
                         TRACE = atoi(optarg);
-                        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
                         break;
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
-   		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
+   		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
 			break;
 		case 'q': // go quiet
 			fquiet=true;
-  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() quiet operation (no messages)\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() quiet operation (no messages)\n",PROGRAMID) : _NOP);
 			break;
 		case 'x': // go quiet
 			autoPTT=true;
-  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() auto PTT set\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() auto PTT set\n",PROGRAMID) : _NOP);
 			break;
 		case 'd': // DDS mode
 			fdds=true;
-  		        (TRACE>=0x01 ? fprintf(stderr,"%s:Args() DDS operation enabled\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() DDS operation enabled\n",PROGRAMID) : _NOP);
 			break;
 		case 'p': //GPIO PTT
 			gpio_ptt  = atoi(optarg);
 		        if (gpio_ptt > 0) {
-   		           (TRACE>=0x01 ? fprintf(stderr,"%s:Args() PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
+   		           (TRACE>=0x00 ? fprintf(stderr,"%s:Args() PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
 		        } else {
-	    		   (TRACE>=0x01 ? fprintf(stderr,"%s: invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
+	    		   (TRACE>=0x04 ? fprintf(stderr,"%s: invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
                         }
 			break;
 		case -1:
@@ -328,7 +328,7 @@ int main(int argc, char* argv[])
 		}/* end switch a */
 	}/* end while getopt() */
 
-        (TRACE>=0x00 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
+        (TRACE>=0x04 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
 	for (int i = 0; i < 64; i++) {
            struct sigaction sa;
            std::memset(&sa, 0, sizeof(sa));
@@ -371,7 +371,7 @@ float   gain=1.0;
 
         setWord(&MSW,PTT,false);
    int  j=0;
-        (TRACE >= 0x01 ? fprintf(stderr,"%s:main(): Starting main loop VOX(%s) Timeout(%d)\n",PROGRAMID,BOOL2CHAR(autoPTT),vox_timeout) : _NOP); 
+        (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): Starting main loop VOX(%s) Timeout(%d)\n",PROGRAMID,BOOL2CHAR(autoPTT),vox_timeout) : _NOP); 
 
 	while(getWord(MSW,RUN)==true)
 	{
@@ -399,12 +399,12 @@ float   gain=1.0;
 // --- Processing AGC results on  incoming signal
 
            if (gain<mingain) {
-              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
+              (TRACE>=0x00 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
               mingain=gain;
            }
 
            if (gain>maxgain) {
-              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
+              (TRACE>=0x00 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
               maxgain=gain;
               thrgain=maxgain*0.70;
            }
@@ -412,19 +412,20 @@ float   gain=1.0;
            if (vox_timeout > 0) {  //Is the timeout activated?
               if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
                  if (TVOX==0) {    //Is the timer counter idle
-                    (fquiet==true ? fprintf(stderr,"VOX=1\n\n") : _NOP) ;
-                    (TRACE>=0x02 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
+                    fprintf(stderr,"VOX=1\n");
+                    (TRACE>=0x06 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
                  }
                  TVOX=vox_timeout; //Refresh the timeout
+                 fVOX=0;
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
                     setPTT(true);
                  }
               }
 
-              if (fVOX==1) {  //Has the timer reach zero?
+              if (fVOX==1  && TVOX == 0) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
-                 (fquiet==true ? fprintf(stderr,"VOX=0\n") : _NOP) ; //and inform VOX is down
-                 (TRACE>=0x02 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
+                 fprintf(stderr,"VOX=0\n"); //and inform VOX is down
+                 (TRACE>=0x06 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
                     setPTT(false);
                  }
