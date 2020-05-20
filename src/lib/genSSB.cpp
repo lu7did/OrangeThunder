@@ -74,7 +74,7 @@
 #include "/home/pi/librpitx/src/librpitx.h"
 #include "../OT/OT.h"
 #include "../OT4D/transceiver.h"
-
+#include "../lib/CallBackTimer.h"
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
@@ -121,6 +121,8 @@ bool     autoPTT=false;
 int      nbread=0;
 int      numSamplesLow=0;
 int      result=0;
+char     timestr[16];
+CallBackTimer* VOXtimer;
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
@@ -140,7 +142,20 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
   }
 
 }
+//--------------------------------------------------------------------------------------------------
+// returns the time in a string format
+//--------------------------------------------------------------------------------------------------
+char* getTime() {
 
+       time_t theTime = time(NULL);
+       struct tm *aTime = localtime(&theTime);
+       int hour=aTime->tm_hour;
+       int min=aTime->tm_min;
+       int sec=aTime->tm_sec;
+       sprintf(timestr,"%02d:%02d:%02d",hour,min,sec);
+       return (char*) &timestr;
+
+}
 //--------------------------------------------------------------------------------------------------
 // timer_exec 
 // timer management
@@ -149,10 +164,9 @@ void timer_exec()
 {
   if (TVOX!=0) {
      TVOX--;
-     (TRACE>=0x04 ? fprintf(stderr,"%s:timer_exec() Timer TVOX countdown(%ld)\n",PROGRAMID,TVOX) : _NOP);
      if(TVOX==0) {
        fVOX=1;
-       (TRACE>=0x04 ? fprintf(stderr,"%s:timer_exec Timer TVOX expired\n",PROGRAMID) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec %s Timer TVOX expired\n",PROGRAMID,getTime()) : _NOP);
      }
   }
 }
@@ -178,8 +192,8 @@ void timer_start(std::function<void(void)> func, unsigned int interval)
 void sigalarm_handler(int sig)
 {
 
-   timer_exec();
-   alarm(ONESEC);
+   //timer_exec();
+   //alarm(ONESEC);
    return;
 
 
@@ -204,12 +218,19 @@ Usage:  \n\
 
 } /* end function print_usage */
 
+//--------------------------------------------------------------------------------------------------
+// FT8ISR - interrupt service routine, keep track of the FT8 sequence windows
+//--------------------------------------------------------------------------------------------------
+void VOXISR() {
+
+     timer_exec();
+}
 //---------------------------------------------------------------------------------
 // setPTT
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-   (TRACE>=0x04 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
@@ -248,17 +269,16 @@ int main(int argc, char* argv[])
         timer_start(timer_exec,100);
         (TRACE>=0x00 ? fprintf(stderr,"%s %s [%s] tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE) : _NOP);;
         cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-        (TRACE >= 0x04 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
+        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
 
         cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
         if (cmd_FD != -1) {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
+           (TRACE >= 0x01 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
            setWord(&MSW,RUN,true);
         } else {
            (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
            exit(16);
         }
-        (TRACE >= 0x04 ? fprintf(stderr,"%s:main() About to enter argument parsing\n",PROGRAMID) : _NOP); 
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:v:p:dxqt:");
@@ -328,7 +348,7 @@ int main(int argc, char* argv[])
 		}/* end switch a */
 	}/* end while getopt() */
 
-        (TRACE>=0x04 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
+        (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
 	for (int i = 0; i < 64; i++) {
            struct sigaction sa;
            std::memset(&sa, 0, sizeof(sa));
@@ -336,6 +356,7 @@ int main(int argc, char* argv[])
            sigaction(i, &sa, NULL);
         }
 
+        vox_timeout=3*1000;
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
 
@@ -344,6 +365,9 @@ int main(int argc, char* argv[])
         Qbuffer =(float*)malloc(IQBURST*sizeof(short)*2);
         Fout    =(float*)malloc(IQBURST*sizeof(short)*4);
         cmd_buffer=(char*)malloc(1024);
+
+        VOXtimer=new CallBackTimer();
+        VOXtimer->start(1,VOXISR);
 
 float   gain=1.0;
 
@@ -358,7 +382,7 @@ float   gain=1.0;
         } else {
            usb->agc.active=false;
         }
-        (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): SSB controller generation completed\n",PROGRAMID) : _NOP); 
+        (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): SSB controller generation completed\n",PROGRAMID) : _NOP); 
 
   float maxgain=0.0;
   float mingain=usb->agc.max_gain;
@@ -373,6 +397,8 @@ float   gain=1.0;
    int  j=0;
         (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): Starting main loop VOX(%s) Timeout(%d)\n",PROGRAMID,BOOL2CHAR(autoPTT),vox_timeout) : _NOP); 
 
+        vox_timeout=vox_timeout*1000;  //interface is expressed in secs but actual timer is in mSecs
+
 	while(getWord(MSW,RUN)==true)
 	{
 
@@ -383,11 +409,11 @@ float   gain=1.0;
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
+                 (TRACE >= 0x03 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
+                 (TRACE >= 0x03 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(false);
                }
            } else;
@@ -399,12 +425,12 @@ float   gain=1.0;
 // --- Processing AGC results on  incoming signal
 
            if (gain<mingain) {
-              (TRACE>=0x00 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
+              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
               mingain=gain;
            }
 
            if (gain>maxgain) {
-              (TRACE>=0x00 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
+              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
               maxgain=gain;
               thrgain=maxgain*0.70;
            }
@@ -413,19 +439,22 @@ float   gain=1.0;
               if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
                  if (TVOX==0) {    //Is the timer counter idle
                     fprintf(stderr,"VOX=1\n");
-                    (TRACE>=0x06 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
+                    fflush(stderr);
+                    (TRACE>=0x03 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
                  }
                  TVOX=vox_timeout; //Refresh the timeout
                  fVOX=0;
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
                     setPTT(true);
+                    (TRACE>=0x03 ? fprintf(stderr,"%s:main() autoPTT==true && MSW,PTT==false condition\n",PROGRAMID) : _NOP);
                  }
               }
 
               if (fVOX==1  && TVOX == 0) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
                  fprintf(stderr,"VOX=0\n"); //and inform VOX is down
-                 (TRACE>=0x06 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
+                 fflush(stderr);
+                 (TRACE>=0x03 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
                     setPTT(false);
                  }
@@ -456,7 +485,7 @@ float   gain=1.0;
         delete(usb);
  	fprintf(stderr,"CLOSE=1\n");
 
-        (TRACE>=0x01 ? fprintf(stderr,"%s:main() program terminated normally\n",PROGRAMID) : _NOP);
+        (TRACE>=0x00 ? fprintf(stderr,"%s:main() program terminated normally\n",PROGRAMID) : _NOP);
         exit(0);
 
 }

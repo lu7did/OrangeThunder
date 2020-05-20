@@ -132,7 +132,7 @@ char buffer[256];
        return;
     }
 
-    sprintf(buffer,"gpio write %d %d",pin,v);
+    sprintf(buffer,"python /home/pi/PixiePi/bash/gpioset.py %d %d",pin,v);
     int rc=system(buffer);
 
     (TRACE>=0x00 ? fprintf(stderr,"%s::writePin write pin(%d) value(%d) command(%s) rc(%d)\n",PROGRAMID,pin,v,buffer,rc) : _NOP);
