@@ -102,4 +102,5 @@ install: all
 	install	-m 0755 ../bin/pift8  /usr/bin
 	install	-m 0755 ../bin/decodeFT8  /usr/bin
 	install	-m 0755 ../bin/sendRF  /usr/bin
+	install	-m 0755 ../python/gpioset.py  /usr/bin
 	install	-m 0755 ../bin/demo_genSSB  /usr/bin

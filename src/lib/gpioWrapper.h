@@ -67,7 +67,7 @@ CALLBACKENC changeEncoder=NULL;
 
 // -- public attributes
 
-      byte                TRACE=0x00;
+      byte                TRACE=0x02;
       pid_t               pid = 0;
       int                 status;
       struct gpio_state   g[MAXGPIO];
@@ -102,7 +102,6 @@ gpioWrapper::gpioWrapper(CALLBACKPIN p){
 
 // --- initial definitions
 
-   indexGPIO=0;
    setWord(&MSW,RUN,false);
 }
 //---------------------------------------------------------------------------------------------------
@@ -132,10 +131,10 @@ char buffer[256];
        return;
     }
 
-    sprintf(buffer,"python /home/pi/PixiePi/bash/gpioset.py %d %d",pin,v);
+    sprintf(buffer,"python /home/pi/OrangeThunder/python/gpioset.py %d %d",pin,v);
     int rc=system(buffer);
 
-    (TRACE>=0x00 ? fprintf(stderr,"%s::writePin write pin(%d) value(%d) command(%s) rc(%d)\n",PROGRAMID,pin,v,buffer,rc) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::writePin write pin(%d) value(%d) command(%s) rc(%d)\n",PROGRAMID,pin,v,buffer,rc) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------

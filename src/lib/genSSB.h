@@ -63,27 +63,27 @@ CALLBACK changeVOX=NULL;
 
 // -- public attributes
 
-      byte                TRACE=0x00;
-      pid_t               pid = 0;
-      int                 status;
+      byte    TRACE=0x00;
+      pid_t   pid = 0;
+      int     status;
 
-      int                 inpipefd[2];
-      int                 outpipefd[2];
+      int     inpipefd[2];
+      int     outpipefd[2];
 
-      float               f;
-      int                 sr;
-      int                 vol;
-      int		  mode;
-      int                 soundChannel;
-      int                 soundSR;
-      char                soundHW[64];
-      int                 ptt_fifo = -1;
-      int		  result;
-      bool                stateVOX;
-      bool                statePTT;
-      bool                dds;
-      bool                vox;
-      byte                MSW = 0;
+      float   f;
+      int     sr;
+      int     vol;
+      int     mode;
+      int     soundChannel;
+      int     soundSR;
+      char    soundHW[64];
+      int     ptt_fifo = -1;
+      int     result;
+      bool    stateVOX;
+      bool    statePTT;
+      bool    dds;
+      bool    vox;
+      byte    MSW = 0;
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
@@ -211,8 +211,6 @@ void genSSB::setMode(byte m) {
    }
 
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::setMode(%s), ignored actually\n",PROGRAMID,MODE) : _NOP);
-   //this->stop();
-   //this->start();
    return;
 }
 //---------------------------------------------------------------------------------------------------
@@ -231,7 +229,6 @@ char   command[256];
 
   pipe(outpipefd);
   fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
-  //fcntl(outpipefd[1],F_SETFL,O_NONBLOCK);
 
 // --- launch pipe
 
@@ -373,10 +370,11 @@ int genSSB::readpipe(char* buffer,int len) {
        return 0;
     }
      buffer[rc]=0x00;
-    (TRACE>=0x00 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
+    (TRACE>=0x02 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
 
 
     char * token = strtok(buffer, "\n");
+
    // loop through the string to extract all other tokens
    while( token != NULL ) {
 

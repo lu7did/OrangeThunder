@@ -119,7 +119,7 @@ int  sIni,kIni;
 char iniSection[50];
 
 // --- System control objects
-byte   TRACE=0x02;
+byte   TRACE=0x00;
 byte   MSW=0x00;
 
 // *----------------------------------------------------------------*
@@ -450,31 +450,7 @@ strcpy(HW,"hw:Loopback,1,0");
 
 #ifdef Pi4D
 strcpy(HW,"hw:1");
-
-
-// *-----------------------------------------------------------------------------------------
-// * Setup LCD Display 
-// *-----------------------------------------------------------------------------------------
-    LCD_Buffer=(char*) malloc(32);
-    lcd=new LCDLib(NULL);
-
-    lcd->begin(16,2);
-    lcd->clear();
-    lcd->createChar(0,TX);
-    lcd_light=LCD_ON;
-    lcd->backlight(true);
-    lcd->setCursor(0,0);
-  
-    fprintf(stderr,"%s %s:main() LCD display turned on\n",getTime(),PROGRAMID);
-    sprintf(LCD_Buffer,"%s %s(%s)",PROGRAMID,PROG_VERSION,PROG_BUILD);
-    lcd->println(0,0,LCD_Buffer);
-
-//    sprintf(LCD_Buffer,"%s %s %d",callsign,locator,WSPRPower);
-//    lcd->println(0,1,LCD_Buffer);
-
 #endif
-
-
 
 #ifdef OT4D
   rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
@@ -497,32 +473,32 @@ strcpy(HW,"hw:1");
 	{
 	case 'p': // File name
              sprintf(port,optarg);
-	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument port(%s)\n",PROGRAMID,port) : _NOP);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- port(%s)\n",PROGRAMID,port) : _NOP);
 	     break;
 	case 'f': // Frequency
 	     f = atof(optarg);
-  	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument frequency(%10f)\n",PROGRAMID,f) : _NOP);
+  	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- frequency(%10f)\n",PROGRAMID,f) : _NOP);
 	     break;
 	case 'v': // Volume
 	     vol = atoi(optarg);
-	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument volume(%d)\n",PROGRAMID,vol) : _NOP);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- volume(%d)\n",PROGRAMID,vol) : _NOP);
              break;
 	case 'x': // voX
 	     vox=true;
-	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument vox(%s)\n",PROGRAMID,BOOL2CHAR(vox)) : _NOP);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- vox(%s)\n",PROGRAMID,BOOL2CHAR(vox)) : _NOP);
              break;
 	case 't': // tracelevel
 	     TRACE = atoi(optarg);
-	     (TRACE>=0x01 ? fprintf(stderr,"%s: argument tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP);
              break;
 	case -1:
              break;
 	case '?':
 	     if (isprint(optopt) )
  	     {
- 	        (TRACE>=0x00 ? fprintf(stderr, "%s:arg_parse() unknown option `-%c'.\n",PROGRAMID,optopt) : _NOP);
+ 	        (TRACE>=0x00 ? fprintf(stderr, "%s:main()  unknown option `-%c'.\n",PROGRAMID,optopt) : _NOP);
  	     } 	else {
-		(TRACE>=0x00 ?fprintf(stderr, "%s:arg_parse() unknown option character `\\x%x'.\n",PROGRAMID,optopt) : _NOP);
+		(TRACE>=0x00 ?fprintf(stderr, "%s:main()  unknown option character `\\x%x'.\n",PROGRAMID,optopt) : _NOP);
   	     }
 	     print_usage();
 	     exit(1);
@@ -535,42 +511,40 @@ strcpy(HW,"hw:1");
 	}/* end while getopt() */
 
 
+#ifdef Pi4D
+// *-----------------------------------------------------------------------------------------
+// * Setup LCD Display 
+// *-----------------------------------------------------------------------------------------
+    LCD_Buffer=(char*) malloc(32);
+    lcd=new LCDLib(NULL);
+
+    lcd->begin(16,2);
+    lcd->clear();
+    lcd->createChar(0,TX);
+    lcd_light=LCD_ON;
+    lcd->backlight(true);
+    lcd->setCursor(0,0);
+  
+    fprintf(stderr,"%s %s:main() LCD display turned on\n",getTime(),PROGRAMID);
+    sprintf(LCD_Buffer,"%s %s(%s)",PROGRAMID,PROG_VERSION,PROG_BUILD);
+    lcd->println(0,0,LCD_Buffer);
+
+    sprintf(LCD_Buffer,"f=%5.1f KHz",f/1000);
+    lcd->println(0,1,LCD_Buffer);
+
+#endif
+
+
 // --- gpio Wrapper creation
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
   g=new gpioWrapper(NULL);
   g->TRACE=TRACE;
-
-//  if (g->setPin(GPIO_PTT,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PTT) : _NOP);
-//     exit(16);
-//  }
-//  if (g->setPin(GPIO_PA,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-//     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_PA) : _NOP);
-//     exit(16);
-//  }
-//  if (g->setPin(GPIO_AUX,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-//     (TRACE>=0x0 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_AUX) : _NOP);
-//     exit(16);
-//  }
-//  if (g->setPin(GPIO_KEYER,GPIO_IN,GPIO_PUP,GPIO_NLP) == -1) {
-//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_KEYER) : _NOP);
-//     exit(16);
-//  }
-
-#ifdef Pi4D
-//  if (g->setPin(GPIO_COOLER,GPIO_OUT,GPIO_PUP,GPIO_NLP) == -1) {
-//     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to initialize pin(%s)\n",PROGRAMID,(char*)GPIO_COOLER) : _NOP);
-//     exit(16);
-//  }
-#endif
-
   if (g->start() == -1) {
      (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
      exit(8);
   }
 
-//  usleep(1000);
 
 #ifdef Pi4D
   // *---------------------------------------------*
@@ -676,18 +650,6 @@ strcpy(HW,"hw:1");
     cat->get();
 
 #ifdef OT4D
-    //*---------------------------------------------*
-    //* Process commands from rtl-sdr receiver      *
-    //*---------------------------------------------*
-//    if (getWord(rtl->MSW,RUN)==true) {
-//
-//    int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
-//        if (rtl_read>0) {
-//           rtl_buffer[rtl_read]=0x00;
-//           (TRACE>=0x01 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
-//        }
-//    }
-
     if (getWord(rtl->MSW,RUN)==true) {
 
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
@@ -705,19 +667,8 @@ strcpy(HW,"hw:1");
            (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
         }
     }
-    //*---------------------------------------------*
-    //* Process signals and messages from GPIO      *
-    //*---------------------------------------------*
-//    if (getWord(g->MSW,RUN)==true) {
-//   int gpio_read=g->readpipe(gpio_buffer,BUFSIZE);
-//       if (gpio_read>0) {
-//           gpio_buffer[gpio_read]=0x00;
-//           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)gpio_buffer) : _NOP);
-//        }
-//    }
 
-
-//* -------------------
+//* -------------------[end of main loop ]--------------------------------
   }
 
 

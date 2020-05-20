@@ -186,18 +186,6 @@ void timer_start(std::function<void(void)> func, unsigned int interval)
     }
   }).detach();
 }
-// *---------------------------------------------------
-// * alarm handler
-// *---------------------------------------------------
-void sigalarm_handler(int sig)
-{
-
-   //timer_exec();
-   //alarm(ONESEC);
-   return;
-
-
-}
 //---------------------------------------------------------------------------------
 // Print usage
 //---------------------------------------------------------------------------------
@@ -304,39 +292,39 @@ int main(int argc, char* argv[])
 			break;
                 case 't': // Debug level
                         TRACE = atoi(optarg);
-                        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
                         break;
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
-   		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
+   		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
 			break;
 		case 'q': // go quiet
 			fquiet=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() quiet operation (no messages)\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Quiet operation (no messages)\n",PROGRAMID) : _NOP);
 			break;
 		case 'x': // go quiet
 			autoPTT=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() auto PTT set\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Auto PTT set\n",PROGRAMID) : _NOP);
 			break;
 		case 'd': // DDS mode
 			fdds=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:Args() DDS operation enabled\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- DDS operation enabled\n",PROGRAMID) : _NOP);
 			break;
 		case 'p': //GPIO PTT
 			gpio_ptt  = atoi(optarg);
 		        if (gpio_ptt > 0) {
-   		           (TRACE>=0x00 ? fprintf(stderr,"%s:Args() PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
+   		           (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
 		        } else {
-	    		   (TRACE>=0x04 ? fprintf(stderr,"%s: invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
+	    		   (TRACE>=0x04 ? fprintf(stderr,"%s:main() args--- invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
                         }
 			break;
 		case -1:
         	break;
 		case '?':
 			if (isprint(optopt) ) {
- 			   fprintf(stderr, "%s: unknown option `-%c'.\n",PROGRAMID,optopt);
+ 			   fprintf(stderr, "%s:main() args---  unknown option `-%c'.\n",PROGRAMID,optopt);
  			} else 	{
-		           fprintf(stderr, "%s: unknown option character `\\x%x'.\n",PROGRAMID,optopt);
+		           fprintf(stderr, "%s:main() args---  unknown option character `\\x%x'.\n",PROGRAMID,optopt);
 			}
 			print_usage();
 			exit(1);
@@ -356,7 +344,7 @@ int main(int argc, char* argv[])
            sigaction(i, &sa, NULL);
         }
 
-        vox_timeout=3*1000;
+        vox_timeout=vox_timeout*1000;
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
 
@@ -366,6 +354,7 @@ int main(int argc, char* argv[])
         Fout    =(float*)malloc(IQBURST*sizeof(short)*4);
         cmd_buffer=(char*)malloc(1024);
 
+        (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Define master timer\n",PROGRAMID) : _NOP);       
         VOXtimer=new CallBackTimer();
         VOXtimer->start(1,VOXISR);
 
@@ -387,9 +376,6 @@ float   gain=1.0;
   float maxgain=0.0;
   float mingain=usb->agc.max_gain;
   float thrgain=usb->agc.max_gain*0.50;
-
-        signal(SIGALRM, &sigalarm_handler);  // set a signal handler
-        alarm(1);
 
 //*---------------- Main execution loop
 
