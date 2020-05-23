@@ -22,7 +22,7 @@ import sys
 
 port=int(sys.argv[1]);
 st=int(sys.argv[2]);
-print("gpioset: GPIO pin(%d) state(%d) " % (port,st));
+#print("gpioset: GPIO pin(%d) state(%d) " % (port,st));
  
 #* Establish numbering convention, BCM in this case
 GPIO.setmode(GPIO.BCM)

@@ -32,7 +32,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
+w * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
@@ -109,7 +109,7 @@ float    agc_alpha=AGC_ALPHA;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=AGC_GAIN;;
 
-int      vox_timeout=VOX_TIMEOUT;
+int      vox_timeout=VOX_TIMEOUT;  //default=2 secs
 int      gpio_ptt=GPIO_PTT;
 
 short    *buffer_i16;
@@ -164,27 +164,13 @@ void timer_exec()
 {
   if (TVOX!=0) {
      TVOX--;
+//  (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec() %s TVOX(%ld)\n",PROGRAMID,getTime(),TVOX) : _NOP);
+
      if(TVOX==0) {
        fVOX=1;
        (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec %s Timer TVOX expired\n",PROGRAMID,getTime()) : _NOP);
      }
   }
-}
-
-//---------------------------------------------------------------------------
-// Timer handler function
-//---------------------------------------------------------------------------
-void timer_start(std::function<void(void)> func, unsigned int interval)
-{
-  std::thread([func, interval]()
-  {
-    while (getWord(MSW,RUN)==true)
-    {
-      auto x = std::chrono::steady_clock::now() + std::chrono::milliseconds(interval);
-      func();
-      std::this_thread::sleep_until(x);
-    }
-  }).detach();
 }
 //---------------------------------------------------------------------------------
 // Print usage
@@ -213,15 +199,43 @@ void VOXISR() {
 
      timer_exec();
 }
+//---------------------------------------------------------------------------------------------------
+// writePin CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void writePin(int pin, int v) {
+
+    if (pin <= 0 || pin >= MAXGPIO) {
+       return;
+    }
+
+    if (v != 0 && v!= 1) {
+       return;
+    }
+
+    if (getWord(MSW,RUN)==false) {
+       return;
+    }
+
+    (v==1 ? gpioWrite(GPIO_PTT,1) : gpioWrite(GPIO_PTT,0));
+    (TRACE>=0x02 ? fprintf(stderr,"%s:writePin write pin(%d) value(%d)\n",PROGRAMID,pin,v) : _NOP);
+
+}
 //---------------------------------------------------------------------------------
 // setPTT
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
+
+// Turn off PTT without waiting for an external order
+        if (autoPTT==true && fdds==true) { 
+            writePin(GPIO_PTT,1);
+        }
+
+       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 1111 to sendRF\n",PROGRAMID) : _NOP);
         Fout[0]=1111.0;
         Fout[1]=1111.0;
         fwrite(Fout, sizeof(float), 2, outfile) ;
@@ -231,7 +245,13 @@ void setPTT(bool ptt) {
       return;
    }
 
+// Turn off PTT without waiting for an external order
+    if (autoPTT==true && fdds==true) {
+        writePin(GPIO_PTT,0);
+    }
+
    if (getWord(MSW,PTT)==true && fdds==true) { //Signal RF Generator the mode is now FREQ_A (only if dds mode allowed)
+      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 2222 to sendRF\n",PROGRAMID) : _NOP);
       Fout[0]=2222.0;
       Fout[1]=2222.0;
       fwrite(Fout, sizeof(float), 2, outfile) ;
@@ -254,19 +274,7 @@ static void terminate(int num)
 int main(int argc, char* argv[])
 {
 
-        timer_start(timer_exec,100);
-        (TRACE>=0x00 ? fprintf(stderr,"%s %s [%s] tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE) : _NOP);;
-        cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
 
-        cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
-        if (cmd_FD != -1) {
-           (TRACE >= 0x01 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
-           setWord(&MSW,RUN,true);
-        } else {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
-           exit(16);
-        }
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:v:p:dxqt:");
@@ -283,7 +291,7 @@ int main(int argc, char* argv[])
 			agc_max = atof(optarg);
                         if (agc_max>0.0) {
 	                   agc_thr=agc_max*AGC_LEVEL;
-	  		   (TRACE >= 0x00 ? fprintf(stderr,"%s:Args() AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
+	  		   (TRACE >= 0x01 ? fprintf(stderr,"%s:Args() AGC max level(%2f) threshold(%2f)\n",PROGRAMID,agc_max,agc_thr) : _NOP);
   	                } else {
 	  	           agc_max=0.0;
 		 	   agc_thr=0.0;
@@ -292,30 +300,30 @@ int main(int argc, char* argv[])
 			break;
                 case 't': // Debug level
                         TRACE = atoi(optarg);
-                        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
                         break;
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
-   		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- VOX enabled timeout(%d) mSecs\n",PROGRAMID,vox_timeout) : _NOP);
+   		        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- VOX enabled timeout(%d) Secs\n",PROGRAMID,vox_timeout) : _NOP);
 			break;
 		case 'q': // go quiet
 			fquiet=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Quiet operation (no messages)\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Quiet operation (no messages)\n",PROGRAMID) : _NOP);
 			break;
 		case 'x': // go quiet
 			autoPTT=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- Auto PTT set\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Auto PTT set\n",PROGRAMID) : _NOP);
 			break;
 		case 'd': // DDS mode
 			fdds=true;
-  		        (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- DDS operation enabled\n",PROGRAMID) : _NOP);
+  		        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- DDS operation enabled\n",PROGRAMID) : _NOP);
 			break;
 		case 'p': //GPIO PTT
 			gpio_ptt  = atoi(optarg);
 		        if (gpio_ptt > 0) {
-   		           (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
+   		           (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- PTT enabled GPIO%d\n",PROGRAMID,gpio_ptt) : _NOP);
 		        } else {
-	    		   (TRACE>=0x04 ? fprintf(stderr,"%s:main() args--- invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
+	    		   (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- invalid PTT GPIO pin\n",PROGRAMID) : _NOP);
                         }
 			break;
 		case -1:
@@ -344,7 +352,51 @@ int main(int argc, char* argv[])
            sigaction(i, &sa, NULL);
         }
 
-        vox_timeout=vox_timeout*1000;
+//*---------------------------------------------------------------------------------------------------------
+//* Follows a setup valid when the -d and -x conditions are set, which is the pase of Pi4D
+//*---------------------------------------------------------------------------------------------------------
+
+
+        fprintf(stderr,"%s %s [%s] tracelevel(%d) dds(%s) PTT(%s)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE,BOOL2CHAR(fdds),BOOL2CHAR(autoPTT));
+
+
+if (autoPTT!=true && fdds!=true) {
+
+        cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
+        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
+
+        cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
+        if (cmd_FD != -1) {
+           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
+           setWord(&MSW,RUN,true);
+        } else {
+           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
+           exit(16);
+        }
+
+} 
+
+if (autoPTT==true && fdds==true) {
+
+        if(gpioInitialise()<0) {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
+           exit(16);
+        }
+
+        (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
+        gpioSetMode(GPIO_PTT, PI_OUTPUT);
+        gpioWrite(GPIO_PTT, 0);
+
+        gpioSetMode(GPIO_COOLER, PI_OUTPUT);
+        gpioWrite(GPIO_COOLER, 1);
+
+
+}
+//*------ end of selection criteria
+
+        //vox_timeout=2;
+        (TRACE>=0x00 ? fprintf(stderr,"%s:main(): VOX timeout set to (%d) msecs\n",PROGRAMID,vox_timeout) : _NOP);
+
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
 
@@ -385,24 +437,30 @@ float   gain=1.0;
 
         vox_timeout=vox_timeout*1000;  //interface is expressed in secs but actual timer is in mSecs
 
+        setWord(&MSW,RUN,true);
 	while(getWord(MSW,RUN)==true)
 	{
 
 // --- process commands thru pipe
 
+        if(autoPTT!=true && fdds!=true) {
+
            cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
            j++;
            if ( cmd_length > 0 ) {
               cmd_buffer[cmd_length] = 0x00;
+             (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): command pipe cmd(%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP); 
+
               if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-                 (TRACE >= 0x03 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(true);
               }
               if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-                 (TRACE >= 0x03 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
+                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
                  setPTT(false);
-               }
+              }
            } else;
+        }
 
 // --- end of command processing, read signal samples
 
@@ -425,25 +483,26 @@ float   gain=1.0;
               if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
                  if (TVOX==0) {    //Is the timer counter idle
                     fprintf(stderr,"VOX=1\n");
-                    fflush(stderr);
-                    (TRACE>=0x03 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
                  }
                  TVOX=vox_timeout; //Refresh the timeout
                  fVOX=0;
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
                     setPTT(true);
-                    (TRACE>=0x03 ? fprintf(stderr,"%s:main() autoPTT==true && MSW,PTT==false condition\n",PROGRAMID) : _NOP);
+                    setWord(&MSW,PTT,true);
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX triggered auto PTT set and PTT==false\n",PROGRAMID) : _NOP);
                  }
               }
 
-              if (fVOX==1  && TVOX == 0) {  //Has the timer reach zero?
+              if (fVOX==1) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
                  fprintf(stderr,"VOX=0\n"); //and inform VOX is down
-                 fflush(stderr);
-                 (TRACE>=0x03 ? fprintf(stderr,"%s:main() VOX=0 signal sent\n",PROGRAMID) : _NOP);
+                 (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX=0 signal sent as upcall\n",PROGRAMID) : _NOP);
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
                     setPTT(false);
+                    setWord(&MSW,PTT,false);
                  }
+
               }
            }
 
@@ -470,6 +529,11 @@ float   gain=1.0;
 //*---------------- program finalization cleanup
         delete(usb);
  	fprintf(stderr,"CLOSE=1\n");
+
+        if (autoPTT==true && fdds==true) {
+            gpioWrite(GPIO_COOLER, 0);
+            gpioWrite(GPIO_PTT, 0);
+        }
 
         (TRACE>=0x00 ? fprintf(stderr,"%s:main() program terminated normally\n",PROGRAMID) : _NOP);
         exit(0);

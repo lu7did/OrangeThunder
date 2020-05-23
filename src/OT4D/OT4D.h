@@ -1,5 +1,6 @@
 /*
- * OT4D 
+ * OT4D /PixiePi
+ * Conditional construction of methods based on either OT4D or Pi4D directive 
  *-----------------------------------------------------------------------------
  * simple USB transceiver for the OrangeThunder project
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
@@ -54,7 +55,7 @@
 
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 #include "../OT/OT.h"
-#include "../lib/gpioWrapper.h"
+//#include "../lib/gpioWrapper.h"
 #include "../lib/genSSB.h"
 #include "../lib/CAT817.h" 
 #include "../lib/genVFO.h"
@@ -68,7 +69,7 @@
 // --- OT4D specific includes
 #include "../lib/rtlfm.h"
 
-
+// --- Program initialization
 const char   *PROGRAMID="OT4D";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
@@ -121,14 +122,6 @@ char iniSection[50];
 // --- System control objects
 byte   TRACE=0x00;
 byte   MSW=0x00;
-
-// *----------------------------------------------------------------*
-// *                  GPIO support processing                       *
-// *----------------------------------------------------------------*
-// --- gpio object
-gpioWrapper* g=nullptr;
-char   *gpio_buffer;
-void gpiochangePin();
 
 // *----------------------------------------------------------------*
 // *                  ssb  processing                               *
@@ -208,6 +201,27 @@ static void sighandler(int signum)
    setWord(&MSW,RETRY,true);
 
 }
+//---------------------------------------------------------------------------------------------------
+// writePin CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+void writePin(int pin, int v) {
+
+    if (pin <= 0 || pin >= MAXGPIO) {
+       return;
+    }
+
+    if (v != 0 && v!= 1) {
+       return;
+    }
+
+    if (getWord(MSW,RUN)==false) {
+       return;
+    }
+
+    (v==1 ? gpioWrite(GPIO_PTT,1) : gpioWrite(GPIO_PTT,0));
+    (TRACE>=0x02 ? fprintf(stderr,"%s:writePin write pin(%d) value(%d)\n",PROGRAMID,pin,v) : _NOP);
+
+}
 // *---------------------------------------------------------------------------------------------------------------------
 // setPTT(boolean)
 // handle PTT variations
@@ -217,12 +231,13 @@ void setPTT(bool ptt) {
     (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
     if (ptt==true) {  //currently receiving now transmitting
 
+#ifdef Pi4D
     // *---------------------------------------------*
     // * Set PTT into transmit mode                  *
     // *---------------------------------------------*
+       writePin(GPIO_PTT,1);
        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-       if(g!=nullptr) {g->writePin(GPIO_PTT,1);}
-       usleep(10000);
+#endif
 
     // *---------------------------------------------*
     // * Set transceiver into TX mode                *
@@ -240,9 +255,13 @@ void setPTT(bool ptt) {
     usb->setPTT(ptt);
     usleep(10000);
 
-    (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set GPIO as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
-    if(g!=nullptr) {g->writePin(GPIO_PTT,0);}
-    usleep(10000);
+#ifdef Pi4D
+    // *---------------------------------------------*
+    // * Set PTT into transmit mode                  *
+    // *---------------------------------------------*
+       writePin(GPIO_PTT,0);
+      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+#endif
 
     setWord(&MSW,PTT,ptt);
     (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
@@ -437,23 +456,17 @@ int main(int argc, char** argv)
 
 // --- memory areas
 
-  TRACE=0x02;
-
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID) : _NOP);
-  gpio_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 
 
 #ifdef OT4D
 strcpy(HW,"hw:Loopback,1,0");
+rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 #endif
 
 #ifdef Pi4D
 strcpy(HW,"hw:1");
-#endif
-
-#ifdef OT4D
-  rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 #endif
 
 //---------------------------------------------------------------------------------
@@ -525,49 +538,34 @@ strcpy(HW,"hw:1");
     lcd->backlight(true);
     lcd->setCursor(0,0);
   
-    fprintf(stderr,"%s %s:main() LCD display turned on\n",getTime(),PROGRAMID);
+    (TRACE>=0x02 ? fprintf(stderr,"%s %s:main() LCD display turned on\n",getTime(),PROGRAMID) : _NOP);
+
     sprintf(LCD_Buffer,"%s %s(%s)",PROGRAMID,PROG_VERSION,PROG_BUILD);
     lcd->println(0,0,LCD_Buffer);
 
-    sprintf(LCD_Buffer,"f=%5.1f KHz",f/1000);
+    sprintf(LCD_Buffer,"  %5.1f KHz",f/1000);
     lcd->println(0,1,LCD_Buffer);
 
 #endif
 
 
-// --- gpio Wrapper creation
+#ifdef OT4D
+// --- OT4D manages the PTT and cooler locally whilst 
 
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize gpio Wrapper\n",PROGRAMID) : _NOP);
-  g=new gpioWrapper(NULL);
-  g->TRACE=TRACE;
-  if (g->start() == -1) {
-     (TRACE>=0x00 ? fprintf(stderr,"%s:main() failure to start gpioWrapper object\n",PROGRAMID) : _NOP);
-     exit(8);
+  if(gpioInitialise()<0) {
+    (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
+     exit(16);
   }
 
+  (TRACE>=0x02 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
+  gpioSetMode(GPIO_PTT, PI_OUTPUT);
+  gpioWrite(GPIO_PTT, 0);
 
-#ifdef Pi4D
-  // *---------------------------------------------*
-  // * Set cooler ON mode                          *
-  // *---------------------------------------------*
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler activation\n",PROGRAMID) : _NOP);
-  if(g!=nullptr) {g->writePin(GPIO_COOLER,1);}
-  usleep(10000);
-#endif
-
-
-#ifdef OT4D
-// --- define rtl-sdr handling object
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
-  rtl=new rtlfm();  
-  rtl->TRACE=TRACE;
-  rtl->setMode(MUSB);
-  rtl->setVol(vol);  
-  rtl->setFrequency(f);
-  rtl->changeSNR=changeSNR;
-  rtl->start();
+  gpioSetMode(GPIO_COOLER, PI_OUTPUT);
+  gpioWrite(GPIO_COOLER, 1);
 
 #endif
+
 
 // --- USB generator
 
@@ -579,15 +577,29 @@ strcpy(HW,"hw:1");
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
   usb->vox=vox;
+
 #ifdef OT4D
   usb->dds=false;
 #endif
+
 #ifdef Pi4D
   usb->dds=true;
+  usb->vox=true;
 #endif
 
   usb->start();
 
+#ifdef OT4D
+
+// --- define rtl-sdr handling object
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
+  rtl=new rtlfm();  
+  rtl->TRACE=TRACE;
+  rtl->setMode(MUSB);
+  rtl->setVol(vol);  
+  rtl->setFrequency(f);
+  rtl->changeSNR=changeSNR;
+  rtl->start();
 
 // --- creation of CAT object
 
@@ -605,6 +617,8 @@ strcpy(HW,"hw:1");
   setWord(&cat->FT817,AGC,false);
   setWord(&cat->FT817,PTT,getWord(MSW,PTT));
 
+#endif
+
   vfo=new genVFO(NULL,NULL,NULL,NULL);
   vfo->TRACE=TRACE;
   vfo->FT817=FT817;
@@ -618,8 +632,10 @@ strcpy(HW,"hw:1");
   vfo->setRIT(VFOB,false);
 
   vfo->vfo=VFOA;
+
+#ifdef OT4D
   setWord(&cat->FT817,VFO,VFOA);
-  
+#endif  
 
 // -- establish loop condition
   
@@ -647,7 +663,9 @@ strcpy(HW,"hw:1");
     //*---------------------------------------------*
     //*           Process CAT commands              *
     //*---------------------------------------------*
+#ifdef OT4D
     cat->get();
+#endif
 
 #ifdef OT4D
     if (getWord(rtl->MSW,RUN)==true) {
@@ -693,12 +711,6 @@ strcpy(HW,"hw:1");
 // --- Normal termination kills the child first and wait for its termination
 
 #ifdef Pi4D
-  // *---------------------------------------------*
-  // * Set cooler ON mode                          *
-  // *---------------------------------------------*
-  (TRACE>=0x01 ? fprintf(stderr,"%s:main() operating relay to cooler de-activation\n",PROGRAMID) : _NOP);
-  if(g!=nullptr) {g->writePin(GPIO_COOLER,0);}
-  usleep(10000);
 
 //*--- Turn off LCD
 
@@ -713,12 +725,11 @@ strcpy(HW,"hw:1");
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID) : _NOP);
 
-  g->stop();
-  cat->close();
   usb->stop();
 
 #ifdef OT4D
 
+  cat->close();
   if (rtl!=nullptr) {
      rtl->stop();
   }
