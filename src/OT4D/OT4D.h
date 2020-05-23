@@ -443,7 +443,7 @@ int main(int argc, char** argv)
 #ifdef OT4D
 
   f=ini_getl("OT4D","FREQ",14074000,inifile);
-  TRACE=ini_getl("OT4D","TRACE",2,inifile);
+  TRACE=ini_getl("OT4D","TRACE",0,inifile);
   vol=ini_getl("OT4D","VOL",10,inifile);
   nIni=ini_gets("OT4D", "PORT", "/tmp/ttyv0", port, sizearray(port), inifile);
 

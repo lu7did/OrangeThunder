@@ -163,7 +163,7 @@ genSSB::genSSB(CALLBACK v){
 void genSSB::setSoundChannel(int c) {
 
    this->soundChannel=c;
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundChannel() Soundchannel defined (%d)\n",PROGRAMID,this->soundChannel) : _NOP);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSoundChannel() Soundchannel defined (%d)\n",PROGRAMID,this->soundChannel) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ void genSSB::setSoundChannel(int c) {
 void genSSB::setSoundSR(int sr) {
 
    this->soundSR=sr;
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundSR() Sound card sample rate(%d)\n",PROGRAMID,this->soundSR) : _NOP);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSoundSR() Sound card sample rate(%d)\n",PROGRAMID,this->soundSR) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ void genSSB::setSoundSR(int sr) {
 void genSSB::setSoundHW(char* hw) {
 
    strcpy(this->soundHW,hw);
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setSoundHW() Sound card Hardware(%s)\n",PROGRAMID,this->soundHW) : _NOP);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setSoundHW() Sound card Hardware(%s)\n",PROGRAMID,this->soundHW) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -193,7 +193,7 @@ void genSSB::setFrequency(float f) {
       return;
    }
    this->f=f; 
-   (this->TRACE>=0x01 ? fprintf(stderr,"%s::setFrequency <FREQ=%d>\n",PROGRAMID,(int)this->f) : _NOP);
+   (this->TRACE>=0x02 ? fprintf(stderr,"%s::setFrequency <FREQ=%d>\n",PROGRAMID,(int)this->f) : _NOP);
 
 }
 //---------------------------------------------------------------------------------------------------
