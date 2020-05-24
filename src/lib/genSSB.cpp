@@ -199,43 +199,27 @@ void VOXISR() {
 
      timer_exec();
 }
-//---------------------------------------------------------------------------------------------------
-// writePin CLASS Implementation
+//--------------------------------------------------------------------------------------------------
+// writePin
 //--------------------------------------------------------------------------------------------------
 void writePin(int pin, int v) {
 
-    if (pin <= 0 || pin >= MAXGPIO) {
-       return;
-    }
-
-    if (v != 0 && v!= 1) {
-       return;
-    }
-
-    if (getWord(MSW,RUN)==false) {
-       return;
-    }
-
-    (v==1 ? gpioWrite(GPIO_PTT,1) : gpioWrite(GPIO_PTT,0));
-    (TRACE>=0x02 ? fprintf(stderr,"%s:writePin write pin(%d) value(%d)\n",PROGRAMID,pin,v) : _NOP);
+     gpioWrite(pin,v);
+    (TRACE>=0x02 ? fprintf(stderr,"%s:writePin executed pin(%d) valud(%d)\n",PROGRAMID,pin,v) : _NOP);
 
 }
+
 //---------------------------------------------------------------------------------
 // setPTT
 //---------------------------------------------------------------------------------
 void setPTT(bool ptt) {
 
-   (TRACE>=0x00 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
 
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
-
-// Turn off PTT without waiting for an external order
-        if (autoPTT==true && fdds==true) { 
-            writePin(GPIO_PTT,1);
-        }
-
-       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 1111 to sendRF\n",PROGRAMID) : _NOP);
+        writePin(gpio_ptt,1);
+        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 1111 to sendRF\n",PROGRAMID) : _NOP);
         Fout[0]=1111.0;
         Fout[1]=1111.0;
         fwrite(Fout, sizeof(float), 2, outfile) ;
@@ -245,10 +229,8 @@ void setPTT(bool ptt) {
       return;
    }
 
-// Turn off PTT without waiting for an external order
-    if (autoPTT==true && fdds==true) {
-        writePin(GPIO_PTT,0);
-    }
+   writePin(gpio_ptt,0);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() PTT turned off\n",PROGRAMID) : _NOP);
 
    if (getWord(MSW,PTT)==true && fdds==true) { //Signal RF Generator the mode is now FREQ_A (only if dds mode allowed)
       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 2222 to sendRF\n",PROGRAMID) : _NOP);
@@ -267,14 +249,17 @@ static void terminate(int num)
 {
     setWord(&MSW,RUN,false);
     (TRACE>=0x00 ? fprintf(stderr,"%s: Caught TERM signal(%x) - Terminating \n",PROGRAMID,num) : _NOP);
+    if (getWord(MSW,RETRY)==true) {
+       (TRACE>=0x00 ? fprintf(stderr,"%s: Signal handler re-entrancy, force exit SIG(%x) - Terminating \n",PROGRAMID,num) : _NOP);
+       exit(16);
+    }
+    setWord(&MSW,RETRY,true);
 }
 //---------------------------------------------------------------------------------
 // main 
 //---------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
-
-
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:v:p:dxqt:");
@@ -352,6 +337,7 @@ int main(int argc, char* argv[])
            sigaction(i, &sa, NULL);
         }
 
+
 //*---------------------------------------------------------------------------------------------------------
 //* Follows a setup valid when the -d and -x conditions are set, which is the pase of Pi4D
 //*---------------------------------------------------------------------------------------------------------
@@ -360,39 +346,52 @@ int main(int argc, char* argv[])
         fprintf(stderr,"%s %s [%s] tracelevel(%d) dds(%s) PTT(%s)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE,BOOL2CHAR(fdds),BOOL2CHAR(autoPTT));
 
 
-if (autoPTT!=true && fdds!=true) {
+if (fdds!=true) {
 
-        cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
-
-        cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
-        if (cmd_FD != -1) {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
-           setWord(&MSW,RUN,true);
-        } else {
-           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
-           exit(16);
-        }
+//        cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
+//        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
+//
+//        cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
+//        if (cmd_FD != -1) {
+//           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
+//           setWord(&MSW,RUN,true);
+//        } else {
+//           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
+//           exit(16);
+//        }
 
 } 
 
-if (autoPTT==true && fdds==true) {
+//if (fdds==true) {
+
+        gpioCfgClock(5, 0, 0);
 
         if(gpioInitialise()<0) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
+          (TRACE>=0x00 ? fprintf(stderr,"%s:main() Cannot initialize GPIO sub-system\n",PROGRAMID) : _NOP);
            exit(16);
+        } else {
+          (TRACE>=0x00 ? fprintf(stderr,"%s:main() GPIO sub-system initialized\n",PROGRAMID) : _NOP);
         }
 
-        (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
-        gpioSetMode(GPIO_PTT, PI_OUTPUT);
-        gpioWrite(GPIO_PTT, 0);
 
-        gpioSetMode(GPIO_COOLER, PI_OUTPUT);
-        gpioWrite(GPIO_COOLER, 1);
+        (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup PTT\n",PROGRAMID) : _NOP);
+        gpioSetMode(gpio_ptt, PI_OUTPUT);
+        gpioSetPullUpDown(gpio_ptt, PI_PUD_UP);   // Sets a pull-up.
+        gpioWrite(gpio_ptt, 0);
+
+        if (fdds==true) {
+           (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
+           gpioSetMode(GPIO_COOLER, PI_OUTPUT);
+           gpioSetPullUpDown(GPIO_COOLER, PI_PUD_UP);   // Sets a pull-up.
+           gpioWrite(GPIO_COOLER, 1);
+        }
+
+        for (int i=0;i<64;i++) {
+          gpioSetSignalFunc(i,terminate);
+        }
 
 
-}
-//*------ end of selection criteria
+//*------ end of GPIO initialization
 
         //vox_timeout=2;
         (TRACE>=0x00 ? fprintf(stderr,"%s:main(): VOX timeout set to (%d) msecs\n",PROGRAMID,vox_timeout) : _NOP);
@@ -443,38 +442,43 @@ float   gain=1.0;
 
 // --- process commands thru pipe
 
-        if(autoPTT!=true && fdds!=true) {
 
-           cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
-           j++;
-           if ( cmd_length > 0 ) {
-              cmd_buffer[cmd_length] = 0x00;
-             (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): command pipe cmd(%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP); 
+        if(fdds!=true) {
 
-              if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
-                 setPTT(true);
-              }
-              if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
-                 setPTT(false);
-              }
-           } else;
+//           cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
+//           j++;
+//           if ( cmd_length > 0 ) {
+//              cmd_buffer[cmd_length] = 0x00;
+//             (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): command pipe cmd(%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP); 
+//
+//              if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
+//                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
+//                 setPTT(true);
+//              }
+//              if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
+//                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
+//                 setPTT(false);
+//              }
+//           } else;
         }
 
 // --- end of command processing, read signal samples
 
            nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
-
+           //j++;
+           //if(j%1024000) {
+           //  (TRACE>=0x02 ? fprintf(stderr,"%s:main() read buffer_i16 1024 times nbread(%d)\n",PROGRAMID,nbread) : _NOP);
+           //   j=0;
+           //}
 // --- Processing AGC results on  incoming signal
 
            if (gain<mingain) {
-              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
               mingain=gain;
            }
 
            if (gain>maxgain) {
-              (TRACE>=0x03 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
               maxgain=gain;
               thrgain=maxgain*0.70;
            }
@@ -520,7 +524,8 @@ float   gain=1.0;
                  }
               }
               fwrite(Fout, sizeof(float), numSamplesLow*2, outfile) ;  //Send it
-              usleep(100);
+              //usleep(100);
+              usleep(10);
            } else {
    	      fprintf(stderr,"EOF=1\n");
               setWord(&MSW,RUN,false);
@@ -530,10 +535,11 @@ float   gain=1.0;
         delete(usb);
  	fprintf(stderr,"CLOSE=1\n");
 
-        if (autoPTT==true && fdds==true) {
+        if (fdds==true) {
             gpioWrite(GPIO_COOLER, 0);
-            gpioWrite(GPIO_PTT, 0);
         }
+
+        gpioWrite(gpio_ptt, 0);
 
         (TRACE>=0x00 ? fprintf(stderr,"%s:main() program terminated normally\n",PROGRAMID) : _NOP);
         exit(0);

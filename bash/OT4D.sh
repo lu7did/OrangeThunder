@@ -38,7 +38,7 @@ sudo pkill -9 -f arecord 2> /dev/null
 #*----------------------------------------*
 #* Transceiver execution using loopback   *
 #*----------------------------------------*
-OT4D -p /tmp/ttyv0 -f 14074000 
+OT4D -p /tmp/ttyv0 -f 14074000
 
 #*----------------------------------------*
 #* terminating                            *

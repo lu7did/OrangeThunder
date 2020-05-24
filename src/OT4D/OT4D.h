@@ -120,7 +120,7 @@ int  sIni,kIni;
 char iniSection[50];
 
 // --- System control objects
-byte   TRACE=0x00;
+byte   TRACE=0x02;
 byte   MSW=0x00;
 
 // *----------------------------------------------------------------*
@@ -336,7 +336,11 @@ void CATchangeStatus() {
 //--------------------------------------------------------------------------------------------------
 void CATgetRX() {
 
+#ifdef OT4D
+
     cat->RX=cat->snr2code(SNR);
+
+#endif 
 
 }
 
@@ -378,16 +382,16 @@ void SSBchangeVOX() {
 // ======================================================================================================================
 // VOX upcall signal
 // ======================================================================================================================
-void gpiochangePin(int pin,int state) {
-
-
-  (TRACE>=0x02 ? fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state) : _NOP);
-  if (pin==GPIO_AUX) {
-     (state==1 ? setPTT(false) : setPTT(true));
-     (TRACE >=0x01 ? fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state) : _NOP);
-  }
+//void gpiochangePin(int pin,int state) {
+//
+//
+//  (TRACE>=0x02 ? fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state) : _NOP);
+//  if (pin==GPIO_AUX) {
+//     (state==1 ? setPTT(false) : setPTT(true));
+//     (TRACE >=0x01 ? fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state) : _NOP);
+//  }
   
-}
+//}
 
 //---------------------------------------------------------------------------------
 // Print usage
@@ -417,10 +421,12 @@ int main(int argc, char** argv)
 
   fprintf(stderr,"%s version %s build(%s) %s tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT,TRACE);
 
+#ifdef Pi4D
   if (getuid()) {
       fprintf(stderr,"%s:main() %s\n",PROGRAMID,"This program must be run using sudo to acquire root privileges, terminating!");
       exit(16);
   }
+#endif
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
@@ -447,10 +453,10 @@ int main(int argc, char** argv)
   vol=ini_getl("OT4D","VOL",10,inifile);
   nIni=ini_gets("OT4D", "PORT", "/tmp/ttyv0", port, sizearray(port), inifile);
 
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main()   FREQ=%g\n",PROGRAMID,f) : _NOP);
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main()  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main()    VOL=%d\n",PROGRAMID,vol) : _NOP);
-  (TRACE>=0x02 ? fprintf(stderr,"%s:main()   PORT=%s\n",PROGRAMID,port) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  FREQ=%g\n",PROGRAMID,f) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  VOL=%d\n",PROGRAMID,vol) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  PORT=%s\n",PROGRAMID,port) : _NOP);
 
 #endif
 
@@ -550,19 +556,19 @@ strcpy(HW,"hw:1");
 
 
 #ifdef OT4D
-// --- OT4D manages the PTT and cooler locally whilst 
+// --- OT4D manages the PTT and cooler locally whilst Pi4D does this thru genSSB
 
-  if(gpioInitialise()<0) {
-    (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
-     exit(16);
-  }
+//  if(gpioInitialise()<0) {
+//    (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
+//     exit(16);
+//  }
 
-  (TRACE>=0x02 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
-  gpioSetMode(GPIO_PTT, PI_OUTPUT);
-  gpioWrite(GPIO_PTT, 0);
+//  (TRACE>=0x02 ? fprintf(stderr,"%s:setupGPIO() Setup PTT\n",PROGRAMID) : _NOP);
+//  gpioSetMode(GPIO_PTT, PI_OUTPUT);
+//  gpioWrite(GPIO_PTT, 0);
 
-  gpioSetMode(GPIO_COOLER, PI_OUTPUT);
-  gpioWrite(GPIO_COOLER, 1);
+  //gpioSetMode(GPIO_COOLER, PI_OUTPUT);
+  //gpioWrite(GPIO_COOLER, 1);
 
 #endif
 
@@ -570,16 +576,18 @@ strcpy(HW,"hw:1");
 // --- USB generator
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
-  usb=new genSSB(SSBchangeVOX);  
+//  usb=new genSSB(SSBchangeVOX);  
+  usb=new genSSB(NULL);  
   usb->TRACE=TRACE;
   usb->setFrequency(f);
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
-  usb->vox=vox;
+//  usb->vox=vox;
 
 #ifdef OT4D
   usb->dds=false;
+  usb->vox=true;
 #endif
 
 #ifdef Pi4D
@@ -587,6 +595,7 @@ strcpy(HW,"hw:1");
   usb->vox=true;
 #endif
 
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() Starting SSB generator interface\n",PROGRAMID) : _NOP);
   usb->start();
 
 #ifdef OT4D

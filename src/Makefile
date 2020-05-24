@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpioWrapper ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle ../bin/pift8 ../bin/sendRF
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpioWrapper ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle ../bin/pift8 ../bin/sendRF ../bin/gpio
 
 CCP  = c++
 CC   = cc
@@ -46,11 +46,11 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/genSSB lib/genSSB.cpp $(LDFLAGS)
 
 
-#../bin/demo_gpio	: lib/demo_gpio.c 
-#	$(GCC) -o ../bin/demo_gpio ./lib/demo_gpio.c $(CFLAGS)
-#
-#../bin/gpioWrapper	: lib/gpioWrapper.cpp
-#	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -g -o ../bin/gpioWrapper ./lib/gpioWrapper.cpp $(LDFLAGS)
+../bin/demo_gpio	: lib/demo_gpio.c 
+	$(GCC) -o ../bin/demo_gpio ./lib/demo_gpio.c $(CFLAGS)
+
+../bin/gpio		: lib/gpio.cpp
+	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -g -o ../bin/gpio ./lib/gpio.cpp $(LDFLAGS)
 
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
@@ -63,9 +63,6 @@ LSDR = /usr/local/lib/librtlsdr.a
 
 ../bin/decodeFT8     : lib/decodeFT8.cpp lib/libFT8.h
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
-
-#../bin/demo_craddle	: lib/demo_craddle.cpp
-#	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/demo_craddle ./lib/demo_craddle.cpp $(LDFLAGS)
 
 ../bin/pift8	: rpitx/pift8/pift8.cpp
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/pift8 ./rpitx/pift8/pift8.cpp $(FT8LIB)/ft8/pack.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
@@ -87,6 +84,7 @@ clean:
 	rm -r  ../bin/demo_decodeFT8
 	rm -r  ../bin/demo_genSSB
 	rm -r  ../bin/decodeFT8
+	rm -r  ../bin/gpio
 	rm -r  ../bin/sendRF
 	rm -r  ../bin/pift8
 
@@ -97,10 +95,9 @@ install: all
 	install	-m 0755 ../bin/genSSB  /usr/bin
 	install -m 0755 ../bin/demo_rtlfm  /usr/bin
 	install -m 0755 ../bin/demo_decodeFT8  /usr/bin
-#	install -m 0755 ../bin/demo_gpio  /usr/bin
+	install -m 0755 ../bin/gpio  /usr/bin
 	install	-m 0755 ../bin/decimator  /usr/bin
 	install	-m 0755 ../bin/pift8  /usr/bin
 	install	-m 0755 ../bin/decodeFT8  /usr/bin
 	install	-m 0755 ../bin/sendRF  /usr/bin
-	install	-m 0755 ../python/gpioset.py  /usr/bin
 	install	-m 0755 ../bin/demo_genSSB  /usr/bin

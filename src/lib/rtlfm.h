@@ -242,10 +242,11 @@ char   command[256];
 
     prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-
+char cmd_STDERR[32];
+    sprintf(cmd_STDERR,"  ");
 // --- format command
 
-   sprintf(command,"sudo rtl_fm -M %s -f %s -s %d  -E direct  | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - ",MODE,FREQ,so,vol,so); 
+   sprintf(command,"sudo rtl_fm -M %s -f %s -s %d  -E direct  | mplayer -nocache -af volume=%d -rawaudio samplesize=2:channels=1:rate=%d -demuxer rawaudio - %s",MODE,FREQ,so,vol,so,cmd_STDERR); 
    (this->TRACE >= 0x02 ? fprintf(stderr,"%s::start() command(%s)\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch, which is a test conduit of rtl_fm, final version should have some fancy parameterization

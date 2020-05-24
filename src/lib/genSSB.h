@@ -282,10 +282,18 @@ char   command[256];
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
    char cmd_DEBUG[16];
-   if (this->TRACE>=0) {
+   char cmd_stdERR[16];
+
+   if (this->TRACE>=0x02) {
       sprintf(cmd_DEBUG," -t %d ",this->TRACE);
    } else {
      sprintf(cmd_DEBUG," ");
+   }
+
+   if (this->TRACE>=0x03) {
+      sprintf(cmd_stdERR,"%s"," 2>/dev/null ");
+   } else {
+     sprintf(cmd_stdERR," ");
    }
 
 
@@ -303,7 +311,8 @@ char   command[256];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - | sudo genSSB %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,strDDS,strVOX,cmd_DEBUG,strDDS,this->sr,(int)f);
+
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_DEBUG,strDDS,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
@@ -324,14 +333,14 @@ char   command[256];
 // can be handled (e.g. you can respawn the child process).
 // *******************************************************************************************************
 
-  (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
-  ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
-  if (ptt_fifo != -1) {
-     (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
-  } else {
-    (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
-     exit(16);
-  }
+ (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
+// ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
+// if (ptt_fifo != -1) {
+//    (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
+// } else {
+//   (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
+//    exit(16);
+// }
 
   setWord(&MSW,RUN,true);
 
@@ -350,11 +359,13 @@ void genSSB::setPTT(bool v) {
 
   (this->TRACE>=0x00 ? fprintf(stderr,"%s::setPTT() setPTT(%s) sending PTT=%d\n",PROGRAMID,BOOL2CHAR(v),v) : _NOP);
   setWord(&MSW,PTT,v);
-  if (v==true) {
-     write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
-  } else {
-     write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
-  }
+
+//  if (v==true) {
+//     write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
+//  } else {
+//     write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
+//  }
+
   this->statePTT=v;
 }
 
@@ -370,7 +381,7 @@ int genSSB::readpipe(char* buffer,int len) {
        return 0;
     }
      buffer[rc]=0x00;
-    (TRACE>=0x00 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
+    (TRACE>=0x03 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
 
 char * token = strtok(buffer, "\n");
 
@@ -381,7 +392,7 @@ char * token = strtok(buffer, "\n");
         if (vox==true) {
            this->stateVOX=true;
            if ( changeVOX!=NULL ) {changeVOX();}
-              (TRACE>=0x00 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
+              (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
         } else {
           stateVOX=false;
         }
@@ -391,12 +402,12 @@ char * token = strtok(buffer, "\n");
        if (vox==true) {
           this->stateVOX=false;
           if(changeVOX!=NULL) {changeVOX();}
-          (TRACE>=0x00 ? fprintf(stderr,"genSSB::readpipe() received VOX=0 signal from child\n") : _NOP);
+          (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=0 signal from child\n") : _NOP);
        } else {
          this->stateVOX=false;
        }
     }
-   (TRACE>=0x00 ? fprintf(stderr,"genSSB::readpipe() parsed token(%s)\n",token) : _NOP);
+   (TRACE>=0x03 ? fprintf(stderr,"genSSB::readpipe() parsed token(%s)\n",token) : _NOP);
     token = strtok(NULL, "\n");
    }
 

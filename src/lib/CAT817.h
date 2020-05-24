@@ -304,7 +304,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        this->f=freq;
        BCDBuf[4]=0x01;
        hex2str(&buffer[0],&BCDBuf[0],1);
-       (TRACE>=0x01 ? fprintf(stderr,"%s::processCAT() Command 0x01 Resp(%s)\n",this->PROGRAMID,(char*) &buffer[0]) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x01 Resp(%s)\n",this->PROGRAMID,(char*) &buffer[0]) : _NOP);
        if (changeFreq != NULL) {
           fchangeFreq=0x01;
           changeFreq();
@@ -381,7 +381,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        }
        setWord(&FT817,PTT,true);
        hex2str(&buffer[0],&BCDBuf[0],1);
-       (TRACE>=0x01 ? fprintf(stderr,"%s::processCAT() Command 0x08 Resp(%s) PTT(On)\n",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x08 Resp(%s) PTT(On)\n",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],1);
        sendStatus();
        return;}
@@ -438,7 +438,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        }
        setWord(&FT817,PTT,false);
        hex2str(&buffer[0],&BCDBuf[0],1);
-       (TRACE>=0x01 ? fprintf(stderr,"%s::processCAT() Command 0x88 Resp(%s) PTT(Off)\n",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x88 Resp(%s) PTT(Off)\n",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],1);
        sendStatus();
        return; }
@@ -458,7 +458,7 @@ void CAT817::processCAT(byte* rxBuffer) {
           BCDBuf[0]=0x00;
           BCDBuf[1]=0x00;
           hex2str(&buffer[0],&BCDBuf[0],2);
-          (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0x64 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
+          (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0x64 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
           sendSerial(&BCDBuf[0],2);
           return;
        } 
@@ -540,7 +540,7 @@ void CAT817::processCAT(byte* rxBuffer) {
           BCDBuf[0]=0B10000000;
        }
        hex2str(&buffer[0],&BCDBuf[0],1);
-       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0xF7 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0xF7 Resp(%s)\n",this->PROGRAMID,buffer) : _NOP);  //modificar a 0x02
        sendSerial(&BCDBuf[0],1);
        return;}
 
@@ -556,7 +556,7 @@ void CAT817::processCAT(byte* rxBuffer) {
        BCDBuf[0]=BCDBuf[0] | ((((POWER*2) & 0x0f) << 1) & 0xf0) | 0x01;
        BCDBuf[1]=0x11;
        hex2str(&buffer[0],&BCDBuf[0],2);
-       (TRACE>=0x02 ? fprintf(stderr,"%s::processCAT() Command 0xBD Resp(%s)",this->PROGRAMID,buffer) : _NOP);
+       (TRACE>=0x03 ? fprintf(stderr,"%s::processCAT() Command 0xBD Resp(%s)",this->PROGRAMID,buffer) : _NOP);
        sendSerial(&BCDBuf[0],2);
        return; }
 
@@ -636,7 +636,7 @@ void CAT817::open(char* port, int speed) {
        this->active=false;
        return ;
     }
-    (TRACE >= 0x01 ? fprintf(stderr, "%s::open() Opened port(%s) at baud(%d) serial(%d) tracelevel(%d)\n",this->PROGRAMID,port,speed,this->serial_port,TRACE) : _NOP);
+    (TRACE >= 0x02 ? fprintf(stderr, "%s::open() Opened port(%s) at baud(%d) serial(%d) tracelevel(%d)\n",this->PROGRAMID,port,speed,this->serial_port,TRACE) : _NOP);
     this->active=true;
 }
 //*-------------------------------------------------------------------------
@@ -650,7 +650,6 @@ void CAT817::get() {
        return;
     }
     char  buf[16];
-    //this->TRACE=0x02;
     if (this->serial_port < 0) {
        (this->TRACE>=0x00 ? fprintf(stderr, "%s::get() Unable to process request, serial port problem(%d)\n",this->PROGRAMID,this->serial_port) : _NOP);
        return;
