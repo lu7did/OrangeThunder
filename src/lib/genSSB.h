@@ -348,7 +348,11 @@ char   command[256];
    char cmd_DEBUG[16];
    char cmd_stdERR[16];
 
-   sprintf(cmd_SHARE,"-m %d",sharedmem_token);
+   if (vox!=true) {
+      sprintf(cmd_SHARE,"-m %d",sharedmem_token);
+   } else {
+      sprintf(cmd_SHARE," ");
+   }
 
    if (this->TRACE>=0x02) {
       sprintf(cmd_DEBUG," -t %d ",this->TRACE);
@@ -361,7 +365,6 @@ char   command[256];
    } else {
      sprintf(cmd_stdERR," ");
    }
-
 
    char strVOX[16];
    if (vox==true) {
