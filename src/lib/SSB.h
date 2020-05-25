@@ -115,7 +115,7 @@ Decimator    *d;
 SSB::SSB()
 {
 
-  fprintf(stderr,"%s:: AGC Object Initialization\n",PROGRAMID);
+  fprintf(stderr,"%s::SSB() SSB Object Initialization\n",PROGRAMID);
 
   agc.g=new AGControl();
   agc.active=false;
@@ -126,12 +126,12 @@ SSB::SSB()
 
   decimation_factor=8;
 
-  fprintf(stderr,"%s: Filter coefficiente buffer creation\n",PROGRAMID); 
+  fprintf(stderr,"%s::SSB() Filter coefficient buffer creation\n",PROGRAMID); 
   a=(float*) malloc(96*sizeof(float));
   b=(float*) malloc(96*sizeof(float));
   c=(float*) malloc(96*sizeof(float));
 
-  fprintf(stderr,"%s:init(): Filter initialization\n",PROGRAMID);
+  fprintf(stderr,"%s::SSB() Filter initialization\n",PROGRAMID);
   
 /*
      Kaiser Window FIR Filter
@@ -427,15 +427,15 @@ SSB::SSB()
     c[87] =	2.1822347E-4f;
     c[88] =	-6.767926E-5f;
 
-    fprintf(stderr,"%s: Decimator creation\n",PROGRAMID);
+    fprintf(stderr,"%s::SSB() Decimator object creation\n",PROGRAMID);
     d = new Decimator(a, 83, decimation_factor);
 
-    fprintf(stderr,"%s: I/Q FIR Hilbert Filter\n",PROGRAMID);
+    fprintf(stderr,"%s::SSB() I/Q FIR Hilbert Filter creation\n",PROGRAMID);
 
     iFilter = new FIRFilter(b,89);
     qFilter = new FIRFilter(c,89);
 
-    fprintf(stderr,"%s::SSB() Object creation completed\n",PROGRAMID);
+    fprintf(stderr,"%s::SSB() SSB Object creation completed\n",PROGRAMID);
   
 }
 //*--------------------------------------------------------------------------------------------------

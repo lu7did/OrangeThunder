@@ -52,7 +52,6 @@ public:
             while (_execute.load(std::memory_order_acquire)) {
                 upcall();
                 std::this_thread::sleep_for(std::chrono::milliseconds(interval));
-                //std::this_thread::sleep_for(std::chrono::microseconds(interval));
 
             }
         });

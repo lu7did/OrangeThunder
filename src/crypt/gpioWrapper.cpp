@@ -272,7 +272,7 @@ void handleGPIOAlert(int g, int level, uint32_t tick)
 long mtime, seconds, useconds;
 int  k=0;
 
-   (TRACE>=0x03 ? fprintf(stderr,"%s:handleGPIOAlert() ISR Handler pin number(%d) level(%d) tick(%ld)\n",PROGRAMID,g,level,(long int)tick) : _NOP);
+   (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() ISR Handler pin number(%d) level(%d) tick(%ld)\n",PROGRAMID,g,level,(long int)tick) : _NOP);
 
    if (g<=0 || g>=32) {
       (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() invalid pin number(%d), ignored!\n",PROGRAMID,g) : _NOP);
@@ -284,7 +284,7 @@ int  k=0;
       return;
    }
 
-   if (level == 0) {
+   if (level == 1) {   //React to high level
 
       if (gpio[g].BMULTI==false) {
          (TRACE>=0x02 ? fprintf(stderr,"%s:handleGPIOAlert() pin number(%d) timer not running, ignored!\n",PROGRAMID,g) : _NOP);
@@ -312,13 +312,14 @@ int  k=0;
             (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() Pin(%d) pushed short t(%ld) ms\n",PROGRAMID,g,mtime) : _NOP);
             gpio[g].KDOWN=false;
          }
-         if (gpio[g].KDOWN==true && gpio[g].longpush==true) {k=2;} else {k=1;}
+         if (gpio[g].KDOWN==true) {k=2;} else {k=1;}
          fprintf(stderr,"GPIO%d=%1d\n", g, k);
          gpio[g].BMULTI=false;
          gpio[g].KDOWN=false;
          return;
        }
   }
+
   if (gpio[g].BMULTI==true) {
      (TRACE >= 0x03 ? fprintf(stderr,"%s:handleGPIOAlert() Received request to start while processing previouspin(%d). Ignored!\n",PROGRAMID,g) : _NOP);
      return;
@@ -328,7 +329,7 @@ int  k=0;
   gpio[g].BMULTI=true;
   (TRACE >= 0x02 ? fprintf(stderr,"%s:handleGPIOAlert() >>> Button(%d) pressed. Start of timer!\n",PROGRAMID,g) : _NOP);
   k=0;
-  fprintf(stderr,"GPIO%d=%1d\n", g, k);
+  //fprintf(stderr,"GPIO%d=%1d\n", g, k);
 
 }
 // *--------------------------[Rotary Encoder Interrupt Handler]--------------------------------------
@@ -409,24 +410,24 @@ int    j=0;
 		case 'p': {
                         int p=parseport(optarg,&gpio[0]);
                         if (p==-1) {
- 			  (TRACE >= 0x01 ? fprintf(stderr,"%s  port(?) invalid, ignored!\n",PROGRAMID) : _NOP);
+ 			  (TRACE >= 0x02 ? fprintf(stderr,"%s  port(?) invalid, ignored!\n",PROGRAMID) : _NOP);
                         } else {
                           gpio[p].active=true;
-                          (TRACE >= 0x01 ? fprintf(stderr,"%s  port=[%d,%s,%s] set\n",PROGRAMID,p,BOOL2CHAR(gpio[p].mode),BOOL2CHAR(gpio[p].pullup)) : _NOP);
+                          (TRACE >= 0x02 ? fprintf(stderr,"%s  port=[%d,%s,%s] set\n",PROGRAMID,p,BOOL2CHAR(gpio[p].mode),BOOL2CHAR(gpio[p].pullup)) : _NOP);
                         }
 			break; }
 		case 'q': {
 			q = true;
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  QUIT=%s\n",PROGRAMID,BOOL2CHAR(q)) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  QUIT=%s\n",PROGRAMID,BOOL2CHAR(q)) : _NOP);
 			break; }
                 case 'e': {
                         encoder=true;
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  ENCODER=%s\n",PROGRAMID,BOOL2CHAR(encoder)) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  ENCODER=%s\n",PROGRAMID,BOOL2CHAR(encoder)) : _NOP);
                         break;
                         }
 		case 'v': {
 			TRACE = (byte)(atoi(optarg));
-                        (TRACE >= 0x01 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
+                        (TRACE >= 0x02 ? fprintf(stderr,"%s  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
 			break; }
 		case 'h':
 		default: {
@@ -447,13 +448,6 @@ int    j=0;
       if (i != SIGALRM && i != 17 && i != 28) {
          signal(i,sighandler);
       }
-  }
-
-
-  for (int i=0;i<64;i++) {
-
-        gpioSetSignalFunc(i,sighandler);
-
   }
 
   sigaction(SIGINT, &sigact, NULL);

@@ -1,3 +1,12 @@
+//--------------------------------------------------------------------------------------------------
+// libFT8.h   (HEADER CLASS)
+// wrapper to call ft8_lib functions  to implement different extended functionalities
+//--------------------------------------------------------------------------------------------------
+// This is part of the firmware for the OrangeThunder platform
+// Solo para uso de radioaficionados, prohibido su utilizacion comercial
+// Copyright 2018 Dr. Pedro E. Colla (LU7DID)
+//--------------------------------------------------------------------------------------------------
+
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -14,10 +23,8 @@
 #include "/home/pi/ft8_lib/fft/kiss_fftr.h"
 
 const int kMin_score = 40;       // Minimum sync score threshold for candidates
-//const int kMax_candidates = 120;
 const int kMax_candidates = 80;
 const int kLDPC_iterations = 25;
-//const int kLDPC_iterations = 50;
 const int kMax_decoded_messages = 50;
 const int kMax_message_length = 25;
 const int kFreq_osr = 2;

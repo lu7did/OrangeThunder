@@ -73,7 +73,7 @@ CALLBACK changeVOX=NULL;
     void setSoundHW(char* hw);
     void setPTT(bool v);
     void setMode(byte m);
-     int openPipe();
+//     int openPipe();
 
 // -- public attributes
 
@@ -117,7 +117,8 @@ const char   *mAM="am";
 const char   *mFM="fm";
 const char   *mLSB="lsb";
 
-const char   *share="-m 12345";
+      int    sharedmem_token=12345;
+
 private:
 
      char     MODE[128];
@@ -182,7 +183,7 @@ genSSB::genSSB(CALLBACK v){
 //----- CREATE SHARED MEMORY -----
 //--------------------------------
    (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
-   sharedmem_id = shmget((key_t)12345, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
+   sharedmem_id = shmget((key_t)sharedmem_token, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
 //	Shared memory key
 //		Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help with this but it still doesn't guarantee to avoid colision)
 //	Permission flags
@@ -294,14 +295,8 @@ char   command[256];
   (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d) DDS(%s)\n",PROGRAMID,TRACE,BOOL2CHAR(dds)) : _NOP);
 
 //----- READ FROM SHARED MEMORY -----
+
   (TRACE>=0x00 ? fprintf(stderr,"%s::start() shared memory initialized ptt(%d/%s) vox(%d/%s)\n",PROGRAMID,sharedmem->ptt_flag,BOOL2CHAR(sharedmem->ptt_signal),sharedmem->vox_flag,BOOL2CHAR(sharedmem->vox_signal)) : _NOP);
-
-//  pipe(inpipefd);
-//  fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
-//  fcntl(inpipefd[0],F_SETFL,O_NONBLOCK);
-
-//  pipe(outpipefd);
-//  fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
 
 // --- launch pipe
 
@@ -315,14 +310,9 @@ char   command[256];
 // --- This is executed by the child only, output is being redirected
     (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid) : _NOP);
 
-//    dup2(outpipefd[0], STDIN_FILENO);
-//    dup2(inpipefd[1], STDOUT_FILENO);
-//    dup2(inpipefd[1], STDERR_FILENO);
-
 // --- ask kernel to deliver SIGTERM in case the parent dies
 
     prctl(PR_SET_PDEATHSIG, SIGTERM);
-
 
 // --- format command
 
@@ -358,7 +348,7 @@ char   command[256];
    char cmd_DEBUG[16];
    char cmd_stdERR[16];
 
-   sprintf(cmd_SHARE,share);
+   sprintf(cmd_SHARE,"-m %d",sharedmem_token);
 
    if (this->TRACE>=0x02) {
       sprintf(cmd_DEBUG," -t %d ",this->TRACE);
@@ -408,31 +398,22 @@ char   command[256];
 // can be handled (e.g. you can respawn the child process).
 // *******************************************************************************************************
 
-// (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
-//  ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
-//  if (ptt_fifo != -1) {
-//   (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
-//  } else {
-//   (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
-//    exit(16);
-//  }
-
   setWord(&MSW,RUN,true);
 
 }
 //---------------------------------------------------------------------------------------------------
 // openPipe CLASS Implementation
 //--------------------------------------------------------------------------------------------------
-int  genSSB::openPipe() {
-
-     return -1;
-}
+//int  genSSB::openPipe() {
+//
+//     return -1;
+//}
 //---------------------------------------------------------------------------------------------------
 // openPipe CLASS Implementation
 //--------------------------------------------------------------------------------------------------
 void genSSB::setPTT(bool v) {
 
-  (this->TRACE>=0x00 ? fprintf(stderr,"%s::setPTT() setPTT(%s) signaling(%d)\n",PROGRAMID,BOOL2CHAR(v),v) : _NOP);
+  (this->TRACE>=0x01 ? fprintf(stderr,"%s::setPTT() setPTT(%s) signaling(%d)\n",PROGRAMID,BOOL2CHAR(v),v) : _NOP);
   setWord(&MSW,PTT,v);
 
   sharedmem->ptt_signal=v;
@@ -473,6 +454,7 @@ void genSSB::stop() {
 //----- DETACH SHARED MEMORY -----
 //--------------------------------
 //Detach and delete
+
   if (shmdt(pshared) == -1) {
       (TRACE>=0x00 ? fprintf(stderr, "%s::stop() shmdt failed\n",PROGRAMID) : _NOP);
   } else {
@@ -482,7 +464,6 @@ void genSSB::stop() {
   }
 
 
-//  close(ptt_fifo);
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
 
   waitpid(pid, &status, 0);

@@ -1,4 +1,4 @@
-all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D ../bin/demo_gpio ../bin/gpioWrapper ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/demo_craddle ../bin/pift8 ../bin/sendRF ../bin/gpio
+all: ../bin/rtl_fm ../bin/demo_rtlfm  ../bin/genSSB ../bin/demo_genSSB ../bin/OT4D  ../bin/decodeFT8 ../bin/decimator ../bin/demo_decodeFT8 ../bin/pift8 ../bin/sendRF
 
 CCP  = c++
 CC   = cc
@@ -46,12 +46,6 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/genSSB lib/genSSB.cpp $(LDFLAGS)
 
 
-../bin/demo_gpio	: lib/demo_gpio.c 
-	$(GCC) -o ../bin/demo_gpio ./lib/demo_gpio.c $(CFLAGS)
-
-../bin/gpio		: lib/gpio.cpp
-	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -g -o ../bin/gpio ./lib/gpio.cpp $(LDFLAGS)
-
 ../bin/demo_genDDS     : lib/demo_genDDS.cpp lib/genDDS.h
 	$(CCP) -o ../bin/demo_genDDS ./lib/demo_genDDS.cpp ./lib/genDDS.h $(LDFLAGS)
 
@@ -71,31 +65,25 @@ LSDR = /usr/local/lib/librtlsdr.a
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/sendRF lib/sendRF.cpp  $(LDFLAGS)
 
 
-
 clean:
 	rm -r  ../bin/OT4D
-#	rm -r  ../bin/gpioWrapper
 	rm -r  ../bin/rtl_fm
 	rm -r  ../bin/genSSB
 	rm -r  ../bin/demo_rtlfm
 	rm -r  ../bin/decimator
 	rm -r  ../bin/demo_rtlfm
-#	rm -r  ../bin/demo_gpio
 	rm -r  ../bin/demo_decodeFT8
 	rm -r  ../bin/demo_genSSB
 	rm -r  ../bin/decodeFT8
-	rm -r  ../bin/gpio
 	rm -r  ../bin/sendRF
 	rm -r  ../bin/pift8
 
 install: all
 	install -m 0755 ../bin/OT4D  /usr/bin
-#	install -m 0755 ../bin/gpioWrapper  /usr/bin
 	install	-m 0755 ../bin/rtl_fm  /usr/bin
 	install	-m 0755 ../bin/genSSB  /usr/bin
 	install -m 0755 ../bin/demo_rtlfm  /usr/bin
 	install -m 0755 ../bin/demo_decodeFT8  /usr/bin
-	install -m 0755 ../bin/gpio  /usr/bin
 	install	-m 0755 ../bin/decimator  /usr/bin
 	install	-m 0755 ../bin/pift8  /usr/bin
 	install	-m 0755 ../bin/decodeFT8  /usr/bin

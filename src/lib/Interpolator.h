@@ -93,7 +93,7 @@ Interpolator::Interpolator(float* a,int n_tap,int factor)
   this->coeff = a;
   this->buf = (float*) malloc(BUFFERSIZE*sizeof(float) * 2);
   this->factor=factor;
-  fprintf(stderr,"Interpolator::Interpolator() Object creation Completed\n");
+  fprintf(stderr,"%s::Interpolator() Interpolator::Interpolator() Object creation Completed\n",PROGRAMID);
 
 }
 //*--------------------------------------------------------------------------------------------------

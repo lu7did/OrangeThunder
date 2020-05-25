@@ -44,8 +44,6 @@
 typedef unsigned char byte;
 typedef bool boolean;
 
-//typedef void (*CALLBACK)();
-
 void setWord(unsigned char* SysWord,unsigned char  v, bool val);
 bool getWord (unsigned char SysWord, unsigned char v);
 
@@ -95,7 +93,7 @@ Decimator::Decimator(float* a,int n_tap,int factor)
   this->buf = (float*) malloc(BUFFERSIZE*sizeof(float) * 2);
   this->fbuffer=(float*) malloc(BUFFERSIZE*sizeof(float) * 2);
   this->factor=factor;
-  (TRACE>=0x02 ? fprintf(stderr,"%s:: Object creation completed tap(%d) factor(%d)\n",PROGRAMID,n_tap,factor) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s::Decimator Object creation completed tap(%d) factor(%d)\n",PROGRAMID,n_tap,factor) : _NOP);
   
 }
 // --------------------------------------------------------------------------------------------------

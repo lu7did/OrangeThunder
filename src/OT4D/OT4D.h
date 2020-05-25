@@ -348,7 +348,6 @@ void CATchangeStatus() {
      vfo->setVFO(getWord(cat->FT817,VFO));
      (TRACE >=0x01 ? fprintf(stderr,"%s:CATchangeStatus() VFO changed to VFO(%d)\n",PROGRAMID,getWord(cat->FT817,VFO)) : _NOP);
   }
-  //FT817=cat->FT817;
   return;
 
 }
@@ -383,7 +382,7 @@ void changeSNR() {
 
 }
 //--------------------------------------------------------------------------------------------------
-// callback for vfo
+// callback for vfo (change Frequency)
 //--------------------------------------------------------------------------------------------------
 void vfoChangeFreq(float f) {
 
@@ -396,6 +395,9 @@ char* b;
    (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeFreq() VFO(%s) f(%5.0f) fA(%5.0f) fB(%5.0f) PTT(%s)\n",PROGRAMID,b,vfo->get(),vfo->get(VFOA),vfo->get(VFOB),BOOL2CHAR(vfo->getPTT())) : _NOP);
    return;
 }
+//--------------------------------------------------------------------------------------------------
+// callback for vfo (change mode)
+//--------------------------------------------------------------------------------------------------
 void vfoChangeMode(byte m) {
 
 char* b;
@@ -409,6 +411,9 @@ char* b;
    (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeMode() mode(%s)\n",PROGRAMID,b) : _NOP);
 
 }
+//--------------------------------------------------------------------------------------------------
+// callback for vfo (change status)
+//--------------------------------------------------------------------------------------------------
 void vfoChangeStatus(byte S) {
 
    if (getWord(S,SPLIT)==true) {

@@ -76,6 +76,7 @@ w * along with this program; if not, write to the Free Software
 #include "../OT/OT.h"
 #include "../OT4D/transceiver.h"
 #include "../lib/CallBackTimer.h"
+
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
@@ -184,7 +185,6 @@ void timer_exec()
 {
   if (TVOX!=0) {
      TVOX--;
-//  (TRACE>=0x02 ? fprintf(stderr,"%s:timer_exec() %s TVOX(%ld)\n",PROGRAMID,getTime(),TVOX) : _NOP);
 
      if(TVOX==0) {
        fVOX=1;
