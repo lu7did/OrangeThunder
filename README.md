@@ -91,9 +91,9 @@ Main features and differences of PixiePi compared with OrangeThunder
 * The receiver chain is a direct conversion receiver and the transmitter chain a CW (class C) amplifier, based on the DIY kit Pixie.
 * It is based on a Raspberry Pi Zero board which is substancially less powerful than a Raspberry Pi 3 or 4 board.
 * It is intended to be used pretty much as a stand alone transceiver as it lack resources to host a user and GUI usage.
-* Requires a 12V power supply
+* Requires a 9 to 12V power supply
 * Mostly headed toward CW usage although other modes are supported.
-* Allows a local control with LCD display, tuning knob and other hardware.  
+* Optionally allows a local control with LCD display, tuning knob and other direct operation hardware.  
 
 ## DISCLAIMER
 
@@ -246,6 +246,9 @@ pulseaudio -k
 
 ### socat
 
+This library is used to allow the implementation of a virtual serial port enabling the operation thru CAT commands from a 
+program executing in the same machine (i.e. WSJTX or FLDIGI) and with some modifications from a different machine.
+
 ### F5OEO's librpitx
 
 A modified version of librpitx (iqdmasync.h) is contained in this package and needed to successfully compile the proyect.
@@ -280,24 +283,15 @@ A simple USB transceiver has been included in the package, it's able to operate 
 with suitable changes in the PA & filter hardware) operating as a single frequency, headless, CAT controlled USB transceiver. It's a proof of
 concept but also a simple transceiver able to operate on digital modes such as FT8, FT4 or WSPR.
 
+Operation using other modes digital modes such as RTTY or PSK31, even CW, is allowed. Theoretically modes requiring linear modulation such as SSB
+can be implemented as well using examples with the rpitx package.
+
 A simple script is included
 ```
 cd /home/pi/OrangeThunder
 cd bash
 ./OT4D.sh [f in Hz, defautls to 14074000]
 ```
-
-## OT Executing (Runtime)
-
-
-A simple script is included
-```
-cd /home/pi/OrangeThunder
-cd bash
-./OT.sh [f in Hz, defautls to 14074000]
-
-```
-
 
 # Configuring ham software
 
