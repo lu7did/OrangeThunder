@@ -107,7 +107,7 @@ CALLBACK changeVOX=NULL;
       int    sharedmem_id;
 
 //-------------------- GLOBAL VARIABLES ----------------------------
-const char   *PROGRAMID="genSSB";
+const char   *PROGRAMID="genSSB<Object>";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
@@ -117,6 +117,7 @@ const char   *mAM="am";
 const char   *mFM="fm";
 const char   *mLSB="lsb";
 
+const char   *share="-m 12345";
 private:
 
      char     MODE[128];
@@ -181,7 +182,7 @@ genSSB::genSSB(CALLBACK v){
 //----- CREATE SHARED MEMORY -----
 //--------------------------------
    (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
-   sharedmem_id = shmget((key_t)1234, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
+   sharedmem_id = shmget((key_t)12345, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
 //	Shared memory key
 //		Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help with this but it still doesn't guarantee to avoid colision)
 //	Permission flags
@@ -353,8 +354,11 @@ char   command[256];
    }
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
+   char cmd_SHARE[16];
    char cmd_DEBUG[16];
    char cmd_stdERR[16];
+
+   sprintf(cmd_SHARE,share);
 
    if (this->TRACE>=0x02) {
       sprintf(cmd_DEBUG," -t %d ",this->TRACE);
@@ -383,7 +387,7 @@ char   command[256];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_DEBUG,strDDS,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_SHARE,cmd_DEBUG,strDDS,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

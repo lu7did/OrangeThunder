@@ -52,10 +52,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
+#include<sys/wait.h>
+#include<sys/prctl.h>
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 #include "../OT/OT.h"
-//#include "../lib/gpioWrapper.h"
 #include "../lib/genSSB.h"
 #include "../lib/CAT817.h" 
 #include "../lib/genVFO.h"
@@ -93,7 +95,14 @@ int    lcd_light;
 // *************************************************************************************************
 // *                           Common Memory definitions                                           *
 // *************************************************************************************************
-char   timestr[16];
+char       timestr[16];
+char       inChar[32];
+boolean    fthread=false;
+pthread_t  t=(pthread_t)-1;
+pthread_t  pift8=(pthread_t)-1;
+char       pcmd[1024];
+
+
 
 // --- IPC structures
 struct sigaction sigact;
@@ -149,7 +158,7 @@ void    CATchangeMode();      // Callback when CAT receives a mode change
 void    CATchangeFreq();      // Callback when CAT receives a freq change
 void    CATchangeStatus();    // Callback when CAT receives a status change
 CAT817* cat=nullptr;
-byte    FT817;
+//byte    FT817;
 char    port[80];
 long    catbaud=4800;
 int     SNR;
@@ -201,6 +210,29 @@ static void sighandler(int signum)
    setWord(&MSW,RETRY,true);
 
 }
+//--------------------------------------------------------------------------------------------------
+// read_stdin without waiting for an enter to be pressed
+//--------------------------------------------------------------------------------------------------
+void* read_stdin(void * null) {
+char c;
+char buf[4];
+
+       (TRACE>=0x03 ? fprintf(stderr,"%s:read_stdin() Keyboard thread started\n",PROGRAMID) : _NOP);
+
+       /*
+        * ioctl() would be better here; only lazy
+        * programmers do it this way:
+        */
+        system("/bin/stty cbreak");        /* reacts to Ctl-C */
+        system("/bin/stty -echo");         /* no echo */
+        while (getWord(MSW,RUN)==true) {
+          c = toupper(getchar());
+          sprintf(inChar,"%c",c);
+          setWord(&MSW,GUI,true);
+        }
+        return NULL;
+}
+
 //---------------------------------------------------------------------------------------------------
 // writePin CLASS Implementation
 //--------------------------------------------------------------------------------------------------
@@ -254,9 +286,9 @@ void setPTT(bool ptt) {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
-  if (usb->statePTT == true) {
+  if (vfo->getPTT() == true) {
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->f) : _NOP);
-     cat->f=f;
+     cat->f=vfo->get();
      return;
   }
 
@@ -264,13 +296,14 @@ void CATchangeFreq() {
   if (vfo!=nullptr) {
      if (vfo->getmin() <= cat->f && vfo->getmax() >= cat->f) {
         (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change to f(%d)\n",PROGRAMID,(int)cat->f) : _NOP);
-        f=cat->f;
+        vfo->set(cat->f);
         return;
      }
   }
 
-  cat->f=f;
-  (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f) : _NOP);
+  cat->f=vfo->get();
+  (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)vfo->get()) : _NOP);
+
 }
 //-----------------------------------------------------------------------------------------------------------
 // CATchangeMode
@@ -280,7 +313,7 @@ void CATchangeFreq() {
 void CATchangeMode() {
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE) : _NOP);
-  cat->MODE=MUSB;
+  cat->MODE=vfo->MODE;
   return;
 
 }
@@ -291,30 +324,31 @@ void CATchangeMode() {
 //------------------------------------------------------------------------------------------------------------
 void CATchangeStatus() {
 
-  (TRACE >= 0x03 ? fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,FT817,cat->FT817) : _NOP);
+  (TRACE >= 0x03 ? fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,vfo->FT817,cat->FT817) : _NOP);
 
-  if (getWord(cat->FT817,PTT) != usb->statePTT) {
+  if (getWord(cat->FT817,PTT) != vfo->getPTT()) {
      (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false") : _NOP);
-     setPTT(getWord(cat->FT817,PTT));
+     vfo->setPTT(getWord(cat->FT817,PTT));
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
 
-  if (getWord(cat->FT817,RITX) != getWord(FT817,RITX)) {        // RIT Changed
+  if (getWord(cat->FT817,RITX) != getWord(vfo->FT817,RITX)) {        // RIT Changed
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RITX) ? "true" : "false") : _NOP);
   }
 
-  if (getWord(cat->FT817,LOCK) != getWord(FT817,LOCK)) {      // LOCK Changed
+  if (getWord(cat->FT817,LOCK) != getWord(vfo->FT817,LOCK)) {      // LOCK Changed
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() LOCK change request cat.FT817(%d) LOCK changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,LOCK) ? "true" : "false") : _NOP);
   }
 
-  if (getWord(cat->FT817,SPLIT) != getWord(FT817,SPLIT)) {    // SPLIT mode Changed
+  if (getWord(cat->FT817,SPLIT) != getWord(vfo->FT817,SPLIT)) {    // SPLIT mode Changed
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false") : _NOP);
   }
 
-  if (getWord(cat->FT817,VFO) != getWord(FT817,VFO)) {        // VFO Changed
-     (TRACE >=0x01 ? fprintf(stderr,"%s:CATchangeStatus() VFO change request not supported\n",PROGRAMID) : _NOP);
+  if (getWord(cat->FT817,VFO) != vfo->vfo) {        // VFO Changed
+     vfo->setVFO(getWord(cat->FT817,VFO));
+     (TRACE >=0x01 ? fprintf(stderr,"%s:CATchangeStatus() VFO changed to VFO(%d)\n",PROGRAMID,getWord(cat->FT817,VFO)) : _NOP);
   }
-  FT817=cat->FT817;
+  //FT817=cat->FT817;
   return;
 
 }
@@ -349,6 +383,69 @@ void changeSNR() {
 
 }
 //--------------------------------------------------------------------------------------------------
+// callback for vfo
+//--------------------------------------------------------------------------------------------------
+void vfoChangeFreq(float f) {
+
+char* b;
+   b=(char*)malloc(128);
+   vfo->vfo2str(vfo->vfo,b);
+   if (cat!=nullptr) {
+      cat->f=vfo->get(vfo->vfo);
+   }
+   (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeFreq() VFO(%s) f(%5.0f) fA(%5.0f) fB(%5.0f) PTT(%s)\n",PROGRAMID,b,vfo->get(),vfo->get(VFOA),vfo->get(VFOB),BOOL2CHAR(vfo->getPTT())) : _NOP);
+   return;
+}
+void vfoChangeMode(byte m) {
+
+char* b;
+   b=(char*)malloc(128);
+   vfo->code2mode(m,b);
+
+   if (cat!=nullptr) {
+      cat->MODE=vfo->MODE;
+   }
+
+   (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeMode() mode(%s)\n",PROGRAMID,b) : _NOP);
+
+}
+void vfoChangeStatus(byte S) {
+
+   if (getWord(S,SPLIT)==true) {
+      if(vfo==nullptr) {return;}
+      (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeStatus() change SPLIT S(%s)\n",PROGRAMID,BOOL2CHAR(getWord(vfo->FT817,SPLIT))) : _NOP);
+      if (cat!=nullptr) {
+         setWord(&cat->FT817,SPLIT,getWord(vfo->FT817,SPLIT));
+      }
+   }
+   if (getWord(S,RITX)==true) {
+      if(vfo==nullptr) {return;}
+      (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeStatus() change RIT S(%s)\n",PROGRAMID,BOOL2CHAR(getWord(vfo->FT817,RITX))) : _NOP);
+      if (cat!=nullptr) {
+         setWord(&cat->FT817,RITX,getWord(vfo->FT817,RITX));
+      }
+   }
+
+   if (getWord(S,PTT)==true) {
+      if (vfo==nullptr) {return;}
+      (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeStatus() change PTT S(%s)\n",PROGRAMID,BOOL2CHAR(getWord(vfo->FT817,PTT))) : _NOP);
+      if (cat!=nullptr) {
+         setWord(&cat->FT817,PTT,getWord(vfo->FT817,PTT));
+         setWord(&MSW,PTT,getWord(cat->FT817,PTT));
+      }
+      if (usb!=nullptr) {usb->setPTT(vfo->getPTT());}
+   }
+   if (getWord(S,VFO)==true) {
+      if (vfo==nullptr) {return;}
+      (TRACE>=0x02 ? fprintf(stderr,"%s:vfoChangeStatus() change VFO S(%s)\n",PROGRAMID,BOOL2CHAR(getWord(vfo->FT817,VFO))) : _NOP);
+      if (cat!=nullptr) {
+         setWord(&cat->FT817,VFO,getWord(vfo->FT817,VFO));
+      }
+   }
+
+   if (cat!=nullptr) {cat->FT817=vfo->FT817;}
+}
+//--------------------------------------------------------------------------------------------------
 // returns the time in a string format
 //--------------------------------------------------------------------------------------------------
 char* getTime() {
@@ -368,7 +465,7 @@ char* getTime() {
 void SSBchangeVOX() {
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:SSBchangeVOX() received upcall from genSSB object state(%s)\n",PROGRAMID,BOOL2CHAR(usb->stateVOX)) : _NOP);
-  setPTT(usb->stateVOX);
+  vfo->setPTT(usb->stateVOX);
 
 }
 //---------------------------------------------------------------------------------
@@ -529,13 +626,30 @@ strcpy(HW,"hw:1");
 
 #endif
 
+  (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO sub-system interface\n",PROGRAMID) : _NOP);
+
+  vfo=new genVFO(vfoChangeFreq,NULL,vfoChangeMode,vfoChangeStatus);
+  vfo->TRACE=TRACE;
+  vfo->FT817=0x00;
+  vfo->MODE=MUSB;
+  vfo->POWER=DDS_MAXLEVEL;
+  vfo->setBand(VFOA,vfo->getBand(f));
+  vfo->setBand(VFOB,vfo->getBand(f));
+  vfo->set(VFOA,f);
+  vfo->set(VFOB,f);
+  vfo->setSplit(false);
+  vfo->setRIT(VFOA,false);
+  vfo->setRIT(VFOB,false);
+  vfo->setVFO(VFOA);
+  vfo->setPTT(false);
+  vfo->setLock(false);
 
 // --- USB generator
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
   usb=new genSSB(SSBchangeVOX);  
-  usb->TRACE=TRACE;
-  usb->setFrequency(f);
+  usb->TRACE=vfo->TRACE;
+  usb->setFrequency(vfo->get());
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
@@ -562,7 +676,7 @@ strcpy(HW,"hw:1");
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
   rtl=new rtlfm();  
   rtl->TRACE=TRACE;
-  rtl->setMode(MUSB);
+  rtl->setMode(vfo->getMode());
   rtl->setVol(vol);  
   rtl->setFrequency(f);
   rtl->changeSNR=changeSNR;
@@ -571,42 +685,30 @@ strcpy(HW,"hw:1");
 // --- creation of CAT object
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize CAT controller interface\n",PROGRAMID) : _NOP);
-  FT817=0x00;
   cat=new CAT817(CATchangeFreq,CATchangeStatus,CATchangeMode,CATgetRX,CATgetTX);
-  cat->FT817=FT817;
-  cat->POWER=DDS_MAXLEVEL;
-  cat->f=f;
-  cat->MODE=MUSB;
+  cat->FT817=vfo->FT817;
+  cat->POWER=vfo->POWER;
+  cat->f=vfo->get();
+  cat->MODE=vfo->getMode();
   cat->TRACE=TRACE;
   cat->open(port,catbaud);
   cat->getRX=CATgetRX;
 
   setWord(&cat->FT817,AGC,false);
-  setWord(&cat->FT817,PTT,getWord(MSW,PTT));
+  setWord(&cat->FT817,PTT,vfo->getPTT());
 
 #endif
 
-  vfo=new genVFO(NULL,NULL,NULL,NULL);
-  vfo->TRACE=TRACE;
-  vfo->FT817=FT817;
-  vfo->MODE=cat->MODE;
-  vfo->setBand(VFOA,vfo->getBand(f));
-  vfo->setBand(VFOB,vfo->getBand(f));
-  vfo->set(VFOA,f);
-  vfo->set(VFOB,f);
-  vfo->setSplit(false);
-  vfo->setRIT(VFOA,false);
-  vfo->setRIT(VFOB,false);
-
-  vfo->vfo=VFOA;
 
 #ifdef OT4D
-  setWord(&cat->FT817,VFO,VFOA);
+  setWord(&cat->FT817,VFO,vfo->vfo);
 #endif  
 
 // -- establish loop condition
   
-  
+
+  pthread_create(&t, NULL, &read_stdin, NULL);
+
   setWord(&MSW,RUN,true);
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() start operation\n",PROGRAMID) : _NOP);
 
@@ -631,7 +733,7 @@ strcpy(HW,"hw:1");
     //*           Process CAT commands              *
     //*---------------------------------------------*
 #ifdef OT4D
-    cat->get();
+    if (cat!=nullptr) {cat->get();}
 #endif
 
 #ifdef OT4D
@@ -643,10 +745,19 @@ strcpy(HW,"hw:1");
            (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)rtl_buffer) : _NOP);
         }
     }
+
+
 #endif
+    if (getWord(MSW,GUI)==true) {
+        setWord(&MSW,GUI,false);
+        if (strcmp(inChar,"X")==0) {
+           setWord(&MSW,RUN,false);
+        } 
+    }
 
     if (getWord(usb->MSW,RUN)==true) {
     int nread=usb->readpipe(usb_buffer,BUFSIZE);
+    usleep(1000);
 //        if (nread>0) {
 //           usb_buffer[nread]=0x00;
 //           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
@@ -683,7 +794,7 @@ strcpy(HW,"hw:1");
   lcd->backlight(false);
   lcd->setCursor(0,0);
   lcd->clear();
-
+  delete(lcd);
 
 #endif
 
@@ -691,12 +802,16 @@ strcpy(HW,"hw:1");
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID) : _NOP);
   usb->stop();
+  delete(usb);
 
 #ifdef OT4D
 
   if (cat!=nullptr) {cat->close();}
   if (rtl!=nullptr) {rtl->stop();}
 
+  delete(cat);
+  delete(rtl);
+  delete(vfo);
 #endif
 
 }

@@ -139,9 +139,9 @@ CallBackTimer* VOXtimer;
 void    *pshared = (void *)0;
 //VARIABLES:
 
-struct   shared_memory_struct *sharedmem;
-int      sharedmem_id;
-
+struct   shared_memory_struct *sharedmem=nullptr;
+int      sharedmem_id=0;
+int      sharedmem_token=0;
 
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
@@ -203,6 +203,7 @@ Usage:  \n\
 -a            agc threshold level (default none)\n\
 -d            enable DDS operation (default none)\n\
 -x            enable auto PTT on VOX (default none)\n\
+-m            enable shared memory commands (default no)\n\
 -q            quiet operation (default none)\n\
 -v            VOX activated timeout in secs (default 0 )\n\
 -t            DEbug level (0=no debug, 2=max debug)\n\
@@ -283,7 +284,7 @@ int main(int argc, char* argv[])
 
 	while(1)
 	{
-		ax = getopt(argc, argv, "a:v:p:dxqt:");
+		ax = getopt(argc, argv, "a:v:m:p:dxqt:");
                 if(ax == -1) 
 		{
 			if(ax) break;
@@ -307,6 +308,10 @@ int main(int argc, char* argv[])
                 case 't': // Debug level
                         TRACE = atoi(optarg);
                         (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
+                        break;
+                case 'm': // shared memory token
+                        sharedmem_token = atoi(optarg);
+                        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Shared memory command area token(%d)\n",PROGRAMID,sharedmem_token) : _NOP);
                         break;
 		case 'v': // VOX Timeout
 			vox_timeout = atoi(optarg);
@@ -359,10 +364,13 @@ int main(int argc, char* argv[])
 
         (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
 	for (int i = 0; i < 64; i++) {
-           struct sigaction sa;
-           std::memset(&sa, 0, sizeof(sa));
-           sa.sa_handler = terminate;
-           sigaction(i, &sa, NULL);
+           if (i != SIGALRM && i != 17 && i != 28) {
+               struct sigaction sa;
+               std::memset(&sa, 0, sizeof(sa));
+               sa.sa_handler = terminate;
+               sigaction(i, &sa, NULL);
+           }
+
         }
 
 
@@ -370,9 +378,6 @@ int main(int argc, char* argv[])
 //--------------------------------
 //----- CREATE SHARED MEMORY -----
 //--------------------------------
-   (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
-   sharedmem_id = shmget((key_t)1234, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);           //<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission fl$
-
 //      Shared memory key
 //              Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help$
 //      Permission flags
@@ -386,28 +391,34 @@ int main(int argc, char* argv[])
 //              Examples:
 //                      0666 Everyone can read and write
 
-   if (sharedmem_id == -1) {
-      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmget() failed\n",PROGRAMID) : _NOP);
-       exit(16);
-   }
+
+   if (sharedmem_token != 0) {
+      (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
+      sharedmem_id = shmget((key_t)sharedmem_token, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);           //<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission fl$
+
+      if (sharedmem_id == -1) {
+         (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmget() failed\n",PROGRAMID) : _NOP);
+          exit(16);
+      }
 
 //Make the shared memory accessible to the program
 
-   pshared = shmat(sharedmem_id, (void *)0, 0);
-   if (pshared == (void *)-1)   {
-      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmat() failed\n",PROGRAMID) : _NOP);
-      exit(16);
-   }
+      pshared = shmat(sharedmem_id, (void *)0, 0);
+      if (pshared == (void *)-1)   {
+         (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmat() failed\n",PROGRAMID) : _NOP);
+         exit(16);
+      }
 
-   (TRACE>=0x00 ? fprintf(stderr,"%s:main() Shared memory attached at %X\n",PROGRAMID,(int)pshared) : _NOP);
+      (TRACE>=0x00 ? fprintf(stderr,"%s:main() Shared memory attached at %X\n",PROGRAMID,(int)pshared) : _NOP);
 
 //Assign the shared_memory segment
 
-   sharedmem = (struct shared_memory_struct *)pshared;
+      sharedmem = (struct shared_memory_struct *)pshared;
 
 //----- READ FROM SHARED MEMORY -----
 
-  (TRACE>=0x00 ? fprintf(stderr,"%s::start() shared memory initialized ptt(%d/%s) vox(%d/%s)\n",PROGRAMID,sharedmem->ptt_flag,BOOL2CHAR(sharedmem->ptt_signal),sharedmem->vox_flag,BOOL2CHAR(sharedmem->vox_signal)) : _NOP);
+     (TRACE>=0x00 ? fprintf(stderr,"%s::start() shared memory initialized ptt(%d/%s) vox(%d/%s)\n",PROGRAMID,sharedmem->ptt_flag,BOOL2CHAR(sharedmem->ptt_signal),sharedmem->vox_flag,BOOL2CHAR(sharedmem->vox_signal)) : _NOP);
+   }
 
 //*---- this is enabled only for the Orange Thunder platform which is the only that requires genSSB to keep the DDS turned on at all times
 
@@ -489,17 +500,18 @@ float   gain=1.0;
 
 // --- process commands thru pipe
 
-
-        if (sharedmem->ptt_flag!=0) {
-            sharedmem->ptt_flag=0;
-            if (autoPTT==false) {
-                setPTT(sharedmem->ptt_signal);
-               (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
-            } else {
-               (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received but autoPTT=true, ignored!\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
-            }
+        if (sharedmem != nullptr) {
+           if (sharedmem->ptt_flag!=0 ) {
+              (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT flag marker detected autoPTT(%s)\n",PROGRAMID,BOOL2CHAR(autoPTT)) : _NOP); 
+               sharedmem->ptt_flag=0;
+               if (autoPTT==false) {
+                   setPTT(sharedmem->ptt_signal);
+                  (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
+               } else {
+                  (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received but autoPTT=true, ignored!\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
+               }
+           }
         }
-
 // --- end of command processing, read signal samples
 
         nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
@@ -519,7 +531,7 @@ float   gain=1.0;
 
         if (vox_timeout > 0) {  //Is the timeout activated?
             if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
-                if (TVOX==0) {    //Is the timer counter idle
+                if (TVOX==0 && sharedmem != nullptr) {    //Is the timer counter idle
                     sharedmem->vox_signal=true;
                     sharedmem->vox_flag=1;
                     (TRACE>=0x00 ? fprintf(stderr,"%s:main() vox_signal(true) signal sent\n",PROGRAMID) : _NOP);
@@ -535,9 +547,11 @@ float   gain=1.0;
 
              if (fVOX==1) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
-                 sharedmem->vox_signal=false;
-                 sharedmem->vox_flag=1;
-                (TRACE>=0x00 ? fprintf(stderr,"%s:main() vox_signal(false) signal sent as upcall\n",PROGRAMID) : _NOP);
+                 if (sharedmem!=nullptr) {
+                     sharedmem->vox_signal=false;
+                     sharedmem->vox_flag=1;
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() vox_signal(false) signal sent as upcall\n",PROGRAMID) : _NOP);
+                 }
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
                      setPTT(false);
                     (TRACE>=0x00 ? fprintf(stderr,"%s:main() autoPTT=false set PTT(true)\n",PROGRAMID) : _NOP);
@@ -572,14 +586,16 @@ float   gain=1.0;
 //--------------------------------
 //----- DETACH SHARED MEMORY -----
 //--------------------------------
-        if (shmdt(pshared) == -1) {
-           (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmdt failed\n",PROGRAMID) : _NOP);
-        } else {
-          if (shmctl(sharedmem_id, IPC_RMID, 0) == -1) {
-             (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) failed\n",PROGRAMID) : _NOP);
-          }
+        if (sharedmem != nullptr) {   //detach from shared memory área
+           if (shmdt(pshared) == -1) {
+              (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmdt failed\n",PROGRAMID) : _NOP);
+           } else {
+             //if (shmctl(sharedmem_id, IPC_RMID, 0) == -1) {
+             //   (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) failed\n",PROGRAMID) : _NOP);
+             //}
+           }
+           (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) successfully completed\n",PROGRAMID) : _NOP);
         }
-        (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) successfully completed\n",PROGRAMID) : _NOP);
 
         if (fdds==true) {
             gpioWrite(GPIO_COOLER, 0);
