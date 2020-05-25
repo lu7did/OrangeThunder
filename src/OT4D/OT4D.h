@@ -231,38 +231,19 @@ void setPTT(bool ptt) {
     (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s)\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
     if (ptt==true) {  //currently receiving now transmitting
 
-#ifdef Pi4D
-    // *---------------------------------------------*
-    // * Set PTT into transmit mode                  *
-    // *---------------------------------------------*
-       writePin(GPIO_PTT,1);
-       (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-#endif
-
     // *---------------------------------------------*
     // * Set transceiver into TX mode                *
     // *---------------------------------------------*
         usb->setPTT(ptt);
         usleep(10000);
         return;
-
     }
 
 // *---------------------------------------------*
 // * Establish PTT in receive mode               *
 // *---------------------------------------------*
-
     usb->setPTT(ptt);
     usleep(10000);
-
-#ifdef Pi4D
-    // *---------------------------------------------*
-    // * Set PTT into transmit mode                  *
-    // *---------------------------------------------*
-       writePin(GPIO_PTT,0);
-      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT(%s) operating relay to TX position\n",PROGRAMID,BOOL2CHAR(ptt)) : _NOP);
-#endif
-
     setWord(&MSW,PTT,ptt);
     (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False")) : _NOP);
     return;
@@ -279,9 +260,17 @@ void CATchangeFreq() {
      return;
   }
 
+  
+  if (vfo!=nullptr) {
+     if (vfo->getmin() <= cat->f && vfo->getmax() >= cat->f) {
+        (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change to f(%d)\n",PROGRAMID,(int)cat->f) : _NOP);
+        f=cat->f;
+        return;
+     }
+  }
+
   cat->f=f;
   (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)f) : _NOP);
-
 }
 //-----------------------------------------------------------------------------------------------------------
 // CATchangeMode
@@ -343,8 +332,11 @@ void CATgetRX() {
 #endif 
 
 }
-
+//--------------------------------------------------------------------------------------------------
+// Callback to process TX signal
+//--------------------------------------------------------------------------------------------------
 void CATgetTX() {
+
 }
 // ======================================================================================================================
 // SNR upcall change
@@ -379,20 +371,6 @@ void SSBchangeVOX() {
   setPTT(usb->stateVOX);
 
 }
-// ======================================================================================================================
-// VOX upcall signal
-// ======================================================================================================================
-//void gpiochangePin(int pin,int state) {
-//
-//
-//  (TRACE>=0x02 ? fprintf(stderr,"%s:gpiochangePin() received upcall from gpioWrapper object state pin(%d) state(%d)\n",PROGRAMID,pin,state) : _NOP);
-//  if (pin==GPIO_AUX) {
-//     (state==1 ? setPTT(false) : setPTT(true));
-//     (TRACE >=0x01 ? fprintf(stderr,"%s:gpiochangePin() manual PTT operation thru AUX button pin(%d) value(%d)\n",PROGRAMID,pin,state) : _NOP);
-//  }
-  
-//}
-
 //---------------------------------------------------------------------------------
 // Print usage
 //---------------------------------------------------------------------------------
@@ -409,9 +387,6 @@ Usage: [-f Frequency] [-v volume] [-p portname] [-t tracelevel] \n\
 \n",PROGRAMID,PROG_VERSION,PROG_BUILD);
 
 } /* end function print_usage */
-
-
-
 // ======================================================================================================================
 // MAIN
 // Create IPC pipes, launch child process and keep communicating with it
@@ -467,7 +442,7 @@ int main(int argc, char** argv)
 
 
 #ifdef OT4D
-strcpy(HW,"hw:Loopback,1,0");
+strcpy(HW,"hw:Loopback_1,1,0");
 rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 #endif
 
@@ -555,41 +530,23 @@ strcpy(HW,"hw:1");
 #endif
 
 
-#ifdef OT4D
-// --- OT4D manages the PTT and cooler locally whilst Pi4D does this thru genSSB
-
-//  if(gpioInitialise()<0) {
-//    (TRACE>=0x00 ? fprintf(stderr,"%s:setupGPIO() Cannot initialize GPIO\n",PROGRAMID) : _NOP);
-//     exit(16);
-//  }
-
-//  (TRACE>=0x02 ? fprintf(stderr,"%s:setupGPIO() Setup PTT\n",PROGRAMID) : _NOP);
-//  gpioSetMode(GPIO_PTT, PI_OUTPUT);
-//  gpioWrite(GPIO_PTT, 0);
-
-  //gpioSetMode(GPIO_COOLER, PI_OUTPUT);
-  //gpioWrite(GPIO_COOLER, 1);
-
-#endif
-
-
 // --- USB generator
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
-//  usb=new genSSB(SSBchangeVOX);  
-  usb=new genSSB(NULL);  
+  usb=new genSSB(SSBchangeVOX);  
   usb->TRACE=TRACE;
   usb->setFrequency(f);
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
-//  usb->vox=vox;
 
+//*--- OT assumes not to require a DDS function while receiving and to manage the PTT by itself (either using the VOX or the CAT)
 #ifdef OT4D
   usb->dds=false;
-  usb->vox=true;
+  usb->vox=false;
 #endif
 
+//*--- PixiePi in turn assumes to require a DDS function while receiving and to manage the PTT using the VOX only to flight light
 #ifdef Pi4D
   usb->dds=true;
   usb->vox=true;
@@ -601,6 +558,7 @@ strcpy(HW,"hw:1");
 #ifdef OT4D
 
 // --- define rtl-sdr handling object
+
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
   rtl=new rtlfm();  
   rtl->TRACE=TRACE;
@@ -689,15 +647,14 @@ strcpy(HW,"hw:1");
 
     if (getWord(usb->MSW,RUN)==true) {
     int nread=usb->readpipe(usb_buffer,BUFSIZE);
-        if (nread>0) {
-           usb_buffer[nread]=0x00;
-           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
-        }
+//        if (nread>0) {
+//           usb_buffer[nread]=0x00;
+//           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
+//        }
     }
 
 //* -------------------[end of main loop ]--------------------------------
   }
-
 
 #ifdef OT4D
 
@@ -733,15 +690,12 @@ strcpy(HW,"hw:1");
 // --- Stop all threads and child processes 
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() stopping operations\n",PROGRAMID) : _NOP);
-
   usb->stop();
 
 #ifdef OT4D
 
-  cat->close();
-  if (rtl!=nullptr) {
-     rtl->stop();
-  }
+  if (cat!=nullptr) {cat->close();}
+  if (rtl!=nullptr) {rtl->stop();}
 
 #endif
 

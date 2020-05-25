@@ -69,6 +69,7 @@ w * along with this program; if not, write to the Free Software
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/shm.h>            //Used for shared memory
 
 #include "SSB.h"
 #include "/home/pi/librpitx/src/librpitx.h"
@@ -84,6 +85,16 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 
 typedef unsigned char byte;
 typedef bool boolean;
+
+//----- SHARED MEMORY -----
+struct shared_memory_struct {
+        int  ptt_flag;
+        bool ptt_signal;
+        int  vox_flag;
+        bool vox_signal;
+        char common_data[1024];
+};
+
 
 char*    cmd_buffer;
 int      cmd_length;
@@ -109,7 +120,8 @@ float    agc_alpha=AGC_ALPHA;
 float    agc_thr=agc_max*AGC_LEVEL;
 float    agc_gain=AGC_GAIN;;
 
-int      vox_timeout=VOX_TIMEOUT;  //default=2 secs
+//int      vox_timeout=VOX_TIMEOUT;  //default=2 secs
+int      vox_timeout=0;  //default=2 secs
 int      gpio_ptt=GPIO_PTT;
 
 short    *buffer_i16;
@@ -123,6 +135,14 @@ int      numSamplesLow=0;
 int      result=0;
 char     timestr[16];
 CallBackTimer* VOXtimer;
+
+void    *pshared = (void *)0;
+//VARIABLES:
+
+struct   shared_memory_struct *sharedmem;
+int      sharedmem_id;
+
+
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
@@ -260,6 +280,7 @@ static void terminate(int num)
 //---------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
+
 	while(1)
 	{
 		ax = getopt(argc, argv, "a:v:p:dxqt:");
@@ -329,6 +350,13 @@ int main(int argc, char* argv[])
 		}/* end switch a */
 	}/* end while getopt() */
 
+
+//*---------------------------------------------------------------------------------------------------------
+//* Follows a setup valid when the -d and -x conditions are set, which is the pase of Pi4D
+//*---------------------------------------------------------------------------------------------------------
+
+   fprintf(stderr,"%s %s [%s] tracelevel(%d) dds(%s) PTT(%s)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE,BOOL2CHAR(fdds),BOOL2CHAR(autoPTT));
+
         (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Trap handler initialization\n",PROGRAMID) : _NOP);
 	for (int i = 0; i < 64; i++) {
            struct sigaction sa;
@@ -338,63 +366,82 @@ int main(int argc, char* argv[])
         }
 
 
-//*---------------------------------------------------------------------------------------------------------
-//* Follows a setup valid when the -d and -x conditions are set, which is the pase of Pi4D
-//*---------------------------------------------------------------------------------------------------------
 
+//--------------------------------
+//----- CREATE SHARED MEMORY -----
+//--------------------------------
+   (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
+   sharedmem_id = shmget((key_t)1234, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);           //<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission fl$
 
-        fprintf(stderr,"%s %s [%s] tracelevel(%d) dds(%s) PTT(%s)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,TRACE,BOOL2CHAR(fdds),BOOL2CHAR(autoPTT));
+//      Shared memory key
+//              Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help$
+//      Permission flags
+//              Operation permissions   Octal value
+//              Read by user                    00400
+//              Write by user                   00200
+//              Read by group                   00040
+//              Write by group                  00020
+//              Read by others                  00004
+//              Write by others                 00002
+//              Examples:
+//                      0666 Everyone can read and write
 
+   if (sharedmem_id == -1) {
+      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmget() failed\n",PROGRAMID) : _NOP);
+       exit(16);
+   }
 
-if (fdds!=true) {
+//Make the shared memory accessible to the program
 
-//        cmd_result = mkfifo ( "/tmp/ptt_fifo", 0666 );
-//        (TRACE >= 0x02 ? fprintf(stderr,"%s:main() Command FIFO(%s) created\n",PROGRAMID,"/tmp/ptt_fifo") : _NOP);
-//
-//        cmd_FD = open ( "/tmp/ptt_fifo", ( O_RDONLY | O_NONBLOCK ) );
-//        if (cmd_FD != -1) {
-//           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO opened\n",PROGRAMID) : _NOP); 
-//           setWord(&MSW,RUN,true);
-//        } else {
-//           (TRACE >= 0x00 ? fprintf(stderr,"%s:main() Command FIFO creation failure . Program execution aborted tracelevel(%d)\n",PROGRAMID,TRACE) : _NOP); 
-//           exit(16);
-//        }
+   pshared = shmat(sharedmem_id, (void *)0, 0);
+   if (pshared == (void *)-1)   {
+      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmat() failed\n",PROGRAMID) : _NOP);
+      exit(16);
+   }
 
-} 
+   (TRACE>=0x00 ? fprintf(stderr,"%s:main() Shared memory attached at %X\n",PROGRAMID,(int)pshared) : _NOP);
 
-//if (fdds==true) {
+//Assign the shared_memory segment
 
-        gpioCfgClock(5, 0, 0);
+   sharedmem = (struct shared_memory_struct *)pshared;
 
-        if(gpioInitialise()<0) {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:main() Cannot initialize GPIO sub-system\n",PROGRAMID) : _NOP);
-           exit(16);
-        } else {
-          (TRACE>=0x00 ? fprintf(stderr,"%s:main() GPIO sub-system initialized\n",PROGRAMID) : _NOP);
-        }
+//----- READ FROM SHARED MEMORY -----
 
+  (TRACE>=0x00 ? fprintf(stderr,"%s::start() shared memory initialized ptt(%d/%s) vox(%d/%s)\n",PROGRAMID,sharedmem->ptt_flag,BOOL2CHAR(sharedmem->ptt_signal),sharedmem->vox_flag,BOOL2CHAR(sharedmem->vox_signal)) : _NOP);
 
-        (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup PTT\n",PROGRAMID) : _NOP);
-        gpioSetMode(gpio_ptt, PI_OUTPUT);
-        gpioSetPullUpDown(gpio_ptt, PI_PUD_UP);   // Sets a pull-up.
-        gpioWrite(gpio_ptt, 0);
+//*---- this is enabled only for the Orange Thunder platform which is the only that requires genSSB to keep the DDS turned on at all times
 
-        if (fdds==true) {
-           (TRACE>=0x03 ? fprintf(stderr,"%s:setupGPIO() Setup Cooler\n",PROGRAMID) : _NOP);
-           gpioSetMode(GPIO_COOLER, PI_OUTPUT);
-           gpioSetPullUpDown(GPIO_COOLER, PI_PUD_UP);   // Sets a pull-up.
-           gpioWrite(GPIO_COOLER, 1);
-        }
+    gpioCfgClock(5, 0, 0);
+    if (gpioInitialise()<0) {
+       (TRACE>=0x00 ? fprintf(stderr,"%s:main() Cannot initialize GPIO sub-system\n",PROGRAMID) : _NOP);
+        exit(16);
+    } else {
+      (TRACE>=0x00 ? fprintf(stderr,"%s:main() GPIO sub-system initialized\n",PROGRAMID) : _NOP);
+    }
 
-        for (int i=0;i<64;i++) {
-          gpioSetSignalFunc(i,terminate);
-        }
+   (TRACE>=0x02 ? fprintf(stderr,"%s:main() Setup PTT\n",PROGRAMID) : _NOP);
+    gpioSetMode(gpio_ptt, PI_OUTPUT);
+    gpioSetPullUpDown(gpio_ptt, PI_PUD_UP);   // Sets a pull-up.
+    gpioWrite(gpio_ptt, 0);
+
+//*--- Again the fdds==true is used as an indication of the PixiePi platform, which is the one having a cooler (OT doesn't have one)
+
+    if (fdds==true) {
+       (TRACE>=0x02 ? fprintf(stderr,"%s:main() Setup Cooler\n",PROGRAMID) : _NOP);
+        gpioSetMode(GPIO_COOLER, PI_OUTPUT);
+        gpioSetPullUpDown(GPIO_COOLER, PI_PUD_UP);   // Sets a pull-up.
+        gpioWrite(GPIO_COOLER, 1);
+    }
+
+    for (int i=0;i<64;i++) {
+         gpioSetSignalFunc(i,terminate);
+    }
 
 
 //*------ end of GPIO initialization
 
         //vox_timeout=2;
-        (TRACE>=0x00 ? fprintf(stderr,"%s:main(): VOX timeout set to (%d) msecs\n",PROGRAMID,vox_timeout) : _NOP);
+        (TRACE>=0x02 ? fprintf(stderr,"%s:main(): VOX timeout set to (%d) msecs\n",PROGRAMID,vox_timeout) : _NOP);
 
  	iqfile=fopen("/dev/stdin","rb");
         outfile=fopen("/dev/stdout","wb");
@@ -443,71 +490,60 @@ float   gain=1.0;
 // --- process commands thru pipe
 
 
-        if(fdds!=true) {
-
-//           cmd_length = read ( cmd_FD, ( void* ) cmd_buffer, 255 ); //Filestream, buffer to store in, number of bytes to read (max)
-//           j++;
-//           if ( cmd_length > 0 ) {
-//              cmd_buffer[cmd_length] = 0x00;
-//             (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): command pipe cmd(%s) len(%d)\n",PROGRAMID,cmd_buffer,cmd_length) : _NOP); 
-//
-//              if (strcmp(cmd_buffer, "PTT=1\n") == 0) {
-//                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=1 signal received\n",PROGRAMID) : _NOP); 
-//                 setPTT(true);
-//              }
-//              if (strcmp(cmd_buffer, "PTT=0\n") == 0) {
-//                 (TRACE >= 0x00 ? fprintf(stderr,"%s:main(): PTT=0 signal received\n",PROGRAMID) : _NOP); 
-//                 setPTT(false);
-//              }
-//           } else;
+        if (sharedmem->ptt_flag!=0) {
+            sharedmem->ptt_flag=0;
+            if (autoPTT==false) {
+                setPTT(sharedmem->ptt_signal);
+               (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
+            } else {
+               (TRACE >= 0x02 ? fprintf(stderr,"%s:main(): PTT(%s) signal received but autoPTT=true, ignored!\n",PROGRAMID,BOOL2CHAR(sharedmem->ptt_signal)) : _NOP); 
+            }
         }
 
 // --- end of command processing, read signal samples
 
-           nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
-           //j++;
-           //if(j%1024000) {
-           //  (TRACE>=0x02 ? fprintf(stderr,"%s:main() read buffer_i16 1024 times nbread(%d)\n",PROGRAMID,nbread) : _NOP);
-           //   j=0;
-           //}
+        nbread=fread(buffer_i16,sizeof(short),1024,iqfile);
+
 // --- Processing AGC results on  incoming signal
 
-           if (gain<mingain) {
-              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
-              mingain=gain;
-           }
+        if (gain<mingain) {
+           (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)<mingain(%f) corrected mingain\n",PROGRAMID,gain,mingain) : _NOP);
+            mingain=gain;
+        }
 
-           if (gain>maxgain) {
-              (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
-              maxgain=gain;
-              thrgain=maxgain*0.70;
-           }
+        if (gain>maxgain) {
+           (TRACE>=0x02 ? fprintf(stderr,"%s:main() gain(%f)>maxgain(%f) corrected maxgain\n",PROGRAMID,gain,maxgain) : _NOP);
+            maxgain=gain;
+            thrgain=maxgain*0.70;
+        }
 
-           if (vox_timeout > 0) {  //Is the timeout activated?
-              if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
-                 if (TVOX==0) {    //Is the timer counter idle
-                    fprintf(stderr,"VOX=1\n");
-                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX=1 signal sent\n",PROGRAMID) : _NOP);
+        if (vox_timeout > 0) {  //Is the timeout activated?
+            if (gain<thrgain) {  //Is the current gain lower than the thr? (lower the gain --> bigger the signal
+                if (TVOX==0) {    //Is the timer counter idle
+                    sharedmem->vox_signal=true;
+                    sharedmem->vox_flag=1;
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() vox_signal(true) signal sent\n",PROGRAMID) : _NOP);
                  }
                  TVOX=vox_timeout; //Refresh the timeout
                  fVOX=0;
                  if (autoPTT == true && getWord(MSW,PTT)==false) { //If auto PTT enabled and currently PTT=off then make it On
-                    setPTT(true);
-                    setWord(&MSW,PTT,true);
-                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX triggered auto PTT set and PTT==false\n",PROGRAMID) : _NOP);
+                     setPTT(true);
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() autoPTT=true set PTT(true)\n",PROGRAMID) : _NOP);
+                     setWord(&MSW,PTT,true);
                  }
-              }
+             }
 
-              if (fVOX==1) {  //Has the timer reach zero?
+             if (fVOX==1) {  //Has the timer reach zero?
                  fVOX=0;      //Clear Mark
-                 fprintf(stderr,"VOX=0\n"); //and inform VOX is down
-                 (TRACE>=0x00 ? fprintf(stderr,"%s:main() VOX=0 signal sent as upcall\n",PROGRAMID) : _NOP);
+                 sharedmem->vox_signal=false;
+                 sharedmem->vox_flag=1;
+                (TRACE>=0x00 ? fprintf(stderr,"%s:main() vox_signal(false) signal sent as upcall\n",PROGRAMID) : _NOP);
                  if (autoPTT==true && getWord(MSW,PTT)==true) { //If auto PTT and PTT is On then make it Off
-                    setPTT(false);
-                    setWord(&MSW,PTT,false);
+                     setPTT(false);
+                    (TRACE>=0x00 ? fprintf(stderr,"%s:main() autoPTT=false set PTT(true)\n",PROGRAMID) : _NOP);
+                     setWord(&MSW,PTT,false);
                  }
-
-              }
+             }
            }
 
 	   if(nbread>0) { // now process the audio samples into an I/Q signal
@@ -524,16 +560,26 @@ float   gain=1.0;
                  }
               }
               fwrite(Fout, sizeof(float), numSamplesLow*2, outfile) ;  //Send it
-              //usleep(100);
-              usleep(10);
+              usleep(1000);
            } else {
-   	      fprintf(stderr,"EOF=1\n");
               setWord(&MSW,RUN,false);
  	   }
 	}
 //*---------------- program finalization cleanup
+
         delete(usb);
- 	fprintf(stderr,"CLOSE=1\n");
+
+//--------------------------------
+//----- DETACH SHARED MEMORY -----
+//--------------------------------
+        if (shmdt(pshared) == -1) {
+           (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmdt failed\n",PROGRAMID) : _NOP);
+        } else {
+          if (shmctl(sharedmem_id, IPC_RMID, 0) == -1) {
+             (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) failed\n",PROGRAMID) : _NOP);
+          }
+        }
+        (TRACE>=0x00 ? fprintf(stderr, "%s:main() shmctl(IPC_RMID) successfully completed\n",PROGRAMID) : _NOP);
 
         if (fdds==true) {
             gpioWrite(GPIO_COOLER, 0);

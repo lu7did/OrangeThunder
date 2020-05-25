@@ -152,6 +152,12 @@ class genVFO
       byte  step2code(long int s);
       byte  vfodir=GODOWN;
 
+      float getmin();
+      float getmin(byte v);
+
+      float getmax();
+      float getmax(byte v);
+
       FSTR vfostr[VFOMAX];
 
       CALLBACK_FREQ changeVFO=NULL;
@@ -322,6 +328,25 @@ void genVFO::set(float freq) {
 
    this->set(vfo,freq);
    return;
+}
+float genVFO::getmin(byte v) {
+
+   if (v!=VFOA && v!=VFOB) {
+      return fmin[VFOA];
+   }
+   return fmin[v];
+}
+float genVFO::getmin() {
+   return getmin(this->vfo);
+}
+float genVFO::getmax(byte v) {
+   if (v!=VFOA && v!=VFOB) {
+      return fmax[VFOA];
+   }
+   return fmax[v];
+}
+float genVFO::getmax() {
+      return getmax(this->vfo);
 }
 //*---------------------------------------------------------------------------------------------------
 //* CLASS Implementation

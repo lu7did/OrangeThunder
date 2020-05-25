@@ -26,6 +26,9 @@
 #include <fstream>
 using namespace std;
 
+
+#include <sys/shm.h>		//Used for shared memory
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "/home/pi/OrangeThunder/src/OT/OT.h"
@@ -37,6 +40,17 @@ typedef void (*CALLBACK)();
 
 bool getWord (unsigned char SysWord, unsigned char v);
 void setWord(unsigned char* SysWord,unsigned char v, bool val);
+
+//----- SHARED MEMORY -----
+struct shared_memory_struct {
+	int  ptt_flag;
+        bool ptt_signal;
+        int  vox_flag;
+        bool vox_signal;
+	char common_data[1024];
+};
+
+
 
 //---------------------------------------------------------------------------------------------------
 // SSB CLASS
@@ -84,6 +98,14 @@ CALLBACK changeVOX=NULL;
       bool    dds;
       bool    vox;
       byte    MSW = 0;
+
+
+      void    *pshared = (void *)0;
+//VARIABLES:
+
+      struct shared_memory_struct *sharedmem;
+      int    sharedmem_id;
+
 //-------------------- GLOBAL VARIABLES ----------------------------
 const char   *PROGRAMID="genSSB";
 const char   *PROG_VERSION="1.0";
@@ -135,7 +157,7 @@ genSSB::genSSB(CALLBACK v){
    sprintf(PTTOFF,"PTT=0\n");
 
 #ifdef OT4D
-   sprintf(soundHW,"%s",(char*)"hw:Loopback,1,0");
+   sprintf(soundHW,"%s",(char*)"hw:Loopback_1,1,0");
 #endif
 
 #ifdef Pi4D
@@ -154,6 +176,52 @@ genSSB::genSSB(CALLBACK v){
       (this->TRACE>=0x00 ? fprintf(stderr,"%s::genSSB() Error during of command FIFO(%s), aborting\n",PROGRAMID,PTT_FIFO) : _NOP);
       exit(16);
    }
+
+//--------------------------------
+//----- CREATE SHARED MEMORY -----
+//--------------------------------
+   (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
+   sharedmem_id = shmget((key_t)1234, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
+//	Shared memory key
+//		Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help with this but it still doesn't guarantee to avoid colision)
+//	Permission flags
+//		Operation permissions 	Octal value
+//		Read by user 			00400
+//		Write by user 			00200
+//		Read by group 			00040
+//		Write by group 			00020
+//		Read by others 			00004
+//		Write by others			00002
+//		Examples:
+//			0666 Everyone can read and write
+
+   if (sharedmem_id == -1) {
+      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmget() failed\n",PROGRAMID) : _NOP);
+       exit(16);
+   }
+
+//Make the shared memory accessible to the program
+
+   pshared = shmat(sharedmem_id, (void *)0, 0);
+   if (pshared == (void *)-1) 	{
+      (TRACE>=0x00 ? fprintf(stderr, "%s:genSSB() Shared memory shmat() failed\n",PROGRAMID) : _NOP);
+      exit(16);
+   }
+   (TRACE>=0x00 ? fprintf(stderr,"%s:genSSB() Shared memory attached at %X\n",PROGRAMID,(int)pshared) : _NOP);
+
+//Assign the shared_memory segment
+
+   sharedmem = (struct shared_memory_struct *)pshared;
+
+
+   sharedmem->ptt_flag=0x00;
+   sharedmem->ptt_signal=false;
+   sharedmem->vox_flag=0x00;
+   sharedmem->vox_signal=false;
+
+   (TRACE>=0x00 ? fprintf(stderr,"%s:genSSB() Finalized successfully\n",PROGRAMID) : _NOP);
+
+
 
 }
 
@@ -220,15 +288,19 @@ void genSSB::start() {
 
 
 char   command[256];
+
 // --- create pipes
   (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d) DDS(%s)\n",PROGRAMID,TRACE,BOOL2CHAR(dds)) : _NOP);
 
-  pipe(inpipefd);
-  fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
-  fcntl(inpipefd[0],F_SETFL,O_NONBLOCK);
+//----- READ FROM SHARED MEMORY -----
+  (TRACE>=0x00 ? fprintf(stderr,"%s::start() shared memory initialized ptt(%d/%s) vox(%d/%s)\n",PROGRAMID,sharedmem->ptt_flag,BOOL2CHAR(sharedmem->ptt_signal),sharedmem->vox_flag,BOOL2CHAR(sharedmem->vox_signal)) : _NOP);
 
-  pipe(outpipefd);
-  fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
+//  pipe(inpipefd);
+//  fcntl(inpipefd[1],F_SETFL,O_NONBLOCK);
+//  fcntl(inpipefd[0],F_SETFL,O_NONBLOCK);
+
+//  pipe(outpipefd);
+//  fcntl(outpipefd[0],F_SETFL,O_NONBLOCK);
 
 // --- launch pipe
 
@@ -242,9 +314,9 @@ char   command[256];
 // --- This is executed by the child only, output is being redirected
     (TRACE>=0x02 ? fprintf(stderr,"%s::start() <CHILD> thread pid(%d)\n",PROGRAMID,pid) : _NOP);
 
-    dup2(outpipefd[0], STDIN_FILENO);
-    dup2(inpipefd[1], STDOUT_FILENO);
-    dup2(inpipefd[1], STDERR_FILENO);
+//    dup2(outpipefd[0], STDIN_FILENO);
+//    dup2(inpipefd[1], STDOUT_FILENO);
+//    dup2(inpipefd[1], STDERR_FILENO);
 
 // --- ask kernel to deliver SIGTERM in case the parent dies
 
@@ -279,7 +351,7 @@ char   command[256];
 		   }
 
    }
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> mode set to[%s]\n",PROGRAMID,MODE) : _NOP);
 
    char cmd_DEBUG[16];
    char cmd_stdERR[16];
@@ -287,7 +359,7 @@ char   command[256];
    if (this->TRACE>=0x02) {
       sprintf(cmd_DEBUG," -t %d ",this->TRACE);
    } else {
-     sprintf(cmd_DEBUG," ");
+      sprintf(cmd_DEBUG," ");
    }
 
    if (this->TRACE>=0x03) {
@@ -311,9 +383,8 @@ char   command[256];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-
    sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_DEBUG,strDDS,this->sr,(int)f);
-   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start() cmd[%s]\n",PROGRAMID,command) : _NOP);
+   (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 
 
@@ -333,14 +404,14 @@ char   command[256];
 // can be handled (e.g. you can respawn the child process).
 // *******************************************************************************************************
 
- (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
-// ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
-// if (ptt_fifo != -1) {
-//    (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
-// } else {
+// (TRACE>=0x02 ? fprintf(stderr,"%s::start() <PARENT> Opening FIFO pipe pid(%d)\n",PROGRAMID,pid) : _NOP);
+//  ptt_fifo = open("/tmp/ptt_fifo", (O_WRONLY));
+//  if (ptt_fifo != -1) {
+//   (this->TRACE>=0x01 ? fprintf(stderr,"%s::start() opened ptt fifo(%s)\n",PROGRAMID,PTT_FIFO) : _NOP);
+//  } else {
 //   (this->TRACE>=0x00 ? fprintf(stderr,"%s::start() error while opening ptt fifo error(%d), aborting\n",PROGRAMID,ptt_fifo) : _NOP);;
 //    exit(16);
-// }
+//  }
 
   setWord(&MSW,RUN,true);
 
@@ -357,14 +428,11 @@ int  genSSB::openPipe() {
 //--------------------------------------------------------------------------------------------------
 void genSSB::setPTT(bool v) {
 
-  (this->TRACE>=0x00 ? fprintf(stderr,"%s::setPTT() setPTT(%s) sending PTT=%d\n",PROGRAMID,BOOL2CHAR(v),v) : _NOP);
+  (this->TRACE>=0x00 ? fprintf(stderr,"%s::setPTT() setPTT(%s) signaling(%d)\n",PROGRAMID,BOOL2CHAR(v),v) : _NOP);
   setWord(&MSW,PTT,v);
 
-//  if (v==true) {
-//     write(ptt_fifo,(void*)&PTTON,strlen(PTTON));
-//  } else {
-//     write(ptt_fifo,(void*)&PTTOFF,strlen(PTTOFF));
-//  }
+  sharedmem->ptt_signal=v;
+  sharedmem->ptt_flag=1;
 
   this->statePTT=v;
 }
@@ -374,44 +442,15 @@ void genSSB::setPTT(bool v) {
 //--------------------------------------------------------------------------------------------------
 int genSSB::readpipe(char* buffer,int len) {
 
-   
-    int rc=read(inpipefd[0],buffer,len);
+   if (sharedmem->vox_flag != 0) {
+      sharedmem->vox_flag=0;
+      this->stateVOX=sharedmem->vox_signal;
+     (TRACE>=0x03 ? fprintf(stderr,"%s::readpipe() VOX signal received VOX(%s)\n",PROGRAMID,BOOL2CHAR(this->stateVOX)) : _NOP);
 
-    if (rc<=0) {
-       return 0;
-    }
-     buffer[rc]=0x00;
-    (TRACE>=0x03 ? fprintf(stderr,"%s::readpipe() Buffer(%s) len(%d)\n",PROGRAMID,buffer,rc) : _NOP);
-
-char * token = strtok(buffer, "\n");
-
-   // loop through the string to extract all other tokens
-   while( token != NULL ) {
-
-    if (strcmp(token,"VOX=1")==0) {
-        if (vox==true) {
-           this->stateVOX=true;
-           if ( changeVOX!=NULL ) {changeVOX();}
-              (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=1 signal from child\n") : _NOP);
-        } else {
-          stateVOX=false;
-        }
-    }
-
-    if (strcmp(token,"VOX=0")==0) {
-       if (vox==true) {
-          this->stateVOX=false;
-          if(changeVOX!=NULL) {changeVOX();}
-          (TRACE>=0x02 ? fprintf(stderr,"genSSB::readpipe() received VOX=0 signal from child\n") : _NOP);
-       } else {
-         this->stateVOX=false;
-       }
-    }
-   (TRACE>=0x03 ? fprintf(stderr,"genSSB::readpipe() parsed token(%s)\n",token) : _NOP);
-    token = strtok(NULL, "\n");
+      if (vox==true) {if (changeVOX!=NULL) {changeVOX();}}
    }
 
-   return rc;
+   return 0;
 
 }
 //---------------------------------------------------------------------------------------------------
@@ -425,8 +464,23 @@ void genSSB::stop() {
      return;
   }
 
-  close(ptt_fifo);
+
+//--------------------------------
+//----- DETACH SHARED MEMORY -----
+//--------------------------------
+//Detach and delete
+  if (shmdt(pshared) == -1) {
+      (TRACE>=0x00 ? fprintf(stderr, "%s::stop() shmdt failed\n",PROGRAMID) : _NOP);
+  } else {
+      if (shmctl(sharedmem_id, IPC_RMID, 0) == -1) {
+   	 (TRACE>=0x00 ? fprintf(stderr, "%s::stop() shmctl(IPC_RMID) failed\n",PROGRAMID) : _NOP);
+      }
+  }
+
+
+//  close(ptt_fifo);
   kill(pid, SIGKILL); //send SIGKILL signal to the child process
+
   waitpid(pid, &status, 0);
   setWord(&MSW,RUN,false);
   (this->TRACE >=0x01 ? fprintf(stderr,"%s::stop() process terminated\n",PROGRAMID) : _NOP);
