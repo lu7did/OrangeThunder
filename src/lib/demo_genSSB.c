@@ -41,19 +41,11 @@
 #include<string.h>
 #include<stdio.h>
 #include<fcntl.h> 
-#include <pigpio.h>
+//#include <pigpio.h>
 #include "genSSB.h"
 //#include "/home/pi/PixiePi/src/lib/RPI.h" 
 #include "CAT817.h" 
 
-
-//#define BOOL2CHAR(g)  (g==true ? "True" : "False")
-#define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
-#define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
-#define SET_GPIO_ALT(g,a) *(gpio.addr + (((g)/10))) |= (((a)<=3?(a) + 4:(a)==4?3:2)<<(((g)%10)*3))
-#define GPIO_SET  *(gpio.addr + 7)  // sets   bits which are 1 ignores bits which are 0
-#define GPIO_CLR  *(gpio.addr + 10) // clears bits which are 1 ignores bits which are 0
-#define GPIO_READ(g)  *(gpio.addr + 13) &= (1<<(g))
 #define BUFSIZE 1024
 
 // --- IPC structures
@@ -124,20 +116,22 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 // ======================================================================================================================
 static void sighandler(int signum)
 {
-	fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum);
-        setWord(&MSW,RUN,false);
+
+    fprintf(stderr, "\n%s:sighandler() Signal caught(%d), exiting!\n",PROGRAMID,signum);
+    setWord(&MSW,RUN,false);
+    if (getWord(MSW,RETRY)==true) {
+        fprintf(stderr, "\n%s:sighandler() Signal caught(%d), re-entrance, abort!!\n",PROGRAMID,signum);
+        exit(16);
+    }
+    setWord(&MSW,RETRY,true);
+   
 }
 // ======================================================================================================================
 // handle PTT variations
 // ======================================================================================================================
 void setPTT(bool ptt) {
 
-    if (ptt==true) {
-       gpioWrite(GPIO_PTT,1);
-
-    } else {
-       gpioWrite(GPIO_PTT,0);
-    }
+    if (g==nullptr) {return;}
     g->setPTT(ptt);
     setWord(&MSW,PTT,ptt);
     fprintf(stderr,"%s:setPTT() set PTT as(%s)\n",PROGRAMID,(getWord(MSW,PTT)==true ? "True" : "False"));
@@ -150,6 +144,7 @@ void setPTT(bool ptt) {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
+  if (g==nullptr) {return;}
   if (g->statePTT == true) {
      fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->f);
      cat->f=f;
@@ -253,24 +248,6 @@ int main(int argc, char** argv)
  
   signal(SIGPIPE, SIG_IGN);
 
-// --- define control interface
-
-  fprintf(stderr,"%s:main() initialize GPIO control interface\n",PROGRAMID);
-  if(gpioInitialise()<0) {
-    fprintf(stderr,"%s:main Cannot initialize GPIO",PROGRAMID);
-    exit(16);
-  }
-
-  gpioSetMode(GPIO_PTT, PI_OUTPUT);
-  usleep(10000);
-
-  gpioSetPullUpDown(GPIO_PTT,PI_PUD_UP);
-  usleep(10000);
-
-  gpioWrite(GPIO_PTT, 0);
-  usleep(10000);
-
-
 // --- memory areas
 
   fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID);
@@ -294,7 +271,7 @@ int main(int argc, char** argv)
   g->setSoundSR(AFRATE);
   g->setSoundHW(HW);
   g->vox=true;
-  g->dds=true;
+  g->dds=false;
 
   g->start();
 
@@ -327,15 +304,14 @@ int main(int argc, char** argv)
   
   {
     cat->get(); 
-    int nread=g->readpipe(buffer,BUFSIZE);
-    if (nread>0) {
-       buffer[nread]=0x00;
-       fprintf(stderr,"%s",(char*)buffer);
-    }
+int nread=g->readpipe(buffer,BUFSIZE);
+    usleep(1000);    
   }
 
 // --- Normal termination kills the child first and wait for its termination
   fprintf(stderr,"%s:main() stop operations and terminate\n",PROGRAMID);
   g->stop();
-
+  cat->close();
+  delete(g);
+  delete(cat);
 }

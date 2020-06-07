@@ -1,8 +1,8 @@
 /*
- * OT4D /PixiePi
+ * OrangeThunder(OT4D) / PixiePi(Pi4D)
  * Conditional construction of methods based on either OT4D or Pi4D directive 
  *-----------------------------------------------------------------------------
- * simple USB transceiver for the OrangeThunder project
+ * simple USB transceiver for the OrangeThunder/PixiePio project
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
  * ----------------------------------------------------------------------------
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -762,11 +762,7 @@ strcpy(HW,"hw:1");
 
     if (getWord(usb->MSW,RUN)==true) {
     int nread=usb->readpipe(usb_buffer,BUFSIZE);
-    usleep(1000);
-//        if (nread>0) {
-//           usb_buffer[nread]=0x00;
-//           (TRACE>=0x02 ? fprintf(stderr,"%s",(char*)usb_buffer) : _NOP);
-//        }
+        usleep(1000);
     }
 
 //* -------------------[end of main loop ]--------------------------------

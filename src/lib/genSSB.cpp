@@ -96,6 +96,13 @@ struct shared_memory_struct {
         char common_data[1024];
 };
 
+struct iqsend_memory_struct {
+        bool  updated;
+        int   command;
+        float data;
+        char  common_data[1024];
+
+};
 
 char*    cmd_buffer;
 int      cmd_length;
@@ -144,6 +151,11 @@ struct   shared_memory_struct *sharedmem=nullptr;
 int      sharedmem_id=0;
 int      sharedmem_token=0;
 
+
+void     *piqsend = (void *)0;
+struct   iqsend_memory_struct *iqsendmem=nullptr;
+int       iqsend_id;
+int       iqsend_token=0;
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
@@ -204,6 +216,7 @@ Usage:  \n\
 -d            enable DDS operation (default none)\n\
 -x            enable auto PTT on VOX (default none)\n\
 -m            enable shared memory commands (default no)\n\
+-i            F5OEO's sendiq shared memory (default no)\n\
 -q            quiet operation (default none)\n\
 -v            VOX activated timeout in secs (default 0 )\n\
 -t            DEbug level (0=no debug, 2=max debug)\n\
@@ -240,10 +253,9 @@ void setPTT(bool ptt) {
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
         writePin(gpio_ptt,1);
-        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 1111 to sendRF\n",PROGRAMID) : _NOP);
-        Fout[0]=1111.0;
-        Fout[1]=1111.0;
-        fwrite(Fout, sizeof(float), 2, outfile) ;
+        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEIQ  to iqsend\n",PROGRAMID) : _NOP);
+        iqsendmem->command=SM_CMD_MODEIQ;
+        iqsendmem->updated=true;
         usleep(100);
       }
       setWord(&MSW,PTT,true); //Signal PTT as ON
@@ -254,9 +266,9 @@ void setPTT(bool ptt) {
   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() PTT turned off\n",PROGRAMID) : _NOP);
 
    if (getWord(MSW,PTT)==true && fdds==true) { //Signal RF Generator the mode is now FREQ_A (only if dds mode allowed)
-      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending 2222 to sendRF\n",PROGRAMID) : _NOP);
-      Fout[0]=2222.0;
-      Fout[1]=2222.0;
+      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEFA to iqsend\n",PROGRAMID) : _NOP);
+      iqsendmem->command=SM_CMD_MODEFA;
+      iqsendmem->updated=true;
       fwrite(Fout, sizeof(float), 2, outfile) ;
       usleep(100);
    }
@@ -284,7 +296,7 @@ int main(int argc, char* argv[])
 
 	while(1)
 	{
-		ax = getopt(argc, argv, "a:v:m:p:dxqt:");
+		ax = getopt(argc, argv, "a:v:m:p:i:dxqt:");
                 if(ax == -1) 
 		{
 			if(ax) break;
@@ -305,6 +317,10 @@ int main(int argc, char* argv[])
 	  		   (TRACE >= 0x00 ? fprintf(stderr,"%s:Args() AGC max invalid\n",PROGRAMID) : _NOP);
 		        }
 			break;
+		case 'i': // iqsend shared memory
+			iqsend_token=atoi(optarg);
+                        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- iqsend shared memory established token(%d)\n",PROGRAMID,iqsend_token) : _NOP);
+                        break;
                 case 't': // Debug level
                         TRACE = atoi(optarg);
                         (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- Debug level established TRACE(%d)\n",PROGRAMID,TRACE) : _NOP);
@@ -373,11 +389,41 @@ int main(int argc, char* argv[])
 
         }
 
+//-------------------------------- ----- CREATE SHARED MEMORY with iqsend  ----- --------------------------------
+
+      if (iqsend_token == 0) {
+         (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Shared memory with iqsend mandatory, exit!\n",PROGRAMID) : _NOP);
+         exit(16);
+      }
+
+//=========================================================================================================
+// *------ Shared memory definitions if enabled
+//=========================================================================================================
+   if (iqsend_token != 0) {
+       iqsend_id = shmget((key_t)iqsend_token, sizeof(struct iqsend_memory_struct), 0666 | IPC_CREAT);            //<<<<< SET THE SHARED MEMORY KEY   $
+       if (iqsend_id == -1) {
+           printf("iqsend Shared memory shmget() failed\n");
+           exit(8);
+       }
+// *----- Make the shared memory accessible to the program
+       piqsend = shmat(iqsend_id, (void *)0, 0);
+       if (piqsend == (void *)-1)       {
+          printf("Shared memory shmat() failed\n");
+          exit(16);
+       }
+
+// *----- Assign the shared_memory segment
+       iqsendmem = (struct iqsend_memory_struct *)piqsend;
+       iqsendmem->updated=false;
+       iqsendmem->command=0x00;
+       iqsendmem->data=0;
+   }
+//=========================================================================================================
 
 
-//--------------------------------
-//----- CREATE SHARED MEMORY -----
-//--------------------------------
+
+
+//-------------------------------- ----- CREATE SHARED MEMORY ----- --------------------------------
 //      Shared memory key
 //              Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help$
 //      Permission flags
@@ -582,6 +628,20 @@ float   gain=1.0;
 //*---------------- program finalization cleanup
 
         delete(usb);
+
+// *--- Detach and delete shared memory
+        if (iqsend_token != 0) {
+           if (shmdt(piqsend) == -1) {
+               printf("shmdt failed\n");
+           } else {
+             if (shmctl(iqsend_id, IPC_RMID, 0) == -1) {
+                 printf("shmctl(IPC_RMID) failed\n");
+             }
+           }
+        }
+// *--- end of shared memory detach 
+
+
 
 //--------------------------------
 //----- DETACH SHARED MEMORY -----

@@ -184,6 +184,7 @@ genSSB::genSSB(CALLBACK v){
 //--------------------------------
    (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Creating shared memory...\n",PROGRAMID) : _NOP);
    sharedmem_id = shmget((key_t)sharedmem_token, sizeof(struct shared_memory_struct), 0666 | IPC_CREAT);		//<<<<< SET THE SHARED MEMORY KEY    (Shared memory key , Size in bytes, Permission flags)
+
 //	Shared memory key
 //		Unique non zero integer (usually 32 bit).  Needs to avoid clashing with another other processes shared memory (you just have to pick a random value and hope - ftok() can help with this but it still doesn't guarantee to avoid colision)
 //	Permission flags
@@ -289,7 +290,7 @@ void genSSB::setMode(byte m) {
 void genSSB::start() {
 
 
-char   command[256];
+char   command[512];
 
 // --- create pipes
   (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d) DDS(%s)\n",PROGRAMID,TRACE,BOOL2CHAR(dds)) : _NOP);
@@ -380,7 +381,7 @@ char   command[256];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s %s | sudo sendRF -i /dev/stdin %s -s %d -f %d  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_SHARE,cmd_DEBUG,strDDS,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s %s -i 31415 | sudo sendiq -i /dev/stdin %s -s %d -f %d -m 31415  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_SHARE,cmd_DEBUG,strDDS,this->sr,(int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

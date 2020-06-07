@@ -195,4 +195,9 @@ typedef void (*CALLBACK)();
 
 #define NSEC_PER_SEC (1000000000)
 
+#define SM_CMD_MODEIQ 1111
+#define SM_CMD_MODEFA 2222
+#define SM_CMD_DRIVE  3333
+#define SM_CMD_FREQ   4444
+
 
