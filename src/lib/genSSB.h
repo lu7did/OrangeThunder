@@ -98,7 +98,7 @@ CALLBACK changeVOX=NULL;
       bool    dds;
       bool    vox;
       byte    MSW = 0;
-
+      int     iqsend_token=0;
 
       void    *pshared = (void *)0;
 //VARIABLES:
@@ -290,7 +290,7 @@ void genSSB::setMode(byte m) {
 void genSSB::start() {
 
 
-char   command[512];
+char   command[1024];
 
 // --- create pipes
   (TRACE>=0x01 ? fprintf(stderr,"%s::start() starting tracelevel(%d) DDS(%s)\n",PROGRAMID,TRACE,BOOL2CHAR(dds)) : _NOP);
@@ -348,7 +348,22 @@ char   command[512];
    char cmd_SHARE[16];
    char cmd_DEBUG[16];
    char cmd_stdERR[16];
+   char cmd_sendiq[16];
+   char cmd_genSSB[16];
+   char sendiq[16];
 
+
+
+   if (iqsend_token == 0) {
+      strcpy(cmd_sendiq," ");
+      strcpy(cmd_genSSB," ");
+      strcpy(sendiq,"sendRF ");
+   } else {
+      sprintf(cmd_sendiq," -m %d",iqsend_token);
+      sprintf(cmd_genSSB," -i %d",iqsend_token);
+      strcpy(sendiq,"sendiq ");
+
+   }
    if (vox!=true) {
       sprintf(cmd_SHARE,"-m %d",sharedmem_token);
    } else {
@@ -381,7 +396,21 @@ char   command[512];
       sprintf(strDDS,"%s",(char*)" ");
    }
 
-   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s %s -i 31415 | sudo sendiq -i /dev/stdin %s -s %d -f %d -m 31415  ",this->soundChannel,this->soundSR,this->soundHW,cmd_stdERR,strDDS,strVOX,cmd_SHARE,cmd_DEBUG,strDDS,this->sr,(int)f);
+   sprintf(command,"arecord -c%d -r%d -D %s -fS16_LE - %s | sudo genSSB %s %s %s %s %s | sudo %s  -i /dev/stdin %s %s -s %d -f %d  ",
+           this->soundChannel,
+           this->soundSR,
+           this->soundHW,
+           cmd_stdERR,
+           cmd_genSSB,
+           strDDS,
+           strVOX,
+           cmd_SHARE,
+           cmd_DEBUG,
+           sendiq,
+           cmd_sendiq,
+           strDDS,
+           this->sr,
+           (int)f);
    (this->TRACE >= 0x01 ? fprintf(stderr,"%s::start()<Child> cmd[%s]\n",PROGRAMID,command) : _NOP);
 
 // --- process being launch 

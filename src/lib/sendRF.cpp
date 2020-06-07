@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
         bool fdds=false;
 	while(1)
 	{
-		a = getopt(argc, argv, "i:f:s:d");
+		a = getopt(argc, argv, "i:l:f:s:d");
 	
 		if(a == -1) 
 		{
@@ -138,20 +138,25 @@ int main(int argc, char* argv[])
 		{
 		case 'i': // File name
 			FileName = optarg;
+			fprintf(stderr,"input file set to %s\n",FileName);
 			break;
                 case 'l': // File name
 			driveDDS=atof(optarg);
                         if(driveDDS<0) {driveDDS=0.0;}
                         if(driveDDS>7) {driveDDS=7.0;}
+			fprintf(stderr,"driver level set to %f\n",driveDDS);
 			break;
                 case 'd': // File name
 			fdds = true;
+ 			fprintf(stderr,"dds mode enabled\n");
 			break;
 		case 'f': // Frequency
 			SetFrequency = atof(optarg);
+			fprintf(stderr,"frequency set to %f\n",SetFrequency);
 			break;
 		case 's': // SampleRate (Only needeed in IQ mode)
 			SampleRate = atoi(optarg);
+			fprintf(stderr,"sample rate set to %f\n",SampleRate);
 			if(SampleRate>MAX_SAMPLERATE) 
 			{
 				for(int i=2;i<12;i++) //Max 10 times samplerate
@@ -242,14 +247,14 @@ int main(int argc, char* argv[])
                              IQBuffer[i*2]=0.0;
                              IQBuffer[i*2+1]=0.0;
                              iqtest.ModeIQ=MODE_IQ;
-                             //fprintf(stderr,"%s:main() switch into ModeIQ(%d)\n",PROGRAMID,iqtest.ModeIQ);
+                             fprintf(stderr,"%s:main() switch into ModeIQ(%d)\n",PROGRAMID,iqtest.ModeIQ);
                           } 
                           if (fdds==true) {
                              if (IQBuffer[i*2]==2222.0 && IQBuffer[i*2+1]==2222.0){ //this is a bogus command to switch into a Freq-Amplitude mode
                                 IQBuffer[i*2]=0.0;
                                 IQBuffer[i*2+1]=0.0;
                                 iqtest.ModeIQ=MODE_FREQ_A;
-                                //fprintf(stderr,"%s:main() switch into ModeIQ(%d)\n",PROGRAMID,iqtest.ModeIQ);
+                                fprintf(stderr,"%s:main() switch into ModeIQ(%d)\n",PROGRAMID,iqtest.ModeIQ);
                              }
                           }
                           if (IQBuffer[i*2]==3333.0){  //this is a bogus command to change the carrier level
@@ -269,6 +274,8 @@ int main(int argc, char* argv[])
 
                              IQBuffer[i*2]=0.0;
                              IQBuffer[i*2+1]=0.0;
+                             fprintf(stderr,"%s:main() switch into f(%f)\n",PROGRAMID,SetFrequency);
+
                           } 
 
  

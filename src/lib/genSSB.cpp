@@ -253,9 +253,16 @@ void setPTT(bool ptt) {
    if (ptt==true) {
      if (getWord(MSW,PTT)==false) {                // Signal RF generator now is I/Q mode
         writePin(gpio_ptt,1);
-        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEIQ  to iqsend\n",PROGRAMID) : _NOP);
-        iqsendmem->command=SM_CMD_MODEIQ;
-        iqsendmem->updated=true;
+        if (iqsend_token!=0) {
+          (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEIQ  to iqsend\n",PROGRAMID) : _NOP);
+           iqsendmem->command=SM_CMD_MODEIQ;
+           iqsendmem->updated=true;
+        } else {
+         (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending CMD=1111  to iqsend\n",PROGRAMID) : _NOP);
+          Fout[0]=1111.0;
+          Fout[1]=1111.0;
+          fwrite(Fout, sizeof(float), 2, outfile) ;
+        }
         usleep(100);
       }
       setWord(&MSW,PTT,true); //Signal PTT as ON
@@ -266,10 +273,16 @@ void setPTT(bool ptt) {
   (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() PTT turned off\n",PROGRAMID) : _NOP);
 
    if (getWord(MSW,PTT)==true && fdds==true) { //Signal RF Generator the mode is now FREQ_A (only if dds mode allowed)
-      (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEFA to iqsend\n",PROGRAMID) : _NOP);
-      iqsendmem->command=SM_CMD_MODEFA;
-      iqsendmem->updated=true;
-      fwrite(Fout, sizeof(float), 2, outfile) ;
+      if (iqsend_token != 0) {
+         (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending SM_CMD_MODEFA to iqsend\n",PROGRAMID) : _NOP);
+         iqsendmem->command=SM_CMD_MODEFA;
+         iqsendmem->updated=true;
+      } else {
+        (TRACE>=0x02 ? fprintf(stderr,"%s:setPTT() sending CMD=2222 to iqsend\n",PROGRAMID) : _NOP);
+         Fout[0]=2222.0;
+         Fout[1]=2222.0;
+         fwrite(Fout, sizeof(float), 2, outfile) ;
+      }
       usleep(100);
    }
    setWord(&MSW,PTT,false); // Signal the PTT as OFF
@@ -317,9 +330,9 @@ int main(int argc, char* argv[])
 	  		   (TRACE >= 0x00 ? fprintf(stderr,"%s:Args() AGC max invalid\n",PROGRAMID) : _NOP);
 		        }
 			break;
-		case 'i': // iqsend shared memory
+		case 'i': // sendiq shared memory
 			iqsend_token=atoi(optarg);
-                        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- iqsend shared memory established token(%d)\n",PROGRAMID,iqsend_token) : _NOP);
+                        (TRACE>=0x01 ? fprintf(stderr,"%s:main() args--- sendiq shared memory established token(%d)\n",PROGRAMID,iqsend_token) : _NOP);
                         break;
                 case 't': // Debug level
                         TRACE = atoi(optarg);
@@ -391,10 +404,10 @@ int main(int argc, char* argv[])
 
 //-------------------------------- ----- CREATE SHARED MEMORY with iqsend  ----- --------------------------------
 
-      if (iqsend_token == 0) {
-         (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Shared memory with iqsend mandatory, exit!\n",PROGRAMID) : _NOP);
-         exit(16);
-      }
+//      if (iqsend_token == 0) {
+//         (TRACE>=0x02 ? fprintf(stderr,"%s:genSSB() Shared memory with iqsend mandatory, exit!\n",PROGRAMID) : _NOP);
+//         exit(16);
+//      }
 
 //=========================================================================================================
 // *------ Shared memory definitions if enabled
@@ -402,13 +415,13 @@ int main(int argc, char* argv[])
    if (iqsend_token != 0) {
        iqsend_id = shmget((key_t)iqsend_token, sizeof(struct iqsend_memory_struct), 0666 | IPC_CREAT);            //<<<<< SET THE SHARED MEMORY KEY   $
        if (iqsend_id == -1) {
-           printf("iqsend Shared memory shmget() failed\n");
+           printf("sendiq Shared memory shmget() failed\n");
            exit(8);
        }
 // *----- Make the shared memory accessible to the program
        piqsend = shmat(iqsend_id, (void *)0, 0);
        if (piqsend == (void *)-1)       {
-          printf("Shared memory shmat() failed\n");
+          printf("sendiq Shared memory shmat() failed\n");
           exit(16);
        }
 
@@ -417,6 +430,10 @@ int main(int argc, char* argv[])
        iqsendmem->updated=false;
        iqsendmem->command=0x00;
        iqsendmem->data=0;
+      (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Shared memory created and initialized\n",PROGRAMID) : _NOP);
+
+   } else {
+      (TRACE>=0x02 ? fprintf(stderr,"%s:main(): Shared memory not requested, legacy IPC method used\n",PROGRAMID) : _NOP);
    }
 //=========================================================================================================
 
