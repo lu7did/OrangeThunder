@@ -249,9 +249,10 @@ pulseaudio -k
 This library is used to allow the implementation of a virtual serial port enabling the operation thru CAT commands from a 
 program executing in the same machine (i.e. WSJTX or FLDIGI) and with some modifications from a different machine.
 
-### F5OEO's librpitx
+### F5OEO's librpitx/rpitx
 
-A modified version of librpitx (iqdmasync.h) is contained in this package and needed to successfully compile the proyect.
+The F5OEO's librpitx library (iqdmasync.cpp/h) component is used and it's required to operate the program.
+Also, the sendiq program from F5OEO is also used to implement the usb transceiver.
 
 ### PixiePi
 
