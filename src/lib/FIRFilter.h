@@ -1,9 +1,9 @@
 //*--------------------------------------------------------------------------------------------------
 //* FIRFilter   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//  FIR Filter implementation Modelled after FIRFilter.java  from JI3GAB
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
+//* This is the implementation of a FIR Filter DSP component as part of the PixiePi and OrangeThunder
+//* project.
+//* This component has been largely modeled after the FIRFilter.java program by JI3GAB
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 

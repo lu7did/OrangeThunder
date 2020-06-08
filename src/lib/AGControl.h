@@ -1,10 +1,8 @@
-
 //*--------------------------------------------------------------------------------------------------
-//* AGC   (HEADER CLASS)
+//* AGControl   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//  AGC class implementation Modelled after simple_agc_cc  from csdr
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
+//* This is an AGC DSP block part of the PixiePi and OrangeThunder platform
+//* This class has been largely modelled after the simple_agc_cc method from the csdr project
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 #ifndef AGC_h

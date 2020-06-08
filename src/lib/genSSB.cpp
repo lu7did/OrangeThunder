@@ -3,11 +3,14 @@
  * Raspberry Pi based USB experimental SSB Generator
  * Experimental version largely modelled after Generator.java by Takafumi INOUE (JI3GAB)
  *---------------------------------------------------------------------
- * This program operates as a controller for a Raspberry Pi to control
- * a raspberry pi based  transceiver using TAPR hardware.
- * Project at http://www.github.com/lu7did/OrangeThunder
+ * This program operates by taking an audio stream sampled at 48 KHz
+ * and decimating, filtering and process thru a Hilbert transformation 
+ * to obtain an I/Q signal of that audio sampled at 8 KHz which can be
+ * feed to any balanced modulator for a baseband shift. In this project
+ * this is performed by F5OEO's sendiq program.
+ * This program assumes to work with either a Pixie board (PixiePi) or
+ * a TAPR WSPR daughter board (TAPR).
  *---------------------------------------------------------------------
- *
  * Created by Pedro E. Colla (lu7did@gmail.com)
  * Code excerpts from several packages:
  *    Adafruit's python code for CharLCDPlate

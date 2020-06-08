@@ -1,10 +1,10 @@
 //--------------------------------------------------------------------------------------------------
 // SSB   (HEADER CLASS)
 //--------------------------------------------------------------------------------------------------
-// Este es el firmware del diseÃ±o de SSB para PixiePi
-// SSB class implementation of a simple USB transceiver
-// Solo para uso de radioaficionados, prohibido su utilizacion comercial
-// Copyright 2018 Dr. Pedro E. Colla (LU7DID)
+// This is an implementation of the audio segment of an USB transceiver.
+// A decimation, filtering and AGC transformation is performed
+// This is part of the firmware of the PixiePi and OrangeThunder platform
+// Copyright 2018,2020 Dr. Pedro E. Colla (LU7DID)
 //--------------------------------------------------------------------------------------------------
 
 #ifndef SSB_h

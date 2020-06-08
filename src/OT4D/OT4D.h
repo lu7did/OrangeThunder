@@ -2,7 +2,7 @@
  * OrangeThunder(OT4D) / PixiePi(Pi4D)
  * Conditional construction of methods based on either OT4D or Pi4D directive 
  *-----------------------------------------------------------------------------
- * simple USB transceiver for the OrangeThunder/PixiePio project
+ * simple USB transceiver for the OrangeThunder/PixiePi project
  * Copyright (C) 2020 by Pedro Colla <lu7did@gmail.com>
  * ----------------------------------------------------------------------------
  * Copyright (C) 2012 by Steve Markgraf <steve@steve-m.de>
@@ -30,14 +30,8 @@
  to have rtl_fm and genSSB running at the same time.
  This program should be suitable to operate digital modes on a sigle
  frequency vaguely replicating the famous D4D transceiver by Adam Rong
+ but with no intention whatsoever to be a replacement for it.
 */
-// *************************************************************************************************
-// *                           Conditional Building for OT4                                        *
-// * - usb only                                                                                    *
-// * - reception thru rtl-sdr                                                                      *
-// *************************************************************************************************
-
-
 // *************************************************************************************************
 // *                           Language libraries                                                  *
 // *************************************************************************************************
@@ -53,9 +47,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <pthread.h>
-
 #include<sys/wait.h>
 #include<sys/prctl.h>
+// *************************************************************************************************
+// *                           Build time libraries                                                *
+// *************************************************************************************************
 #include "/home/pi/PixiePi/src/minIni/minIni.h"
 #include "../OT/OT.h"
 #include "../lib/genSSB.h"
@@ -76,7 +72,10 @@ const char   *PROGRAMID="OT4D";
 const char   *PROG_VERSION="1.0";
 const char   *PROG_BUILD="00";
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
+
 #endif
+
+// *--- PixiePi's Pi4D specific includes
 
 #ifdef Pi4D
 #include "/home/pi/PixiePi/src/lib/LCDLib.h"
@@ -103,8 +102,7 @@ pthread_t  pift8=(pthread_t)-1;
 char       pcmd[1024];
 
 
-
-// --- IPC structures
+// --- Signal handling and other common definitions
 struct sigaction sigact;
 char   HW[32];
 bool   vox=true;
@@ -128,8 +126,9 @@ long nIni;
 int  sIni,kIni;
 char iniSection[50];
 
-// --- System control objects
-byte   TRACE=0x02;
+// --- System control and IPC variables
+
+byte   TRACE=0x02;    //should be set to 0x00 upon debugging and system test finalization
 byte   MSW=0x00;
 int    iqsend_token=0;
 // *----------------------------------------------------------------*
@@ -144,7 +143,8 @@ char   *usb_buffer;
 // *----------------------------------------------------------------*
 #ifdef OT4D
 
-// --- rtlfm object
+// --- rtlfm object (PixiePi doesn't use a rtl-sdr dongle but it's own direct conversion receiver)
+
 rtlfm*  rtl=nullptr;
 char    *rtl_buffer;
 #endif
@@ -158,18 +158,19 @@ void    CATchangeMode();      // Callback when CAT receives a mode change
 void    CATchangeFreq();      // Callback when CAT receives a freq change
 void    CATchangeStatus();    // Callback when CAT receives a status change
 CAT817* cat=nullptr;
-//byte    FT817;
 char    port[80];
 long    catbaud=4800;
 int     SNR;
+
+// *--- vfo callback and object generation
 
 void    SSBchangeVOX();
 void    changeDDS(float f);
 genVFO* vfo=nullptr;
 
-//-**********************************************************************************************************************
-//-
-//-**********************************************************************************************************************
+//-**************************************************************************************************
+//-                                        Program methods
+//-**************************************************************************************************
 
 //==================================================================================================
 //                                  Infrastructure methods
@@ -197,6 +198,7 @@ void setWord(unsigned char* SysWord,unsigned char v, bool val) {
 }
 // ======================================================================================================================
 // sighandler
+// manage system signals (usually to terminate, but do it gracefully)
 // ======================================================================================================================
 static void sighandler(int signum)
 {
@@ -236,6 +238,7 @@ char buf[4];
 //---------------------------------------------------------------------------------------------------
 // writePin CLASS Implementation
 //--------------------------------------------------------------------------------------------------
+/*
 void writePin(int pin, int v) {
 
     if (pin <= 0 || pin >= MAXGPIO) {
@@ -254,6 +257,7 @@ void writePin(int pin, int v) {
     (TRACE>=0x02 ? fprintf(stderr,"%s:writePin write pin(%d) value(%d)\n",PROGRAMID,pin,v) : _NOP);
 
 }
+*/
 // *---------------------------------------------------------------------------------------------------------------------
 // setPTT(boolean)
 // handle PTT variations
@@ -286,12 +290,15 @@ void setPTT(bool ptt) {
 //---------------------------------------------------------------------------
 void CATchangeFreq() {
 
+// *--- Frequency can be changed only when receiving
+
   if (vfo->getPTT() == true) {
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() cat.SetFrequency(%d) request while transmitting, ignored!\n",PROGRAMID,(int)cat->f) : _NOP);
      cat->f=vfo->get();
      return;
   }
 
+// *--- Prevent some nasty early calls when the vfo hasn't been fully initialized yet
   
   if (vfo!=nullptr) {
      if (vfo->getmin() <= cat->f && vfo->getmax() >= cat->f) {
@@ -300,6 +307,8 @@ void CATchangeFreq() {
         return;
      }
   }
+
+// *-- get change and process
 
   cat->f=vfo->get();
   (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeFreq() Frequency change is not allowed(%d)\n",PROGRAMID,(int)vfo->get()) : _NOP);
@@ -311,6 +320,8 @@ void CATchangeFreq() {
 // At this point only CW,CWR,USB and LSB are supported
 //-----------------------------------------------------------------------------------------------------------
 void CATchangeMode() {
+
+// *--- this is an USB transceiver, therefore an USB transceiver it is
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeMode() requested MODE(%d) not supported\n",PROGRAMID,cat->MODE) : _NOP);
   cat->MODE=vfo->MODE;
@@ -326,11 +337,15 @@ void CATchangeStatus() {
 
   (TRACE >= 0x03 ? fprintf(stderr,"%s:CATchangeStatus() FT817(%d) cat.FT817(%d)\n",PROGRAMID,vfo->FT817,cat->FT817) : _NOP);
 
+// *-- Change PTT from the CAT interface
+
   if (getWord(cat->FT817,PTT) != vfo->getPTT()) {
      (TRACE>=0x02 ? fprintf(stderr,"%s:CATchangeStatus() PTT change request cat.FT817(%d) now is PTT(%s)\n",PROGRAMID,cat->FT817,getWord(cat->FT817,PTT) ? "true" : "false") : _NOP);
      vfo->setPTT(getWord(cat->FT817,PTT));
      setWord(&MSW,PTT,getWord(cat->FT817,PTT));
   }
+
+// *--- Changes in RIT,LOCK and SPLIT mostly for compatibility but not really supported
 
   if (getWord(cat->FT817,RITX) != getWord(vfo->FT817,RITX)) {        // RIT Changed
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() RIT change request cat.FT817(%d) RIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,RITX) ? "true" : "false") : _NOP);
@@ -343,6 +358,8 @@ void CATchangeStatus() {
   if (getWord(cat->FT817,SPLIT) != getWord(vfo->FT817,SPLIT)) {    // SPLIT mode Changed
      (TRACE>=0x01 ? fprintf(stderr,"%s:CATchangeStatus() SPLIT change request cat.FT817(%d) SPLIT changed to %s ignored\n",PROGRAMID,cat->FT817,getWord(cat->FT817,SPLIT) ? "true" : "false") : _NOP);
   }
+
+// *--- WSJTX insist on changing the VFO so be it
 
   if (getWord(cat->FT817,VFO) != vfo->vfo) {        // VFO Changed
      vfo->setVFO(getWord(cat->FT817,VFO));
@@ -358,6 +375,7 @@ void CATchangeStatus() {
 //--------------------------------------------------------------------------------------------------
 void CATgetRX() {
 
+// *--- The SNR signal is available on the RTL-SDR therefore when provided by the dongle (thru rtl_fm) it's updated on the CAT interface 
 #ifdef OT4D
 
     cat->RX=cat->snr2code(SNR);
@@ -367,12 +385,14 @@ void CATgetRX() {
 }
 //--------------------------------------------------------------------------------------------------
 // Callback to process TX signal
+// (dummy implementation) no power is sensed either on PixiePi nor OrangeThunder
 //--------------------------------------------------------------------------------------------------
 void CATgetTX() {
 
 }
 // ======================================================================================================================
 // SNR upcall change
+// Callback from rtl_fm to get the signal to noise ratio level
 // ======================================================================================================================
 void changeSNR() {
 
@@ -383,6 +403,7 @@ void changeSNR() {
 }
 //--------------------------------------------------------------------------------------------------
 // callback for vfo (change Frequency)
+// Called from the VFO object when the frequency has been changed
 //--------------------------------------------------------------------------------------------------
 void vfoChangeFreq(float f) {
 
@@ -397,7 +418,8 @@ char* b;
 }
 //--------------------------------------------------------------------------------------------------
 // callback for vfo (change mode)
-//--------------------------------------------------------------------------------------------------
+// Called from the VFO object when the mode has been changed
+//-------------------------------------------------------------------------------------------------
 void vfoChangeMode(byte m) {
 
 char* b;
@@ -413,6 +435,7 @@ char* b;
 }
 //--------------------------------------------------------------------------------------------------
 // callback for vfo (change status)
+// called from the VFO object when the SPLIT,RIT or other variables has been changed (specially PTT)
 //--------------------------------------------------------------------------------------------------
 void vfoChangeStatus(byte S) {
 
@@ -466,6 +489,7 @@ char* getTime() {
 }
 // ======================================================================================================================
 // VOX upcall signal
+// upcall when the VOX has been activated
 // ======================================================================================================================
 void SSBchangeVOX() {
 
@@ -499,12 +523,14 @@ int main(int argc, char** argv)
 
   fprintf(stderr,"%s version %s build(%s) %s tracelevel(%d)\n",PROGRAMID,PROG_VERSION,PROG_BUILD,COPYRIGHT,TRACE);
 
-#ifdef Pi4D
+#ifdef Pi4D    // in PixiePi run it as root always
   if (getuid()) {
       fprintf(stderr,"%s:main() %s\n",PROGRAMID,"This program must be run using sudo to acquire root privileges, terminating!");
       exit(16);
   }
 #endif
+
+// *---- Define system handlers
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
@@ -538,11 +564,13 @@ int main(int argc, char** argv)
 
 #endif
 
-// --- memory areas
+// --- acquire memory areas
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID) : _NOP);
   usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 
+
+// *--- define hardware interfaces
 
 #ifdef OT4D
 strcpy(HW,"hw:Loopback_1,1,0");
@@ -614,7 +642,7 @@ strcpy(HW,"hw:1");
 
 #ifdef Pi4D
 // *-----------------------------------------------------------------------------------------
-// * Setup LCD Display 
+// * Setup LCD Display (only PixiePi has one, so OT4D skip this)
 // *-----------------------------------------------------------------------------------------
     LCD_Buffer=(char*) malloc(32);
     lcd=new LCDLib(NULL);
@@ -636,6 +664,8 @@ strcpy(HW,"hw:1");
 
 #endif
 
+// *--- Initialize VFO sub-system
+
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize VFO sub-system interface\n",PROGRAMID) : _NOP);
 
   vfo=new genVFO(vfoChangeFreq,NULL,vfoChangeMode,vfoChangeStatus);
@@ -654,7 +684,7 @@ strcpy(HW,"hw:1");
   vfo->setPTT(false);
   vfo->setLock(false);
 
-// --- USB generator
+// --- Initialize USB generator
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize SSB generator interface\n",PROGRAMID) : _NOP);
   usb=new genSSB(SSBchangeVOX);  
@@ -682,7 +712,7 @@ strcpy(HW,"hw:1");
 
 #ifdef OT4D
 
-// --- define rtl-sdr handling object
+// --- Initialize and define rtl-sdr handling object (PixiePi uses it's own DC receiver)
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize RTL-SDR controller interface\n",PROGRAMID) : _NOP);
   rtl=new rtlfm();  
@@ -715,11 +745,9 @@ strcpy(HW,"hw:1");
   setWord(&cat->FT817,VFO,vfo->vfo);
 #endif  
 
-// -- establish loop condition
-  
+// -- create a thread to read the keyboard and start operations.
 
   pthread_create(&t, NULL, &read_stdin, NULL);
-
   setWord(&MSW,RUN,true);
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() start operation\n",PROGRAMID) : _NOP);
 
@@ -730,7 +758,6 @@ strcpy(HW,"hw:1");
 #endif
 
 // -- Establish reception mode
-
   setPTT(false);
   
 
@@ -743,11 +770,11 @@ strcpy(HW,"hw:1");
     //*---------------------------------------------*
     //*           Process CAT commands              *
     //*---------------------------------------------*
-#ifdef OT4D
+#ifdef OT4D  // PixiePi (Pi4D) has no CAT support
     if (cat!=nullptr) {cat->get();}
 #endif
 
-#ifdef OT4D
+#ifdef OT4D // OT4D receives thru RTL-SDR, Pi4D with its own DC receiver
     if (getWord(rtl->MSW,RUN)==true) {
 
     int rtl_read=rtl->readpipe(rtl_buffer,BUFSIZE);
@@ -759,12 +786,17 @@ strcpy(HW,"hw:1");
 
 
 #endif
+
+// *--- When hit X exit the program (way to allow exit without a Ctl-C brute force method)
+
     if (getWord(MSW,GUI)==true) {
         setWord(&MSW,GUI,false);
         if (strcmp(inChar,"X")==0) {
            setWord(&MSW,RUN,false);
         } 
     }
+
+// *--- Process information from the USB interface
 
     if (getWord(usb->MSW,RUN)==true) {
     int nread=usb->readpipe(usb_buffer,BUFSIZE);
@@ -776,7 +808,7 @@ strcpy(HW,"hw:1");
 
 #ifdef OT4D
 
-// --- Normal termination save configuration parameters
+// --- Normal termination save configuration parameters (only OT4D)
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() saving parameters\n",PROGRAMID) : _NOP);
   sprintf(iniStr,"%f",f);

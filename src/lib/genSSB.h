@@ -2,9 +2,7 @@
 // genSSB transmitter   (HEADER CLASS)
 // wrapper to call genSSB from an object managing different extended functionalities
 //--------------------------------------------------------------------------------------------------
-// Este es el firmware del diseÃ±o de SSB para PixiePi
-// receive class implementation of a simple USB receiver
-// Solo para uso de radioaficionados, prohibido su utilizacion comercial
+// Part of the PixiePi and OrangeThunder firmware platforms.
 // Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //--------------------------------------------------------------------------------------------------
 

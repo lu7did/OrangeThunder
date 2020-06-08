@@ -1,9 +1,9 @@
-
 //*--------------------------------------------------------------------------------------------------
 //* Decimator   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//  Decimator class implementation Modelled after FIRFilter.java  from JI3GAB
+//* This is a class implementation of a decimator DSP block part of the firmware of the PixiePi
+//* and OrangeThunder platforms.
+//* This program is largelly modelled after the decimator.java component from JI3GAB
 //* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
@@ -81,8 +81,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 //*---------------------------------------------------------------------------------------------------
 //* Decimator CLASS Implementation
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 Decimator::Decimator(float* a,int n_tap,int factor)

@@ -1,10 +1,8 @@
-
 //*--------------------------------------------------------------------------------------------------
 //* Interpolator   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//  Decimator class implementation Modelled after FIRFilter.java  from JI3GAB
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
+//* This is a DSP component used to interpolate between samples to increase the sampling rate
+//* This program has been largely modelled after the FIRFilter.java program by JI3JAB
 //* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 #ifndef Interpolator_h
@@ -80,10 +78,6 @@ const char   *COPYRIGHT="(c) LU7DID 2019,2020";
 #endif
 //*---------------------------------------------------------------------------------------------------
 //* Interpolator CLASS Implementation
-//*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de SSB para PixiePi
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
-//* Copyright 2018 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 Interpolator::Interpolator(float* a,int n_tap,int factor)
 {

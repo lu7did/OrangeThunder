@@ -1,8 +1,8 @@
 //*-------------------------------------------------------------------------------------------------
 //* VFO Management Class   (HEADER CLASS)
 //*--------------------------------------------------------------------------------------------------
-//* Este es el firmware del diseÃ±o de VFO  para la plataforma OrangeThunder
-//* Solo para uso de radioaficionados, prohibido su utilizacion comercial
+//* This is a master class to implement all functions of a dual VFO system in software
+//* This is part of the PixiePi and OrangeThunder platform.
 //* Copyright 2018,2020 Dr. Pedro E. Colla (LU7DID)
 //*--------------------------------------------------------------------------------------------------
 #ifndef genVFO_h

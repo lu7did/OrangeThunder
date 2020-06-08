@@ -52,8 +52,8 @@ LSDR = /usr/local/lib/librtlsdr.a
 ../bin/demo_decodeFT8     : lib/demo_decodeFT8.cpp lib/decodeFT8.h lib/cabrillo.h
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/demo_decodeFT8 ./lib/demo_decodeFT8.cpp ./lib/decodeFT8.h $(LDFLAGS)
 
-../bin/decimator     : lib/decimator.cpp 
-	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/decimator ./lib/decimator.cpp  $(LDFLAGS)
+#../bin/decimator     : lib/decimator.cpp 
+#	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/decimator ./lib/decimator.cpp  $(LDFLAGS)
 
 ../bin/decodeFT8     : lib/decodeFT8.cpp lib/libFT8.h
 	$(CCP) $(OSC_CFLAGS) $(CXYFLAGS) -o ../bin/decodeFT8 ./lib/decodeFT8.cpp $(FT8LIB)/ft8/unpack.cpp $(FT8LIB)/ft8/ldpc.cpp $(FT8LIB)/ft8/decode.cpp $(FT8LIB)/ft8/constants.cpp $(FT8LIB)/ft8/encode.cpp $(FT8LIB)/common/wave.cpp $(FT8LIB)/fft/kiss_fftr.c  $(FT8LIB)/fft/kiss_fft.c $(FT8LIB)/ft8/text.cpp $(LDFLAGS)
