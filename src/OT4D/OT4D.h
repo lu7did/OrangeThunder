@@ -234,30 +234,6 @@ char buf[4];
         }
         return NULL;
 }
-
-//---------------------------------------------------------------------------------------------------
-// writePin CLASS Implementation
-//--------------------------------------------------------------------------------------------------
-/*
-void writePin(int pin, int v) {
-
-    if (pin <= 0 || pin >= MAXGPIO) {
-       return;
-    }
-
-    if (v != 0 && v!= 1) {
-       return;
-    }
-
-    if (getWord(MSW,RUN)==false) {
-       return;
-    }
-
-    (v==1 ? gpioWrite(GPIO_PTT,1) : gpioWrite(GPIO_PTT,0));
-    (TRACE>=0x02 ? fprintf(stderr,"%s:writePin write pin(%d) value(%d)\n",PROGRAMID,pin,v) : _NOP);
-
-}
-*/
 // *---------------------------------------------------------------------------------------------------------------------
 // setPTT(boolean)
 // handle PTT variations
@@ -508,6 +484,7 @@ Usage: [-f Frequency] [-v volume] [-p portname] [-t tracelevel] \n\
 -f float      central frequency Hz(50 kHz to 1500 MHz),\n\
 -t            tracelevel (0 to 3)\n\
 -x            enable VOX control\n\
+-h            hardware string\n\
 -m            enable shared memory IPC\n\
 -v            sound card volume (-10 to 30)\n\
 -?            help (this help).\n\
@@ -549,44 +526,45 @@ int main(int argc, char** argv)
 //---------------------------------------------------------------------------------
 // reading INI files
 //---------------------------------------------------------------------------------
+#ifdef Pi4D
+strcpy(HW,"hw:1");
+#endif
+// *--- define hardware interfaces
 
 #ifdef OT4D
+  strcpy(HW,"hw:Loopback_1,1,0");
 
   f=ini_getl("OT4D","FREQ",14074000,inifile);
   TRACE=ini_getl("OT4D","TRACE",0,inifile);
   vol=ini_getl("OT4D","VOL",10,inifile);
   nIni=ini_gets("OT4D", "PORT", "/tmp/ttyv0", port, sizearray(port), inifile);
+  nIni=ini_gets("OT4D", "HW", "hw:Loopback_1,1,0", HW, sizearray(HW), inifile);
+
 
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  FREQ=%g\n",PROGRAMID,f) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  TRACE=%d\n",PROGRAMID,TRACE) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  VOL=%d\n",PROGRAMID,vol) : _NOP);
   (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  PORT=%s\n",PROGRAMID,port) : _NOP);
+  (TRACE>=0x02 ? fprintf(stderr,"%s:main() INI  HW=%s\n",PROGRAMID,HW) : _NOP);
 
 #endif
 
 // --- acquire memory areas
 
   (TRACE>=0x01 ? fprintf(stderr,"%s:main() initialize memory areas\n",PROGRAMID) : _NOP);
-  usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
-
-
-// *--- define hardware interfaces
 
 #ifdef OT4D
-strcpy(HW,"hw:Loopback_1,1,0");
-rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
+  rtl_buffer=(char*)malloc(RTLSIZE*sizeof(unsigned char));
 #endif
 
-#ifdef Pi4D
-strcpy(HW,"hw:1");
-#endif
+  usb_buffer=(char*)malloc(GENSIZE*sizeof(unsigned char));
 
 //---------------------------------------------------------------------------------
 // arg_parse (parameters override previous configuration)
 //---------------------------------------------------------------------------------
    while(1)
 	{
-	int ax = getopt(argc, argv, "p:f:t:v:hxm");
+	int ax = getopt(argc, argv, "p:f:t:v:h:xm");
 	if(ax == -1) 
 	{
 	  if(anyargs) break;
@@ -607,6 +585,10 @@ strcpy(HW,"hw:1");
 	case 'v': // Volume
 	     vol = atoi(optarg);
 	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- volume(%d)\n",PROGRAMID,vol) : _NOP);
+             break;
+	case 'h': // Hardware
+	     strcpy(HW,optarg);
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- HW(%s)\n",PROGRAMID,HW) : _NOP);
              break;
 	case 'x': // voX
 	     vox=true;
@@ -822,6 +804,9 @@ strcpy(HW,"hw:1");
 
   sprintf(iniStr,"%s",port);
   nIni = ini_puts("OT4D","PORT",iniStr,inifile);
+
+  sprintf(iniStr,"%s",HW);
+  nIni = ini_puts("OT4D","HW",iniStr,inifile);
 #endif
 
 // --- Normal termination kills the child first and wait for its termination
