@@ -131,7 +131,7 @@ char iniSection[50];
 // --- System control objects
 byte   TRACE=0x02;
 byte   MSW=0x00;
-
+int    iqsend_token=0;
 // *----------------------------------------------------------------*
 // *                  ssb  processing                               *
 // *----------------------------------------------------------------*
@@ -484,6 +484,7 @@ Usage: [-f Frequency] [-v volume] [-p portname] [-t tracelevel] \n\
 -f float      central frequency Hz(50 kHz to 1500 MHz),\n\
 -t            tracelevel (0 to 3)\n\
 -x            enable VOX control\n\
+-m            enable shared memory IPC\n\
 -v            sound card volume (-10 to 30)\n\
 -?            help (this help).\n\
 \n",PROGRAMID,PROG_VERSION,PROG_BUILD);
@@ -557,7 +558,7 @@ strcpy(HW,"hw:1");
 //---------------------------------------------------------------------------------
    while(1)
 	{
-	int ax = getopt(argc, argv, "p:f:t:v:hx");
+	int ax = getopt(argc, argv, "p:f:t:v:hxm");
 	if(ax == -1) 
 	{
 	  if(anyargs) break;
@@ -582,6 +583,10 @@ strcpy(HW,"hw:1");
 	case 'x': // voX
 	     vox=true;
 	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- vox(%s)\n",PROGRAMID,BOOL2CHAR(vox)) : _NOP);
+             break;
+	case 'm': // shared memory IPC
+	     iqsend_token=31415;
+	     (TRACE>=0x00 ? fprintf(stderr,"%s:main() args--- IPC(%d)\n",PROGRAMID,iqsend_token) : _NOP);
              break;
 	case 't': // tracelevel
 	     TRACE = atoi(optarg);
@@ -658,6 +663,7 @@ strcpy(HW,"hw:1");
   usb->setSoundChannel(CHANNEL);
   usb->setSoundSR(AFRATE);
   usb->setSoundHW(HW);
+  usb->iqsend_token=iqsend_token;
 
 //*--- OT assumes not to require a DDS function while receiving and to manage the PTT by itself (either using the VOX or the CAT)
 #ifdef OT4D

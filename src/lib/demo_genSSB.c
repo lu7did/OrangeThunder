@@ -90,7 +90,7 @@ const char   *PROG_BUILD="00 {Pi4D}";
 #endif
 
 const char   *COPYRIGHT="(c) LU7DID 2019,2020";
-
+int    iqsend_token=31415;
 //--------------------------[System Word Handler]---------------------------------------------------
 // getSSW Return status according with the setting of the argument bit onto the SW
 //--------------------------------------------------------------------------------------------------
@@ -272,6 +272,7 @@ int main(int argc, char** argv)
   g->setSoundHW(HW);
   g->vox=true;
   g->dds=false;
+  g->iqsend_token=iqsend_token;
 
   g->start();
 
